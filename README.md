@@ -1,229 +1,141 @@
+<div align="center">
+
 # LanternDock
 
-**A direct-access frontend for sharing self-hosted files, apps, and tasks.**
+**A front door for your self-hosted files.**
 
-LanternDock is a visitor-facing entry point to resources you host yourself. Publish selected resources, let visitors connect directly to your backend, and keep ownership of your data and services.
+Browse, preview, and download from your own WebDAV server — directly over HTTPS or WebTransport.
 
-The first version is a WebDAV file browser. Scoped guest uploads, identity integration, and delegated tasks are planned extensions, not available features.
+[![Status: experimental](https://img.shields.io/badge/status-experimental-e8aa42?style=flat-square)](#project-status)
+[![Node.js ≥22.12](https://img.shields.io/badge/Node.js-%E2%89%A522.12-43853d?style=flat-square)](#quick-start)
+[![Preact](https://img.shields.io/badge/UI-Preact-673ab8?style=flat-square)](https://preactjs.com/)
+[![Cloudflare Workers](https://img.shields.io/badge/deploy-Cloudflare_Workers-f38020?style=flat-square)](#deploy)
 
-## How it works
+[Quick start](#quick-start) · [Configuration](docs/configuration.md) · [Development](docs/development.md) · [Report a bug](https://github.com/longern/lantern-dock/issues)
 
-Cloudflare Workers serves the application and a small connection document at `/api/config`. The browser uses that document to connect directly to your backend over HTTPS or WebTransport. File contents do not pass through the Worker.
+</div>
 
-- **HTTPS:** the browser uses Fetch to access a CORS-enabled WebDAV endpoint.
-- **WebTransport:** the browser connects to [webtransport-bridge](https://github.com/longern/webtransport-bridge), carrying one HTTP/1.1 request and response per bidirectional stream. The bridge forwards requests to your existing WebDAV service.
+![LanternDock desktop file browser with a selected image and a preview panel](docs/assets/desktop.png)
 
-The WebTransport mapping is project-specific; the inner messages use HTTP/1.1 syntax. WebDAV remains the file interface in both modes.
+<details>
+<summary>Mobile preview</summary>
+<br>
+<img src="docs/assets/mobile.png" width="320" alt="LanternDock mobile image preview with file details and a download action">
+</details>
 
-## Available today
+_Screenshots show the built-in demo. The current interface is in Chinese._
 
-- Directory browsing, current-directory search, sorting, and grid/list views.
-- Image and text previews; file downloads with progress and cancellation.
-- Streaming downloads through the browser's file picker when supported; bounded in-memory downloads otherwise.
-- Local favorites and recent items.
-- Backend Basic or Bearer authentication, with credentials kept in page memory.
-- Separate bridge authentication through `Proxy-Authorization`, preserving backend `Authorization`.
-- WebTransport certificate pins distributed by the Worker, with a private update webhook backed by Workers KV.
-- An explicit demo mode with sample files.
+## Why LanternDock?
 
-The current interface is in Chinese. This version is read-only: it has no upload, delete, rename, media transcoding, or task execution UI. Real backend images receive a generic icon in directory listings; image previews open on demand.
+Give visitors a simple interface to files you already host. LanternDock provides the browser UI and connection setup; your existing WebDAV service handles storage and permissions. Host the frontend on Cloudflare Workers and let visitors fetch files directly from the source.
 
-## Run locally
+## Features
 
-Requires Node.js 22.12 or newer. The interface uses Preact and Vite; the Worker and transport modules remain independent of the UI framework.
+- **Browse your files.** Directory navigation, search within the current directory, sorting, and list or grid views.
+- **Preview before downloading.** Open images and text in a desktop side panel or a full-screen mobile preview.
+- **Download with control.** Progress, cancellation, and streaming to disk when the browser supports a file picker.
+- **Pick up where you left off.** Favorites and recent files stored in the visitor's browser.
+- **Connect your way.** HTTPS / WebDAV, or WebDAV through [webtransport-bridge](https://github.com/longern/webtransport-bridge).
+- **Keep credentials separate.** Backend Basic or Bearer authentication, plus an optional bridge token. Credentials stay in page memory.
+- **Try it without a server.** A built-in demo with sample files.
+
+## Quick start
+
+Requires **Node.js 22.12+** and npm.
 
 ```sh
+git clone https://github.com/longern/lantern-dock.git
+cd lantern-dock
 npm ci
 npm run dev
 ```
 
-Open <http://localhost:8787>. Vite serves the interface and the Worker configuration API locally. It uses demo fixtures until a backend is configured. File contents still travel directly between the browser and the backend.
+Open [http://127.0.0.1:8787](http://127.0.0.1:8787). With no backend configured, the app starts in demo mode.
 
-To use your backend:
+### Connect a WebDAV server
+
+Copy the example configuration, then edit `.dev.vars` before starting the server:
 
 ```sh
 cp .dev.vars.example .dev.vars
-npm run dev
 ```
 
-Edit `.dev.vars` before starting the server. The local server loads this file at startup. Credentials belong in the connection dialog, not in the public configuration.
-
-## Configure an HTTPS backend
-
-For local development, place these values in `.dev.vars`. For deployment, edit `vars` in `wrangler.jsonc`.
-
 ```dotenv
-BACKEND_NAME="Public resources"
+BACKEND_NAME="My files"
 BACKEND_TRANSPORT="http"
 BACKEND_ENDPOINT="https://files.example.com"
 BACKEND_ROOT="/dav/public/"
 BACKEND_AUTH="none"
-GATEWAY_AUTH="false"
 ```
 
-`BACKEND_ENDPOINT` must be an origin without a path. `BACKEND_ROOT` is the WebDAV directory to display, including its mount prefix. Use `BACKEND_AUTH="basic"` or `"bearer"` to accept visitor-supplied credentials.
+Run `npm run dev` again. For a protected backend, set `BACKEND_AUTH` to `basic` or `bearer` and enter credentials in the connection dialog.
 
-The backend must support WebDAV `PROPFIND` with `Depth: 1`, plus `GET` and `HEAD`. A plain HTTP directory listing is not sufficient. Configure CORS on the backend for your frontend origin:
+The backend needs WebDAV `PROPFIND` with `Depth: 1`, plus `GET` and `HEAD`. Direct HTTPS connections also need CORS configured for the frontend origin. Put the server origin in `BACKEND_ENDPOINT` and the WebDAV mount path in `BACKEND_ROOT`.
 
-- Methods: `GET`, `HEAD`, `PROPFIND`, and preflight `OPTIONS`.
-- Request headers: `Authorization`, `Content-Type`, and `Depth` as needed.
-- Exposed response headers: `Content-Length`, `Content-Type`, `Content-Disposition`, `ETag`, `Accept-Ranges`, and `Content-Range` as needed.
+See the [configuration guide](docs/configuration.md) for CORS, WebTransport, authentication, and certificate updates.
 
-The frontend does not use ambient backend cookies. Basic and Bearer credentials are sent explicitly. Production backends should use HTTPS; an HTTPS frontend cannot ordinarily fetch an insecure HTTP backend.
+## How it works
 
-`BACKEND_ROOT` is a navigation setting, not an access-control boundary. Enforce read permissions and directory restrictions on the backend or bridge itself. The connection document is public and includes the backend address and certificate pins, never stored backend credentials.
-
-## Configure WebTransport
-
-```dotenv
-BACKEND_NAME="Public resources"
-BACKEND_TRANSPORT="webtransport"
-BACKEND_ENDPOINT="https://bridge.example.com:4433/webtransport"
-BACKEND_ROOT="/public/"
-BACKEND_AUTH="none"
-GATEWAY_AUTH="true"
-CERTIFICATE_MODE="pinned"
+```mermaid
+flowchart LR
+    Worker["Cloudflare Worker"] -->|"App, configuration, certificate pins"| Browser
+    Browser -->|"HTTPS / WebDAV"| Files["Your WebDAV server"]
+    Browser -->|"WebTransport"| Bridge["webtransport-bridge"]
+    Bridge -->|"HTTP / WebDAV"| Files
 ```
 
-The endpoint is the complete WebTransport session URL. Configure the bridge to permit the frontend origin and `GET`, `HEAD`, and **`PROPFIND`**. Restrict its allowed paths and backend permissions to the intended resources. WebTransport requires a compatible browser, a secure frontend context, and network reachability to the bridge's UDP port.
+The Worker serves the frontend and `/api/config`. File contents travel directly between the browser and the configured backend or bridge.
 
-With `GATEWAY_AUTH="true"`, visitors enter a bridge token separately from their backend credentials. The bridge must consume `Proxy-Authorization`; the backend's `Authorization` stays intact. This header is encoded inside the WebTransport stream, not sent through browser Fetch.
+Both connection modes use WebDAV for file access. The bridge carries one HTTP/1.1 exchange per WebTransport bidirectional stream using a project-specific mapping. WebTransport requires a compatible browser, a secure frontend context, and a reachable UDP endpoint; there is no automatic HTTPS fallback.
 
-For a publicly trusted gateway certificate, set `CERTIFICATE_MODE="webpki"` to use browser certificate validation without pins. Otherwise configure the pinned-certificate flow below. There is no automatic fallback from WebTransport to HTTPS.
+## Deploy
 
-### Certificate updates
-
-Create a Workers KV namespace and add its returned ID to `wrangler.jsonc`:
-
-```sh
-npx wrangler kv namespace create PINS
-```
-
-```json
-"kv_namespaces": [
-  { "binding": "PINS", "id": "YOUR_NAMESPACE_ID" }
-]
-```
-
-Generate a private webhook URL, replacing the example Worker origin:
-
-```sh
-npm run webhook -- https://lantern-dock.example.workers.dev
-```
-
-The script saves a random secret in `.webhook-secret` and prints the corresponding URL. Store the file's contents as the Worker secret:
-
-```sh
-npx wrangler secret put CERT_WEBHOOK_SECRET
-```
-
-Paste the secret when prompted. Configure the printed URL as the bridge's certificate webhook. Treat the complete URL as a credential and avoid sharing it or recording it in public logs.
-
-The webhook accepts `PUT` with `Content-Type: application/json`:
-
-```json
-{
-  "version": 1,
-  "certificates": [
-    {
-      "algorithm": "sha-256",
-      "value": "BASE64_ENCODED_32_BYTE_SHA256_DIGEST",
-      "notBefore": "2026-11-04T00:00:00Z",
-      "notAfter": "2026-11-18T00:00:00Z"
-    }
-  ]
-}
-```
-
-Use the actual certificate dates and digest; this is a format example. At most two certificate pins are accepted, each with a validity period of at most 14 days. Expired pins are excluded. The Worker responds with `204` only after the KV write succeeds, or `503` if storage fails.
-
-KV updates are eventually consistent. Publish replacement pins ahead of certificate activation and keep an overlap window; a successful webhook does not mean every edge location has already observed the update. Use the connection dialog's reconnect action to fetch current pins.
-
-For local pinned-certificate development without KV, set `CERTIFICATES_JSON` in `.dev.vars` to the same document. The Vite development server does not emulate KV; use Wrangler for binding-based development.
-
-## Deploy to Cloudflare Workers
-
-The project uses Workers Static Assets. `npm run deploy` builds the frontend into `dist/`, then Wrangler uploads that directory and the Worker together.
-
-1. Configure the real backend in `wrangler.jsonc`. Do not deploy the placeholder endpoint.
-2. Authenticate Wrangler and deploy:
+1. Set the real backend in [`wrangler.jsonc`](wrangler.jsonc).
+2. Authenticate and deploy:
 
    ```sh
    npx wrangler login
    npm run deploy
    ```
 
-3. Allow the deployed frontend origin in the backend CORS policy or bridge origin policy.
-4. For pinned WebTransport, configure KV and the webhook, then let the bridge publish its certificate before connecting.
+3. Allow the deployed frontend origin in the backend's CORS policy or the bridge's origin policy.
 
-`.dev.vars` is for local development; it is not the production configuration. Keep `DEMO_MODE` unset in production unless you intentionally want a sample-only site.
+The deploy command builds the Preact frontend into `dist/` and uploads it with the Worker. Local `.dev.vars` settings do not configure production. Pinned WebTransport also requires Workers KV and a private certificate webhook; follow the [deployment and certificate setup](docs/configuration.md#certificate-updates).
 
-See Cloudflare's [Static Assets](https://developers.cloudflare.com/workers/static-assets/) and [KV setup](https://developers.cloudflare.com/kv/get-started/) documentation for platform configuration.
+## Project status
 
-## Limits
+LanternDock is in early development. The current version is a **read-only WebDAV browser**. Uploads, delete/rename operations, share management, identity adapters, and task execution are future work.
 
-- Without the file-system picker API, downloads are buffered and capped at 256 MiB. With the API, downloads stream to the selected file.
-- Image previews are capped at 25 MiB and text previews at 1 MiB. Directory responses are capped at 8 MiB.
-- Video, audio, PDF, and archive contents do not have an embedded preview yet.
-- Favorites and recent paths are stored in this browser's local storage. Authentication credentials are held only in the current page's memory.
-- An HTTP backend needs its own CORS configuration. A WebTransport backend needs its own origin policy, authentication, and resource limits.
-- This is an initial implementation. Automated protocol tests and the demo do not replace integration testing with your backend and target browsers.
+| Area           | Current behavior                                                                                                                                |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Previews       | Images up to 25 MiB; text up to 1 MiB. Video, audio, PDF, and archive previews are not available yet.                                           |
+| Downloads      | Stream to disk when supported; otherwise buffer in memory with a 256 MiB limit.                                                                 |
+| Directories    | Directory responses are limited to 8 MiB. Search and type filters apply to the current directory.                                               |
+| Image listings | Real backend files use generic icons; images load when opened for preview.                                                                      |
+| Local records  | Favorites and recent paths live in local storage; credentials live only in page memory.                                                         |
+| Validation     | Chromium desktop and mobile viewports, plus local real-bridge integration tests. Physical devices and individual backends need further testing. |
 
-## Direction
+`BACKEND_ROOT` controls navigation. Enforce permissions and path restrictions on the backend or bridge.
 
-LanternDock's intended unit of sharing is a **capability**: access to a directory, permission to upload into a folder, or permission to run a particular task.
+## Roadmap
 
-Planned work:
+- [ ] Integrate existing backend identities.
+- [ ] Add expiring, revocable guest grants with explicit scopes and quotas.
+- [ ] Support scoped guest uploads and upload-only entry points.
+- [ ] Expose predefined, authorized tasks such as media conversion.
+- [ ] Improve backend thumbnails and preview coverage.
 
-- Connect existing backend identities through documented identity adapters.
-- Let authorized owners issue expiring, revocable guest grants with explicit scopes and quotas.
-- Provide upload-only entry points without exposing other files.
-- Expose predefined tasks, such as media conversion, with backend-enforced authorization and resource budgets.
+These features require backend enforcement as well as interface work. Track proposals and discuss priorities in [Issues](https://github.com/longern/lantern-dock/issues).
 
-These extensions need enforcement at the resource backend. Frontend controls and Worker-issued metadata alone cannot authorize uploads or execution. Files remain the first module; there is no general-purpose remote shell or compute API today.
+## Contributing
 
-## Development
+Bug reports, documentation improvements, and pull requests are welcome. For a bug report, include your browser version, connection mode, reproduction steps, and relevant errors. Remove credentials and private webhook URLs from logs before sharing them.
+
+For larger changes, open an issue first to discuss the approach. To check code changes locally:
 
 ```sh
 npm run check
 npm test
 ```
 
-The browser suite covers desktop, tablet, and 390/320 px mobile layouts in Chromium, including previews across breakpoints, navigation, local records, downloads, and configuration errors:
-
-```sh
-npx playwright install chromium
-npm run test:browser
-```
-
-To use an installed Chrome instead: `PLAYWRIGHT_CHANNEL=chrome npm run test:browser`.
-
-The integration suite builds and starts the real sibling `webtransport-bridge` project, a local WebDAV fixture, and an HTTPS server serving the **production build**. It requires Go 1.26+, a Chromium browser, and local UDP access:
-
-```sh
-npm run build
-npm run test:bridge
-# Optional overrides:
-GO_BIN=/path/to/go BRIDGE_SOURCE=/path/to/webtransport-bridge npm run test:bridge
-```
-
-It checks gateway 407 versus backend 401, separate credentials, PROPFIND, encoded paths, image/text previews, byte-exact downloads, HEAD, Range, chunked responses, cancellation, and rejection of incorrect certificate hashes. The fixture publishes a generated certificate through the real Worker webhook into an in-memory KV substitute. Certificate auto-rotation is covered by the bridge's Go tests; this suite uses the bridge's manual-certificate mode. Only the local frontend's self-signed HTTPS certificate is bypassed by the browser test context; WebTransport certificate pins are still checked. Chromium mobile viewports do not substitute for testing on physical iOS/Android devices.
-
-Source layout:
-
-| Path | Purpose |
-| --- | --- |
-| `index.html`, `src/main.jsx` | HTML entry and Preact mount |
-| `src/App.jsx` | Composition and application interactions |
-| `src/components/` | Navigation, file browser, preview, connection dialog, download status, notifications |
-| `src/hooks/` | Connection/listing lifecycle, browser records, downloads, media queries |
-| `src/styles/` | Styles grouped by component and responsive layout |
-| `src/lib/transport.js` | Direct HTTP and WebTransport connections |
-| `src/lib/http-wire.js` | Incremental HTTP/1.1 message handling |
-| `src/lib/dav.js` | WebDAV directory and file access |
-| `src/lib/demo.js` | Explicit sample fixtures |
-| `worker/index.js` | Public configuration and private certificate webhook |
-| `vite.config.js` | Frontend build and local Worker API adapter |
-| `test/` | Unit, browser, and real-bridge integration tests |
-
-Desktop uses a persistent preview panel; tablet and mobile use a modal preview, with a full-screen layout on phones. The same components and state serve all layouts. Notifications use a slightly translucent black surface with white text in the lower center; the Popover API keeps them visible above modal dialogs. Shares, tasks, uploads, and backend thumbnails remain planned features.
+See the [development guide](docs/development.md) for the project layout, browser tests, and integration tests against a real bridge.
