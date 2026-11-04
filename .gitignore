@@ -1,0 +1,9 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+.webhook-secret
+.DS_Store
+dist/
+playwright-report/
+test-results/

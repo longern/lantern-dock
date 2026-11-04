@@ -1,0 +1,323 @@
+.mobile-tabs,
+.mobile-brand,
+.mobile-menu,
+.sidebar-scrim {
+  display: none;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (min-width: 701px) and (max-width: 1100px) {
+  :root {
+    --sidebar: 190px;
+    --inspector: 300px;
+  }
+  .brand {
+    font-size: 17px;
+    gap: 6px;
+  }
+  .search-box input {
+    width: 100px;
+  }
+  .topbar,
+  .content {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+  .preview-open .search-box {
+    display: none;
+  }
+  .preview-open .list-head {
+    grid-template-columns: minmax(0, 1fr) 80px 38px;
+  }
+  .preview-open .list-head > span:nth-child(2) {
+    display: none;
+  }
+  .preview-open .list-layout .file-open {
+    grid-template-columns: 32px minmax(0, 1fr) 80px;
+  }
+  .preview-open .row-modified {
+    display: none;
+  }
+}
+@media (max-width: 700px) {
+  :root {
+    --sidebar: 240px;
+  }
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.15s;
+    z-index: 25;
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+  .sidebar-scrim:not([hidden]) {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: #15152a44;
+    z-index: 24;
+  }
+  .main-area,
+  .preview-open .main-area {
+    margin: 0;
+    min-height: 100dvh;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+  .topbar {
+    height: auto;
+    min-height: 64px;
+    padding: 12px 18px;
+    display: grid;
+    grid-template-columns: 28px 1fr 36px;
+    gap: 12px;
+  }
+  .mobile-menu {
+    display: inline-flex;
+    width: 28px;
+  }
+  .mobile-brand {
+    display: block;
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: -0.5px;
+  }
+  .breadcrumbs {
+    grid-column: 1/-1;
+    grid-row: 2;
+    font-size: 13px;
+    padding-top: 6px;
+  }
+  .topbar-right {
+    display: contents;
+  }
+  .topbar-right > .icon-button {
+    grid-row: 1;
+    grid-column: 3;
+  }
+  .topbar-right > #refresh-button {
+    display: none;
+  }
+  .search-box {
+    grid-column: 1/-1;
+    grid-row: 3;
+    width: 100%;
+    border: 0;
+    background: #f2f2f6;
+    padding: 12px;
+    border-radius: 9px;
+    margin: 2px 0 0;
+  }
+  .search-box input {
+    width: 100%;
+    font-size: 14px;
+  }
+  .content {
+    padding: 0 16px 20px;
+  }
+  .file-toolbar {
+    height: 60px;
+  }
+  .file-stats {
+    gap: 8px;
+  }
+  .status-pill span {
+    display: none;
+  }
+  .view-tools {
+    gap: 5px;
+  }
+  .view-tools select {
+    font-size: 11px;
+  }
+  .list-head {
+    display: none !important;
+  }
+  .list-layout .file-open {
+    height: 70px;
+    padding: 0 40px 0 3px;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 12px;
+  }
+  .list-layout .file-art {
+    width: 40px;
+    height: 40px;
+  }
+  .list-layout .file-art > svg {
+    width: 32px;
+    height: 32px;
+  }
+  .list-layout .row-modified,
+  .list-layout .row-size {
+    display: none;
+  }
+  .list-layout .file-meta {
+    display: flex;
+    font-size: 11px;
+    gap: 5px;
+  }
+  .file-name {
+    font-size: 14px;
+  }
+  .list-layout .favorite-button {
+    top: 18px;
+    right: 0;
+    opacity: 0.6;
+    width: 34px;
+    height: 34px;
+  }
+  .file-grid:not(.list-layout) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .file-card .favorite-button {
+    opacity: 0.6;
+  }
+  .file-art {
+    height: 110px;
+  }
+  .mobile-tabs {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: stretch;
+    justify-content: space-around;
+    padding: 8px 12px max(8px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--line);
+    background: #fffffff7;
+    backdrop-filter: blur(12px);
+    z-index: 20;
+  }
+  .mobile-tabs button {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+    min-height: 46px;
+    color: #8a8999;
+  }
+  .mobile-tabs button svg {
+    width: 23px;
+    height: 23px;
+  }
+  .mobile-tabs button.active {
+    color: var(--accent);
+  }
+  .preview-dialog {
+    inset: 0;
+    width: 100%;
+    height: 100dvh;
+    border: 0;
+    z-index: 35;
+  }
+  .preview-dialog::backdrop {
+    background: #fff;
+  }
+  .preview-header {
+    height: 64px;
+    min-height: 64px;
+    padding: 0 12px;
+  }
+  .preview-header strong {
+    text-align: center;
+    font-size: 15px;
+  }
+  .preview-header button:first-child svg {
+    transform: rotate(45deg);
+    display: none;
+  }
+  .preview-header button:first-child:before {
+    content: "";
+    width: 10px;
+    height: 10px;
+    border-left: 2px solid;
+    border-bottom: 2px solid;
+    transform: rotate(45deg);
+  }
+  .preview-scroll {
+    padding: 16px;
+  }
+  .preview-content {
+    min-height: 240px;
+  }
+  .preview-content img {
+    max-height: 48dvh;
+  }
+  .file-details {
+    font-size: 13px;
+  }
+  .file-details > div {
+    padding: 16px 2px;
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+  .preview-actions {
+    padding: 14px 16px max(14px, env(safe-area-inset-bottom));
+  }
+  .preview-actions button {
+    height: 48px;
+  }
+  .download-panel {
+    bottom: 90px;
+    right: 16px;
+    z-index: 40;
+  }
+  .dialog-actions .primary-button {
+    min-width: 100px;
+  }
+  .settings-dialog {
+    padding: 20px;
+  }
+  .preview-open .mobile-tabs {
+    visibility: hidden;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Keep the document usable beneath a modal preview on tablets. */
+@media (min-width: 701px) and (max-width: 1000px) {
+  .preview-open .main-area {
+    margin-right: 0;
+  }
+  .preview-dialog::backdrop {
+    background: #1c1c3533;
+    backdrop-filter: blur(2px);
+  }
+}
+body:has(dialog:modal) {
+  overflow: hidden;
+}
+.breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.breadcrumb button {
+  font-weight: 400 !important;
+  color: #7c7c88 !important;
+}
+.breadcrumb button[aria-current] {
+  font-weight: 600 !important;
+  color: #242533 !important;
+}
+@media (min-width: 701px) {
+  .list-head {
+    grid-template-columns: minmax(0, 1fr) 148px 80px 38px;
+  }
+  .list-layout .file-open {
+    grid-template-columns: 36px minmax(0, 1fr) 148px 80px;
+  }
+}

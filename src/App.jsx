@@ -1,0 +1,158 @@
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "preact/hooks";
+import { Sidebar, Topbar, MobileTabs } from "./components/Navigation.jsx";
+import { FileBrowser } from "./components/FileBrowser.jsx";
+import { FilePreview } from "./components/FilePreview.jsx";
+import { ConnectionDialog } from "./components/ConnectionDialog.jsx";
+import { DownloadPanel } from "./components/DownloadPanel.jsx";
+import { Toast } from "./components/Toast.jsx";
+import { useLibrary } from "./hooks/useLibrary.js";
+import { useRecords } from "./hooks/useRecords.js";
+import { useDownload } from "./hooks/useDownload.js";
+
+export function App() {
+  const library = useLibrary();
+  const [message, setMessage] = useState(null);
+  const timer = useRef(null);
+  const toast = useCallback((text, error = false) => {
+    setMessage({ text, error });
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setMessage(null), error ? 6500 : 4500);
+  }, []);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => {
+    if (library.error) toast(library.error.message, true);
+  }, [library.error, toast]);
+  const records = useRecords(library.key, toast);
+  const transfer = useDownload(library.connection, records.remember, toast);
+  const [selected, setSelected] = useState(null);
+  const [settings, setSettings] = useState(false);
+  const [menu, setMenu] = useState(false);
+
+  useEffect(() => {
+    setSelected(null);
+  }, [library.connection]);
+  const closePreview = () => {
+    const path = selected?.path;
+    setSelected(null);
+    requestAnimationFrame(() =>
+      [...document.querySelectorAll(".file-open")]
+        .find((node) => node.dataset.path === path)
+        ?.focus(),
+    );
+  };
+  useLayoutEffect(() => {
+    const keyboard = (event) => {
+      if (event.key === "Escape" && !settings) {
+        if (menu) setMenu(false);
+        else if (selected) {
+          event.preventDefault();
+          closePreview();
+        }
+      }
+      if (
+        event.key === "/" &&
+        !["INPUT", "TEXTAREA", "SELECT"].includes(
+          document.activeElement?.tagName,
+        ) &&
+        !settings &&
+        !selected
+      ) {
+        event.preventDefault();
+        document.getElementById("search")?.focus();
+      }
+    };
+    document.addEventListener("keydown", keyboard);
+    return () => document.removeEventListener("keydown", keyboard);
+  }, [selected, settings, menu]);
+  useEffect(() => {
+    const stop = () => {
+      transfer.cancel();
+      library.connection?.transport?.close();
+    };
+    window.addEventListener("pagehide", stop);
+    return () => window.removeEventListener("pagehide", stop);
+  }, [library.connection]);
+
+  const showSettings = () => {
+    setMenu(false);
+    setSettings(true);
+  };
+  const preview = (item) => {
+    records.remember(item);
+    setSelected(item);
+  };
+  const connect = (credentials) => {
+    setSettings(false);
+    setSelected(null);
+    setMessage(null);
+    transfer.cancel();
+    library.setCredentials(credentials);
+  };
+  const feedback = (
+    <>
+      <DownloadPanel progress={transfer.progress} onCancel={transfer.cancel} />
+      {message && <Toast message={message} />}
+    </>
+  );
+  return (
+    <div class={`app-shell${selected ? " preview-open" : ""}`}>
+      <Sidebar
+        library={library}
+        records={records}
+        open={menu}
+        onClose={() => setMenu(false)}
+        onSettings={showSettings}
+      />
+      <main class="main-area">
+        <Topbar
+          library={library}
+          onMenu={() => setMenu((value) => !value)}
+          onSettings={showSettings}
+        />
+        <FileBrowser
+          library={library}
+          records={records}
+          selected={selected}
+          onPreview={preview}
+          onSettings={showSettings}
+        />
+      </main>
+      <MobileTabs library={library} onCloseMenu={() => setMenu(false)} />
+      {selected && library.connection && (
+        <FilePreview
+          key={selected.path}
+          item={selected}
+          client={library.connection.client}
+          favorite={records.isFavorite(selected)}
+          onFavorite={records.toggleFavorite}
+          onDownload={transfer.download}
+          onError={(text) => toast(text, true)}
+          onClose={closePreview}
+          feedback={settings ? null : feedback}
+        />
+      )}
+      {settings && (
+        <ConnectionDialog
+          backend={library.backend}
+          credentials={library.credentials}
+          onConnect={connect}
+          onForget={() => {
+            setSelected(null);
+            transfer.cancel();
+            library.setCredentials({ mode: "none" });
+            toast("已清除页面内的登录信息。");
+          }}
+          onClose={() => setSettings(false)}
+          feedback={feedback}
+        />
+      )}
+      {!selected && !settings && feedback}
+    </div>
+  );
+}

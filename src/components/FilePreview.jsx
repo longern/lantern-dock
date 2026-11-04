@@ -1,0 +1,154 @@
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { Icon } from "./Icon.jsx";
+import { limitedBytes } from "../lib/dav.js";
+import { bytes, date } from "../lib/format.js";
+import { useMediaQuery } from "../hooks/useMediaQuery.js";
+
+export function FilePreview({
+  item,
+  client,
+  favorite,
+  onFavorite,
+  onDownload,
+  onError,
+  onClose,
+  feedback,
+}) {
+  const dialog = useRef(null);
+  const modal = useMediaQuery("(max-width: 1000px)");
+  const [content, setContent] = useState(null);
+  const [error, setError] = useState("");
+  const [dimensions, setDimensions] = useState("");
+
+  useLayoutEffect(() => {
+    const node = dialog.current;
+    if (node.open) node.close();
+    if (modal) node.showModal();
+    else node.show();
+    return () => node.close();
+  }, [modal]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    let url;
+    setContent(null);
+    setError("");
+    setDimensions("");
+    (async () => {
+      try {
+        if (!["image", "text"].includes(item.kind)) {
+          setError("暂不支持预览，可以下载后打开。");
+          return;
+        }
+        const limit = (item.kind === "image" ? 25 : 1) * 1024 * 1024;
+        if (item.size > limit)
+          throw new Error("文件超过预览大小限制，请下载原文件查看。");
+        const response = await client.get(item.path, controller.signal);
+        const data = await limitedBytes(response, limit, controller.signal);
+        if (controller.signal.aborted) return;
+        if (item.kind === "text") {
+          setContent({ text: new TextDecoder().decode(data) });
+          return;
+        }
+        const mime = response.headers.get("Content-Type")?.split(";")[0];
+        if (mime && !mime.startsWith("image/"))
+          throw new Error("后端没有返回图片，可能需要重新登录。");
+        url = URL.createObjectURL(
+          new Blob([data], { type: mime || "image/*" }),
+        );
+        setContent({ url });
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setError("无法预览此文件，请下载查看。");
+          onError(error.message);
+        }
+      }
+    })();
+    return () => {
+      controller.abort();
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [item, client]);
+
+  return (
+    <dialog
+      ref={dialog}
+      id="preview-dialog"
+      class="preview-dialog"
+      aria-labelledby="preview-name"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+    >
+      <div class="preview-header">
+        <button class="icon-button" aria-label="关闭预览" onClick={onClose}>
+          <Icon name="x" />
+        </button>
+        <strong id="preview-name">{item.name}</strong>
+        <button
+          class="icon-button"
+          aria-label={favorite ? "取消收藏文件" : "收藏文件"}
+          aria-pressed={favorite}
+          style={{ color: favorite ? "#a58b41" : undefined }}
+          onClick={() => onFavorite(item)}
+        >
+          <Icon name="star" />
+        </button>
+      </div>
+      <div class="preview-scroll">
+        <div class="preview-content">
+          {error || !content ? (
+            <div class="preview-placeholder">
+              <Icon name={item.kind} />
+              <p role="status">{error || "正在加载预览…"}</p>
+            </div>
+          ) : content.text !== undefined ? (
+            <pre>{content.text}</pre>
+          ) : (
+            <img
+              src={content.url}
+              alt={item.name}
+              onLoad={(event) =>
+                setDimensions(
+                  `${event.currentTarget.naturalWidth} × ${event.currentTarget.naturalHeight}`,
+                )
+              }
+              onError={() => {
+                setError("无法预览此图片，请下载查看。");
+                onError("无法预览此图片，请下载查看。");
+              }}
+            />
+          )}
+        </div>
+        <dl class="file-details">
+          <div>
+            <dt>类型</dt>
+            <dd>{item.mime || item.name.split(".").pop().toUpperCase()}</dd>
+          </div>
+          <div>
+            <dt>大小</dt>
+            <dd>{bytes(item.size)}</dd>
+          </div>
+          {dimensions && (
+            <div>
+              <dt>尺寸</dt>
+              <dd>{dimensions}</dd>
+            </div>
+          )}
+          <div>
+            <dt>修改时间</dt>
+            <dd>{date(item.modified, true)}</dd>
+          </div>
+        </dl>
+      </div>
+      <div class="preview-actions">
+        <button class="primary-button" onClick={() => onDownload(item)}>
+          <Icon name="download" />
+          下载
+        </button>
+      </div>
+      {feedback}
+    </dialog>
+  );
+}

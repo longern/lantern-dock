@@ -1,0 +1,30 @@
+{
+  "name": "lantern-dock",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "A direct-access frontend for sharing self-hosted files, apps, and tasks",
+  "scripts": {
+    "dev": "vite",
+    "test": "node --test test/*.test.mjs",
+    "check": "node scripts/check.mjs && vite build",
+    "dev:worker": "npm run build && npx wrangler dev",
+    "deploy": "npm run build && npx wrangler deploy",
+    "webhook": "node scripts/webhook.mjs",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:browser": "playwright test",
+    "test:bridge": "playwright test --config playwright.bridge.config.mjs"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@preact/preset-vite": "^2.10.6",
+    "vite": "^8.3.5"
+  },
+  "dependencies": {
+    "preact": "^11.1.1"
+  }
+}
