@@ -1,7 +1,8 @@
 # HTTP endpoint is an origin; the WebDAV mount goes in BACKEND_ROOT.
 BACKEND_NAME="Public resources"
 BACKEND_TRANSPORT="http"
-BACKEND_ENDPOINT="https://files.example.com"
+# Fill in your real origin, e.g. https://files.example.com. Blank opens the setup wizard.
+BACKEND_ENDPOINT=""
 BACKEND_ROOT="/dav/"
 BACKEND_AUTH="none"
 GATEWAY_AUTH="false"

@@ -4,22 +4,24 @@
 
 LanternDock serves one configured WebDAV root. Configure it in `.dev.vars` for Vite development and in `wrangler.jsonc` for Cloudflare deployment. Restart the development server after changing local settings.
 
+Missing or invalid backend settings, and missing certificate pins, open a setup wizard. It generates `.dev.vars` or a `vars` block for `wrangler.jsonc`, supports copy/download, and rechecks `/api/config` after the maintainer applies the settings. The public page does not write server configuration or persist wizard inputs. Apply local settings and restart Vite, or update the Worker variables and redeploy.
+
 Credentials are entered in the connection dialog and kept in page memory. The public `/api/config` document contains connection metadata and certificate pins.
 
 ## Environment variables
 
-| Variable              | Default                    | Description                                                                                    |
-| --------------------- | -------------------------- | ---------------------------------------------------------------------------------------------- |
-| `BACKEND_NAME`        | `Public files`             | Resource name shown in the interface.                                                          |
-| `BACKEND_TRANSPORT`   | `http`                     | `http` for Fetch over HTTP(S), or `webtransport` for the bridge.                               |
-| `BACKEND_ENDPOINT`    | Required outside demo mode | HTTP(S) origin, or a complete HTTPS WebTransport session URL.                                  |
-| `BACKEND_ROOT`        | `/`                        | WebDAV root, including any mount prefix.                                                       |
-| `BACKEND_AUTH`        | `none`                     | `none`, `basic`, or `bearer`; visitors supply credentials.                                     |
-| `GATEWAY_AUTH`        | `false`                    | Set to `true` to collect a separate bridge token in WebTransport mode.                         |
-| `CERTIFICATE_MODE`    | Pinned                     | Use `pinned` for certificate hashes or `webpki` for a publicly trusted certificate.            |
-| `CERTIFICATES_JSON`   | Unset                      | Local certificate document when no `PINS` binding is available.                                |
-| `DEMO_MODE`           | Unset in the Worker        | Set to `true` to serve sample files. Vite defaults to demo mode when no backend is configured. |
-| `CERT_WEBHOOK_SECRET` | Unset                      | Private Worker secret for certificate updates.                                                 |
+| Variable              | Default                    | Description                                                                                  |
+| --------------------- | -------------------------- | -------------------------------------------------------------------------------------------- |
+| `BACKEND_NAME`        | `Public files`             | Resource name shown in the interface.                                                        |
+| `BACKEND_TRANSPORT`   | `http`                     | `http` for Fetch over HTTP(S), or `webtransport` for the bridge.                             |
+| `BACKEND_ENDPOINT`    | Required outside demo mode | HTTP(S) origin, or a complete HTTPS WebTransport session URL.                                |
+| `BACKEND_ROOT`        | `/`                        | WebDAV root, including any mount prefix.                                                     |
+| `BACKEND_AUTH`        | `none`                     | `none`, `basic`, or `bearer`; visitors supply credentials.                                   |
+| `GATEWAY_AUTH`        | `false`                    | Set to `true` to collect a separate bridge token in WebTransport mode.                       |
+| `CERTIFICATE_MODE`    | Pinned                     | Use `pinned` for certificate hashes or `webpki` for a publicly trusted certificate.          |
+| `CERTIFICATES_JSON`   | Unset                      | Local certificate document when no `PINS` binding is available.                              |
+| `DEMO_MODE`           | Unset in the Worker        | Set to `true` to serve sample files. Otherwise, an unconfigured site opens the setup wizard. |
+| `CERT_WEBHOOK_SECRET` | Unset                      | Private Worker secret for certificate updates.                                               |
 
 Pinned WebTransport deployments also need a `PINS` Workers KV binding. The webhook secret and URL belong only in private deployment configuration.
 
@@ -120,7 +122,7 @@ For local pinned-certificate development without KV, set `CERTIFICATES_JSON` in 
 
 The project uses Workers Static Assets, configured in [`wrangler.jsonc`](../wrangler.jsonc). `npm run deploy` builds the frontend into `dist/`, then Wrangler uploads that directory and the Worker together.
 
-1. Configure the real backend in `wrangler.jsonc`. Do not deploy the placeholder endpoint.
+1. Configure the real backend in `wrangler.jsonc`. Leaving the endpoint blank opens the setup wizard.
 2. Authenticate Wrangler and deploy:
 
    ```sh

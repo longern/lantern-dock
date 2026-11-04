@@ -4,13 +4,13 @@ export default defineConfig({
   outputDir: "test-results/browser",
   fullyParallel: true,
   use: {
-    baseURL: "http://127.0.0.1:8787",
+    baseURL: "http://127.0.0.1:8788",
     channel: process.env.PLAYWRIGHT_CHANNEL,
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npm run dev",
-    url: "http://127.0.0.1:8787/api/config",
+    command: "npm run dev -- --port 8788",
+    url: "http://127.0.0.1:8788/api/config",
     reuseExistingServer: !process.env.CI,
     env: { DEMO_MODE: "true" },
   },

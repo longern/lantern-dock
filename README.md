@@ -37,7 +37,7 @@ Give visitors a simple interface to files you already host. LanternDock provides
 - **Pick up where you left off.** Favorites and recent files stored in the visitor's browser.
 - **Connect your way.** HTTPS / WebDAV, or WebDAV through [webtransport-bridge](https://github.com/longern/webtransport-bridge).
 - **Keep credentials separate.** Backend Basic or Bearer authentication, plus an optional bridge token. Credentials stay in page memory.
-- **Try it without a server.** A built-in demo with sample files.
+- **Set up with guidance.** A first-run wizard generates local or Cloudflare configuration, with an explicit demo option.
 
 ## Quick start
 
@@ -50,7 +50,7 @@ npm ci
 npm run dev
 ```
 
-Open [http://127.0.0.1:8787](http://127.0.0.1:8787). With no backend configured, the app starts in demo mode.
+Open [http://127.0.0.1:8787](http://127.0.0.1:8787). With no backend configured, a setup wizard guides you through the connection options, generates configuration, and lets you recheck after applying it. Choose **先体验演示** to explore sample files without configuring a server. This temporary demo choice is not saved; `DEMO_MODE="true"` enables a site-wide demo.
 
 ### Connect a WebDAV server
 

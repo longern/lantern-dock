@@ -3,31 +3,16 @@ import preact from "@preact/preset-vite";
 import { readFile } from "node:fs/promises";
 import { Readable } from "node:stream";
 import worker from "./worker/index.js";
+import { parseLocalVariables } from "./scripts/local-env.mjs";
 
 async function localEnvironment() {
-  const env = { DEMO_MODE: "true", ...process.env };
+  const env = { ...process.env };
   try {
     const vars = await readFile(
       new URL("./.dev.vars", import.meta.url),
       "utf8",
     );
-    for (const line of vars.split("\n")) {
-      const match = /^([A-Z_]+)=(.*)$/.exec(line.trim());
-      if (!match) continue;
-      let value = match[2].trim();
-      if (
-        (value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))
-      )
-        value = value.slice(1, -1);
-      env[match[1]] = value;
-    }
-    if (
-      !("DEMO_MODE" in process.env) &&
-      /BACKEND_ENDPOINT=/.test(vars) &&
-      !/^DEMO_MODE=/m.test(vars)
-    )
-      env.DEMO_MODE = "false";
+    Object.assign(env, parseLocalVariables(vars));
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }

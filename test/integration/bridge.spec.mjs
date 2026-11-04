@@ -68,11 +68,13 @@ test("real bridge distinguishes gateway 407 and backend 401, then browses, previ
     page.getByRole("navigation", { name: "文件路径" }),
   ).toContainText("照片");
   await expect(page.locator(".file-card")).toHaveCount(5);
-  expect(
-    fixture.requests.some(
-      (request) => request.path === "/public/%E7%85%A7%E7%89%87/",
-    ),
-  ).toBe(true);
+  await expect
+    .poll(() =>
+      fixture.requests.some(
+        (request) => request.path === "/public/%E7%85%A7%E7%89%87/",
+      ),
+    )
+    .toBe(true);
   expect(
     fixture.requests.every(
       (request) => !request.headers["proxy-authorization"],
@@ -203,4 +205,33 @@ test("download progress stays actionable inside a mobile preview and cancels the
   await expect(progress).toHaveCount(0);
   await expect(page.locator(".toast")).toHaveText("已取消下载");
   await expect.poll(() => fixture.cancellations.length).toBeGreaterThan(before);
+});
+
+test("first-run setup rechecks applied server settings and connects to the real bridge", async ({
+  page,
+}) => {
+  const endpoint = fixture.env.BACKEND_ENDPOINT;
+  try {
+    fixture.env.BACKEND_ENDPOINT = "";
+    await page.goto(fixture.origin);
+    await expect(
+      page.getByRole("heading", { name: "连接你的文件空间", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await page.getByRole("button", { name: "下一步", exact: true }).click();
+    await page
+      .getByLabel("WebTransport 网关地址", { exact: true })
+      .fill(endpoint);
+    await page.getByRole("button", { name: "生成配置", exact: true }).click();
+    // This simulates a maintainer applying environment variables outside the public UI.
+    fixture.env.BACKEND_ENDPOINT = endpoint;
+    await page
+      .getByRole("button", { name: "已完成，重新检测", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("网关需要认证");
+    await login(page);
+    await expect(page.locator(".file-card")).toHaveCount(5);
+  } finally {
+    fixture.env.BACKEND_ENDPOINT = endpoint;
+  }
 });

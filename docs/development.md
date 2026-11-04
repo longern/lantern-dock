@@ -13,7 +13,7 @@ npm test
 
 ## Browser tests
 
-The browser suite covers desktop, tablet, and 390/320 px mobile layouts in Chromium, including previews across breakpoints, navigation, local records, downloads, and configuration errors:
+The browser suite covers desktop, tablet, and 390/320 px mobile layouts in Chromium, including previews across breakpoints, navigation, local records, downloads, first-run setup, configuration export, rechecks, and configuration errors. The suite uses a separate demo server on port 8788 so it does not depend on the running development server:
 
 ```sh
 npx playwright install chromium
@@ -51,6 +51,10 @@ It checks gateway 407 versus backend 401, separate credentials, PROPFIND, encode
 | `npm run test:bridge`  | Run the production frontend against a real local bridge and a WebDAV fixture. |
 | `npm run dev:worker`   | Build assets and start Wrangler for Worker/KV development.                    |
 | `npm run deploy`       | Build and deploy the Worker with its static assets.                           |
+
+## Configuration API states
+
+`GET /api/config` returns normal backend metadata for a configured site. Missing or invalid settings return HTTP 200 with `setupRequired: true` and a `setup` object containing a reason and safe public defaults. Operational failures, such as a KV read outage, still return HTTP 503. No public API writes deployment settings.
 
 ## Project structure
 

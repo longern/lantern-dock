@@ -9,6 +9,8 @@ export function useLibrary() {
   const [connection, setConnection] = useState(null);
   const [connecting, setConnecting] = useState(true);
   const [configError, setConfigError] = useState(null);
+  const [setup, setSetup] = useState(null);
+  const [demoPreview, setDemoPreview] = useState(false);
   const [listingError, setListingError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState([]);
@@ -28,28 +30,47 @@ export function useLibrary() {
     setListingError(null);
     setConnection(null);
     setEntries([]);
+    const connect = (backend) => {
+      transport =
+        backend.transport === "demo"
+          ? null
+          : new DirectTransport(backend, credentials);
+      const client = transport
+        ? new DAVClient(transport, backend)
+        : new DemoClient();
+      setPath(client.root);
+      setMode("all");
+      setKind("");
+      setQuery("");
+      setConnection({ backend, client, transport });
+    };
     (async () => {
       try {
+        if (demoPreview) {
+          connect({
+            name: "公开资源库",
+            transport: "demo",
+            endpoint: "",
+            rootPath: "/",
+            auth: "none",
+            gatewayAuth: false,
+            certificates: [],
+          });
+          return;
+        }
         const response = await fetch("/api/config", {
           cache: "no-store",
           signal: controller.signal,
         });
         const config = await response.json();
-        if (!response.ok) throw new Error(config.error || "服务配置暂不可用");
         if (controller.signal.aborted) return;
-        const backend = config.backend;
-        transport =
-          backend.transport === "demo"
-            ? null
-            : new DirectTransport(backend, credentials);
-        const client = transport
-          ? new DAVClient(transport, backend)
-          : new DemoClient();
-        setPath(client.root);
-        setMode("all");
-        setKind("");
-        setQuery("");
-        setConnection({ backend, client, transport });
+        if (!response.ok) throw new Error(config.error || "服务配置暂不可用");
+        if (config.setupRequired) {
+          setSetup({ ...config.setup, checked: revision > 0 });
+          return;
+        }
+        connect(config.backend);
+        setSetup(null);
       } catch (error) {
         if (!controller.signal.aborted) setConfigError(error);
       } finally {
@@ -60,7 +81,7 @@ export function useLibrary() {
       controller.abort();
       transport?.close();
     };
-  }, [credentials, revision]);
+  }, [credentials, revision, demoPreview]);
 
   useEffect(() => {
     if (!connection) return;
@@ -85,6 +106,10 @@ export function useLibrary() {
   }, [connection, path, directoryRevision]);
 
   const navigate = (next) => {
+    // Clear the old directory before the listing effect starts for the new path.
+    setEntries([]);
+    setLoading(true);
+    setListingError(null);
     setPath(next);
     setMode("all");
     setKind("");
@@ -124,6 +149,10 @@ export function useLibrary() {
     selectMode,
     loading: connecting || (!!connection && loading),
     error: configError || listingError,
+    setup,
+    demoPreview,
+    startDemo: () => setDemoPreview(true),
+    endDemo: () => setDemoPreview(false),
     reconnect: () => setRevision((value) => value + 1),
     refresh: () => setDirectoryRevision((value) => value + 1),
   };

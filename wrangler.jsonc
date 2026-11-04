@@ -11,7 +11,7 @@
   "vars": {
     "BACKEND_NAME": "Public files",
     "BACKEND_TRANSPORT": "http",
-    "BACKEND_ENDPOINT": "https://files.example.com",
+    "BACKEND_ENDPOINT": "",
     "BACKEND_ROOT": "/dav/",
     "BACKEND_AUTH": "none",
     "GATEWAY_AUTH": "false",

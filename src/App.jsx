@@ -11,6 +11,7 @@ import { FilePreview } from "./components/FilePreview.jsx";
 import { ConnectionDialog } from "./components/ConnectionDialog.jsx";
 import { DownloadPanel } from "./components/DownloadPanel.jsx";
 import { Toast } from "./components/Toast.jsx";
+import { SetupWizard } from "./components/SetupWizard.jsx";
 import { useLibrary } from "./hooks/useLibrary.js";
 import { useRecords } from "./hooks/useRecords.js";
 import { useDownload } from "./hooks/useDownload.js";
@@ -33,6 +34,13 @@ export function App() {
   const [selected, setSelected] = useState(null);
   const [settings, setSettings] = useState(false);
   const [menu, setMenu] = useState(false);
+  useEffect(() => {
+    if (library.setup) {
+      setSettings(false);
+      setMenu(false);
+      setMessage(null);
+    }
+  }, [library.setup]);
 
   useEffect(() => {
     setSelected(null);
@@ -100,6 +108,22 @@ export function App() {
       {message && <Toast message={message} />}
     </>
   );
+  if (library.setup && !library.demoPreview)
+    return (
+      <>
+        <SetupWizard
+          setup={library.setup}
+          checking={library.loading}
+          onRetry={library.reconnect}
+          onDemo={() => {
+            setMessage(null);
+            library.startDemo();
+          }}
+          notify={toast}
+        />
+        {feedback}
+      </>
+    );
   return (
     <div class={`app-shell${selected ? " preview-open" : ""}`}>
       <Sidebar
@@ -115,6 +139,14 @@ export function App() {
           onMenu={() => setMenu((value) => !value)}
           onSettings={showSettings}
         />
+        {library.demoPreview && (
+          <div class="demo-preview-note">
+            <span>正在体验演示文件</span>
+            <button class="text-button" onClick={library.endDemo}>
+              返回配置向导
+            </button>
+          </div>
+        )}
         <FileBrowser
           library={library}
           records={records}
