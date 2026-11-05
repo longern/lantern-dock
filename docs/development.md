@@ -86,3 +86,25 @@ Keep file access and protocol handling in `src/lib/`; components should consume 
 Use `npm run check` and `npm test` for code changes, and run the browser or bridge suite when the change touches those paths. Documentation-only changes need link and content checks.
 
 Authentication credentials stay in page memory. Favorites and recent paths are local browser records. Enforce access control at the backend or bridge; changing frontend navigation cannot authorize file access.
+
+## NAS backend
+
+The optional `server/` Go module implements public read-only WebDAV, private file drops and local management commands. It uses `os.Root` for filesystem confinement, `golang.org/x/net/webdav` for DAV and pure-Go SQLite for persistent grants and transactional quota reservations. See the [NAS guide](nas-server.md) for its API and deployment.
+
+```sh
+cd server
+go vet ./...
+go test -race ./...
+go build ./cmd/lantern-dock
+```
+
+Requires Go 1.26+ on Linux or macOS. The CI workflow also cross-compiles Linux amd64/arm64 binaries and builds/smoke-tests the Docker container.
+
+The existing real-bridge suite now includes `test/integration/nas.spec.mjs`. It builds and launches the actual NAS service, invokes its CLI to issue/revoke links, checks public DAV reads and denied writes, and verifies file contents in the private inbox after browser uploads. It also tests quota errors, expired/revoked links, cancellation and direct HTTPS uploads (the browser's HTTPS backend route is forwarded to the real local NAS API by the fixture).
+
+```sh
+npm run build
+GO_BIN=/path/to/go PLAYWRIGHT_CHANNEL=chrome npm run test:bridge
+```
+
+No production endpoint, NAS directory or real site secret is used by these tests. The fixture uses temporary directories, its own key and certificate pins, and terminates both Go processes when it finishes.

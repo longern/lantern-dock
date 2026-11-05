@@ -12,11 +12,12 @@ import { ConnectionDialog } from "./components/ConnectionDialog.jsx";
 import { DownloadPanel } from "./components/DownloadPanel.jsx";
 import { Toast } from "./components/Toast.jsx";
 import { SetupWizard } from "./components/SetupWizard.jsx";
+import { UploadPage } from "./components/UploadPage.jsx";
 import { useLibrary } from "./hooks/useLibrary.js";
 import { useRecords } from "./hooks/useRecords.js";
 import { useDownload } from "./hooks/useDownload.js";
 
-export function App() {
+function LibraryApp() {
   const library = useLibrary();
   const [message, setMessage] = useState(null);
   const timer = useRef(null);
@@ -193,5 +194,21 @@ export function App() {
       )}
       {!selected && !settings && feedback}
     </div>
+  );
+}
+
+const uploadToken = () => location.hash.match(/^#\/upload\/(.*)$/)?.[1] ?? null;
+
+export function App() {
+  const [token, setToken] = useState(uploadToken);
+  useEffect(() => {
+    const changed = () => setToken(uploadToken());
+    window.addEventListener("hashchange", changed);
+    return () => window.removeEventListener("hashchange", changed);
+  }, []);
+  return token === null ? (
+    <LibraryApp />
+  ) : (
+    <UploadPage key={token} token={token} />
   );
 }

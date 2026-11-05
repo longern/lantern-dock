@@ -78,10 +78,13 @@ export function requestBytes(method, path, headers, body = new Uint8Array()) {
   )
     throw new Error("Invalid HTTP request target");
   const output = new Headers(headers);
+  const length = typeof body === "number" ? body : body.length;
+  if (!Number.isSafeInteger(length) || length < 0)
+    throw new Error("Invalid request body length");
   output.set("Host", "backend.internal");
   output.set("Accept-Encoding", "identity");
-  if (body.length || !["GET", "HEAD"].includes(method))
-    output.set("Content-Length", String(body.length));
+  if (length || !["GET", "HEAD"].includes(method))
+    output.set("Content-Length", String(length));
   let text = `${method} ${path} HTTP/1.1\r\n`;
   for (const [name, value] of output) {
     if (/[\r\n]/.test(name + value)) throw new Error("Invalid header");

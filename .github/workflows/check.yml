@@ -1,0 +1,57 @@
+name: Checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+  nas:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -race ./...
+      - name: Cross-compile NAS binaries
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/lantern-dock-amd64 ./cmd/lantern-dock
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /tmp/lantern-dock-arm64 ./cmd/lantern-dock
+      - name: Build and smoke-test the NAS container
+        run: |
+          docker build -t lantern-dock-server:ci .
+          docker run -d --name lantern-dock-ci --read-only --tmpfs /data:uid=65532,gid=65532,mode=0700 -p 127.0.0.1:18080:8080 lantern-dock-server:ci
+          trap 'docker logs lantern-dock-ci; docker rm -f lantern-dock-ci' EXIT
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:18080/healthz; then break; fi
+            sleep 1
+          done
+          curl --fail --silent -X PROPFIND -H 'Depth: 1' http://127.0.0.1:18080/dav/ > /tmp/dav.xml
+          grep -q multistatus /tmp/dav.xml
+          docker exec lantern-dock-ci /lantern-dock link create --data-dir=/data --site=https://files.example.com > /tmp/drop.json
+          docker exec lantern-dock-ci /lantern-dock link list --data-dir=/data > /tmp/links.json
+      - name: Validate Compose configuration
+        working-directory: .
+        env:
+          PUBLIC_DIR: /tmp/public
+          SITE_ORIGIN: https://files.example.com
+          CERT_WEBHOOK_URL: https://files.example.com/api/certificates/ci-placeholder
+        run: docker compose -f compose.nas.yaml config --quiet

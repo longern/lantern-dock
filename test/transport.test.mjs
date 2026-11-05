@@ -106,3 +106,52 @@ test("closing during a handshake cannot resurrect an old session or clobber a ne
   assert.equal(transport.session, sessions[1]);
   transport.close();
 });
+
+test("Blob uploads stream binary chunks with an exact length and progress", async () => {
+  const data = Uint8Array.from({ length: 512 * 1024 }, (_, i) => i % 251);
+  const chunks = [];
+  const progress = [];
+  let incoming;
+  const transport = new DirectTransport({ transport: "webtransport" });
+  transport.connect = async () => ({
+    createBidirectionalStream: async () => ({
+      readable: new ReadableStream({
+        start(controller) {
+          incoming = controller;
+        },
+      }),
+      writable: new WritableStream({
+        async write(chunk) {
+          chunks.push(chunk.slice());
+        },
+        close() {
+          incoming.enqueue(
+            new TextEncoder().encode(
+              "HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n",
+            ),
+          );
+          incoming.close();
+        },
+      }),
+    }),
+  });
+  const response = await transport.request("/api/uploads/test", {
+    method: "PUT",
+    body: new Blob([data]),
+    onUploadProgress: (loaded, total) => progress.push({ loaded, total }),
+  });
+  assert.equal(response.status, 201);
+  assert.match(
+    new TextDecoder().decode(chunks[0]),
+    /content-length: 524288\r\n/i,
+  );
+  assert.deepEqual(Buffer.concat(chunks.slice(1)), Buffer.from(data));
+  assert.ok(chunks.length > 2);
+  assert.deepEqual(progress.at(-1), {
+    loaded: data.length,
+    total: data.length,
+  });
+  assert.ok(
+    progress.every((value, i) => !i || value.loaded > progress[i - 1].loaded),
+  );
+});

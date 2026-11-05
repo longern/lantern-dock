@@ -1,7 +1,7 @@
 import http from "node:http";
 import https from "node:https";
 import dgram from "node:dgram";
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, extname } from "node:path";
 import { execFile, spawn } from "node:child_process";
@@ -43,14 +43,14 @@ const items = [
 const xml = (path) =>
   `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">${[{ name: "", folder: true }, ...items].map((item) => `<d:response><d:href>${path}${encodeURIComponent(item.name)}${item.folder && item.name ? "/" : ""}</d:href><d:propstat><d:prop><d:resourcetype>${item.folder ? "<d:collection/>" : ""}</d:resourcetype><d:getcontentlength>${item.size || Buffer.byteLength(item.data || "")}</d:getcontentlength><d:getlastmodified>Wed, 04 Nov 2026 08:30:00 GMT</d:getlastmodified><d:getcontenttype>${item.mime || ""}</d:getcontenttype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`).join("")}</d:multistatus>`;
 
-export async function startFixture() {
+export async function startFixture({ nas = false } = {}) {
   const directory = await mkdtemp(resolve(tmpdir(), "lantern-bridge-test-"));
   const source = resolve(process.env.BRIDGE_SOURCE || "../webtransport-bridge");
   const go = process.env.GO_BIN || "go";
   const requests = [],
     cancellations = [],
     pins = new Map();
-  let processBridge, frontend, backend;
+  let processBridge, processNAS, frontend, backend;
   let logs = "";
   const stop = async () => {
     if (processBridge && processBridge.exitCode === null) {
@@ -62,6 +62,11 @@ export async function startFixture() {
     }
     if (frontend) await close(frontend);
     if (backend) await close(backend);
+    if (processNAS && processNAS.exitCode === null) {
+      const exited = new Promise((resolve) => processNAS.once("exit", resolve));
+      processNAS.kill("SIGTERM");
+      await exited;
+    }
     await rm(directory, { recursive: true, force: true });
   };
   try {
@@ -205,7 +210,14 @@ export async function startFixture() {
         try {
           if (req.url.startsWith("/__test/lib/")) {
             const name = req.url.slice("/__test/lib/".length);
-            if (!["transport.js", "dav.js", "http-wire.js"].includes(name)) {
+            if (
+              ![
+                "transport.js",
+                "dav.js",
+                "http-wire.js",
+                "uploads.js",
+              ].includes(name)
+            ) {
               res.writeHead(404);
               res.end();
               return;
@@ -264,14 +276,91 @@ export async function startFixture() {
     );
     await listen(frontend);
     const origin = `https://localhost:${frontend.address().port}`;
+    let backendEndpoint = `http://127.0.0.1:${backend.address().port}`;
+    let nasFixture;
+    if (nas) {
+      const nasBinary = resolve(directory, "lantern-dock");
+      await exec(go, ["build", "-o", nasBinary, "./cmd/lantern-dock"], {
+        cwd: resolve("server"),
+        env: { ...process.env, GO111MODULE: "on", GOTOOLCHAIN: "local" },
+      });
+      const publicDir = resolve(directory, "nas-public");
+      const dataDir = resolve(directory, "nas-data");
+      await mkdir(resolve(publicDir, "照片"), { recursive: true });
+      await writeFile(resolve(publicDir, "hello.txt"), textFile);
+      await writeFile(resolve(publicDir, "coast.svg"), picture);
+      let nasLogs = "";
+      processNAS = spawn(
+        nasBinary,
+        [
+          "serve",
+          "--listen=127.0.0.1:0",
+          `--public-dir=${publicDir}`,
+          `--data-dir=${dataDir}`,
+          `--origins=${origin}`,
+        ],
+        { stdio: ["ignore", "pipe", "pipe"] },
+      );
+      processNAS.stdout.on("data", (chunk) => {
+        nasLogs += chunk;
+      });
+      processNAS.stderr.on("data", (chunk) => {
+        nasLogs += chunk;
+      });
+      for (let i = 0; !nasLogs.includes("listening on") && i < 100; i++) {
+        if (processNAS.exitCode !== null) throw new Error(nasLogs);
+        await sleep(50);
+      }
+      const address = nasLogs.match(/listening on (127\.0\.0\.1:\d+)/)?.[1];
+      if (!address) throw new Error("NAS server did not start");
+      backendEndpoint = `http://${address}`;
+      env.BACKEND_ROOT = "/dav/";
+      env.BACKEND_AUTH = "none";
+      env.GATEWAY_AUTH = "false";
+      nasFixture = {
+        endpoint: backendEndpoint,
+        dataDir,
+        async createLink({
+          title = "临时收照片",
+          maxFile = "1MiB",
+          maxTotal = "2MiB",
+          maxFiles = 5,
+          expires = "1h",
+        } = {}) {
+          const { stdout } = await exec(nasBinary, [
+            "link",
+            "create",
+            `--data-dir=${dataDir}`,
+            `--site=${origin}`,
+            `--title=${title}`,
+            `--max-file=${maxFile}`,
+            `--max-total=${maxTotal}`,
+            `--max-files=${maxFiles}`,
+            `--expires=${expires}`,
+          ]);
+          return JSON.parse(stdout);
+        },
+        async revokeLink(id) {
+          await exec(nasBinary, [
+            "link",
+            "revoke",
+            `--data-dir=${dataDir}`,
+            id,
+          ]);
+        },
+      };
+    }
     processBridge = spawn(
       binary,
       [
         `--listen=127.0.0.1:${bridgePort}`,
-        `--backend=http://127.0.0.1:${backend.address().port}`,
+        `--backend=${backendEndpoint}`,
         `--origins=${origin}`,
-        "--paths=/public",
-        "--methods=GET,HEAD,PROPFIND",
+        nas ? "--paths=/dav,/api/uploads" : "--paths=/public",
+        nas
+          ? "--methods=GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS"
+          : "--methods=GET,HEAD,PROPFIND",
+        ...(nas ? ["--public"] : []),
         `--cert=${resolve(certDirectory, "cert.pem")}`,
         `--key=${resolve(certDirectory, "key.pem")}`,
       ],
@@ -333,6 +422,7 @@ export async function startFixture() {
       pins,
       requests,
       cancellations,
+      nas: nasFixture,
       stop,
       get logs() {
         return logs;

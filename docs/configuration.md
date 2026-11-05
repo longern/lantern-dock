@@ -1,5 +1,7 @@
 # Configuration
 
+For an anonymous public NAS folder and temporary private collection links, see the [included NAS backend](nas-server.md). It provides `/dav/` and `/api/uploads` behind the same bridge; the Worker does not issue upload permissions or proxy file bodies.
+
 [← Back to the project](../README.md)
 
 LanternDock serves one configured WebDAV root. Configure it in `.env` for Vite development and through the Cloudflare dashboard or `wrangler.jsonc` for deployment. Restart the development server after changing local settings.

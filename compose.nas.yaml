@@ -1,0 +1,42 @@
+services:
+  nas:
+    build: ./server
+    image: lantern-dock-server:local
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ${PUBLIC_DIR:?Set PUBLIC_DIR to the folder you want to publish}
+        target: /public
+        read_only: true
+      - nas-data:/data
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+
+  bridge:
+    image: ghcr.io/longern/webtransport-bridge:latest
+    restart: unless-stopped
+    depends_on: [nas]
+    ports:
+      - "${BRIDGE_PORT:-4433}:4433/udp"
+    environment:
+      CERT_WEBHOOK_URL: ${CERT_WEBHOOK_URL:?Set the private certificate webhook URL}
+    command:
+      - --backend=http://nas:8080
+      - --origins=${SITE_ORIGIN:?Set the frontend HTTPS origin without a trailing slash}
+      - --public
+      - --paths=/dav,/api/uploads
+      - --methods=GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS
+      - --auto-cert
+      - --cert-dir=/certs
+    volumes:
+      - bridge-certs:/certs
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+
+volumes:
+  nas-data:
+  bridge-certs:

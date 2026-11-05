@@ -38,6 +38,8 @@ Give visitors a simple interface to files you already host. LanternDock provides
 - **Connect your way.** HTTPS / WebDAV, or WebDAV through [webtransport-bridge](https://github.com/longern/webtransport-bridge).
 - **Keep credentials separate.** Backend Basic or Bearer authentication, plus an optional bridge token. Credentials stay in page memory.
 - **Set up with guidance.** A first-run wizard generates local or Cloudflare configuration, with an explicit demo option.
+- **Host a public NAS folder.** The optional Go server provides anonymous, read-only WebDAV while keeping private state separate.
+- **Receive files without accounts.** Expiring, revocable upload links enforce file-size, capacity and file-count limits on the NAS.
 
 ## Quick start
 
@@ -66,6 +68,12 @@ Run `npm run dev` again. LanternDock derives the server origin and root director
 The backend needs WebDAV `PROPFIND` with `Depth: 1`, plus `GET` and `HEAD`. Direct HTTPS connections also need CORS configured for the frontend origin.
 
 For a bridge, use `WEBTRANSPORT_URL` instead of `WEBDAV_URL`. They are mutually exclusive; no separate transport variable is needed. See the [configuration guide](docs/configuration.md) for WebTransport, optional settings, CORS, and certificate updates.
+
+### Use the included NAS backend
+
+The optional [`server/`](server/) backend combines public read-only WebDAV with private file drops. The NAS issues upload permissions and enforces quotas in SQLite; uploaded files stay in its private inbox until you choose to publish them. Visitors need only their collection link, with no account registration.
+
+Use [`compose.nas.yaml`](compose.nas.yaml) for the NAS backend plus WebTransport bridge. See the [NAS deployment guide](docs/nas-server.md) for folder mounts, frontend configuration, and CLI commands to create and revoke collection links.
 
 ## How it works
 
@@ -97,24 +105,26 @@ The deploy command builds the Preact frontend into `dist/` and uploads it with t
 
 ## Project status
 
-LanternDock is in early development. The current version is a **read-only WebDAV browser**. Uploads, delete/rename operations, share management, identity adapters, and task execution are future work.
+LanternDock is in early development. Public browsing is **read-only WebDAV**. The optional NAS backend adds **private uploads through scoped collection links**. General file editing, public share management, identity adapters, resumable uploads, and task execution remain future work.
 
-| Area           | Current behavior                                                                                                                                |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Previews       | Images up to 25 MiB; text up to 1 MiB. Video, audio, PDF, and archive previews are not available yet.                                           |
-| Downloads      | Stream to disk when supported; otherwise buffer in memory with a 256 MiB limit.                                                                 |
-| Directories    | Directory responses are limited to 8 MiB. Search and type filters apply to the current directory.                                               |
-| Image listings | Real backend files use generic icons; images load when opened for preview.                                                                      |
-| Local records  | Favorites and recent paths live in local storage; credentials live only in page memory.                                                         |
-| Validation     | Chromium desktop and mobile viewports, plus local real-bridge integration tests. Physical devices and individual backends need further testing. |
+| Area           | Current behavior                                                                                                                                                                                |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Previews       | Images up to 25 MiB; text up to 1 MiB. Video, audio, PDF, and archive previews are not available yet.                                                                                           |
+| Downloads      | Stream to disk when supported; otherwise buffer in memory with a 256 MiB limit.                                                                                                                 |
+| Directories    | Directory responses are limited to 8 MiB. Search and type filters apply to the current directory.                                                                                               |
+| Image listings | Real backend files use generic icons; images load when opened for preview.                                                                                                                      |
+| Local records  | Favorites and recent paths live in local storage; credentials live only in page memory.                                                                                                         |
+| File drops     | NAS-issued links with expiry, revocation, per-file and total byte limits, and file-count quotas. Files upload sequentially with progress and cancellation; incomplete files must be sent again. |
+| Validation     | Chromium desktop and mobile viewports, plus local real-bridge integration tests. Physical devices and individual backends need further testing.                                                 |
 
 `BACKEND_ROOT` controls navigation. Enforce permissions and path restrictions on the backend or bridge.
 
 ## Roadmap
 
 - [ ] Integrate existing backend identities.
-- [ ] Add expiring, revocable guest grants with explicit scopes and quotas.
-- [ ] Support scoped guest uploads and upload-only entry points.
+- [x] Add expiring, revocable guest upload grants with explicit scopes and quotas.
+- [x] Support scoped guest uploads and upload-only entry points.
+- [ ] Support resumable uploads and a web interface for managing collections.
 - [ ] Expose predefined, authorized tasks such as media conversion.
 - [ ] Improve backend thumbnails and preview coverage.
 

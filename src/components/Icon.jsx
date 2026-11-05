@@ -25,6 +25,7 @@ import {
   Sparkles,
   Star,
   TriangleAlert,
+  Upload,
   X,
 } from "lucide-preact";
 
@@ -51,6 +52,7 @@ const icons = {
   audio: FileAudio,
   archive: FileArchive,
   download: Download,
+  upload: Upload,
   x: X,
   menu: Menu,
   plug: Plug,

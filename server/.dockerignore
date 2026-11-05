@@ -1,0 +1,4 @@
+data/
+public/
+lantern-dock
+*_test.go

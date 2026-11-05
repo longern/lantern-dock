@@ -1,0 +1,17 @@
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /lantern-dock ./cmd/lantern-dock \
+    && mkdir -p /empty/data /empty/public
+
+FROM scratch
+COPY --from=build /lantern-dock /lantern-dock
+COPY --from=build --chown=65532:65532 /empty/ /
+USER 65532:65532
+EXPOSE 8080
+ENTRYPOINT ["/lantern-dock"]
+CMD ["serve", "--public-dir=/public", "--data-dir=/data"]

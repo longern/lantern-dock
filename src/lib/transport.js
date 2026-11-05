@@ -95,7 +95,10 @@ export class DirectTransport {
       if (this.connecting === connecting) this.connecting = null;
     }
   }
-  async request(path, { method = "GET", headers = {}, body, signal } = {}) {
+  async request(
+    path,
+    { method = "GET", headers = {}, body, signal, onUploadProgress } = {},
+  ) {
     signal?.throwIfAborted();
     const auth = authorization(this.credentials);
     const outgoing = new Headers(headers);
@@ -141,12 +144,16 @@ export class DirectTransport {
       throw signal.reason;
     }
     try {
+      const blob = body instanceof Blob ? body : null;
       const bytes =
         body == null
           ? new Uint8Array()
           : body instanceof Uint8Array
             ? body
-            : new TextEncoder().encode(String(body));
+            : blob
+              ? new Uint8Array()
+              : new TextEncoder().encode(String(body));
+      const length = blob ? blob.size : bytes.length;
       // Insert this after Headers construction, never through a guarded browser Request.
       if (this.config.gatewayAuth && this.credentials.gatewayToken)
         outgoing.set(
@@ -155,8 +162,31 @@ export class DirectTransport {
         );
       const sending = (async () => {
         try {
-          await writer.write(requestBytes(method, path, outgoing, bytes));
-          if (bytes.length) await writer.write(bytes);
+          await writer.write(requestBytes(method, path, outgoing, length));
+          if (blob) {
+            const reader = blob.stream().getReader();
+            let loaded = 0;
+            try {
+              while (true) {
+                signal?.throwIfAborted();
+                const { done, value } = await reader.read();
+                if (done) break;
+                for (let offset = 0; offset < value.length; offset += 65536) {
+                  signal?.throwIfAborted();
+                  const chunk = value.subarray(offset, offset + 65536);
+                  await writer.write(chunk);
+                  loaded += chunk.length;
+                  onUploadProgress?.(loaded, length);
+                }
+              }
+            } finally {
+              await reader.cancel().catch(() => {});
+              reader.releaseLock();
+            }
+          } else if (bytes.length) {
+            await writer.write(bytes);
+            onUploadProgress?.(bytes.length, length);
+          }
           await writer.close();
         } finally {
           writer.releaseLock();
