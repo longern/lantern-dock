@@ -1,5 +1,5 @@
 .setup-page {
-  min-height: 100dvh;
+  min-height: 100svh;
   background: #f8f8fc;
   padding: 40px 24px 24px;
 }
@@ -315,14 +315,14 @@
 }
 @media (max-width: 700px) {
   .setup-page {
-    padding: 24px 16px;
+    padding: 16px;
   }
   .setup-brand {
     font-size: 20px;
-    margin-bottom: 24px;
+    margin-bottom: 16px;
   }
   .setup-card {
-    padding: 24px 20px;
+    padding: 20px;
     border-radius: 12px;
   }
   .setup-intro h1 {
@@ -330,7 +330,8 @@
   }
   .setup-steps {
     gap: 8px;
-    padding: 20px 0 24px;
+    margin-top: 16px;
+    padding: 16px 0 20px;
   }
   .setup-steps li {
     font-size: 11px;
@@ -341,14 +342,14 @@
   .setup-choices {
     grid-template-columns: 1fr;
     gap: 12px;
-    margin-top: 20px;
+    margin: 16px 0;
   }
   .setup-choice {
-    padding: 18px;
+    padding: 14px 18px;
     gap: 6px;
   }
   .setup-choice > svg {
-    margin-bottom: 4px;
+    margin-bottom: 0;
   }
   .setup-fields {
     grid-template-columns: 1fr;
@@ -356,6 +357,8 @@
   }
   .setup-actions {
     gap: 12px;
+    margin-top: 22px;
+    padding-top: 16px;
   }
   .setup-actions button {
     font-size: 12px;
