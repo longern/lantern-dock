@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker, { configuration, validatePins } from "../worker/index.js";
+import {
+  deriveSecret,
+  CERTIFICATE_WEBHOOK_PURPOSE,
+} from "../worker/secrets.js";
 const base = {
   BACKEND_TRANSPORT: "http",
   BACKEND_ENDPOINT: "https://files.example.com",
@@ -289,4 +293,91 @@ test("storage outages remain errors and the public config endpoint cannot write 
   );
   assert.equal(write.status, 404);
   assert.equal(base.BACKEND_ENDPOINT, "https://files.example.com");
+});
+
+test("certificate updates accept only a purpose-derived token, never the master key", async () => {
+  const master = "m".repeat(64),
+    token = await deriveSecret(master, CERTIFICATE_WEBHOOK_PURPOSE);
+  let writes = 0;
+  const env = {
+    ...base,
+    SECRET_KEY: master,
+    PINS: {
+      put: async () => {
+        writes++;
+      },
+    },
+  };
+  const request = (value) =>
+    new Request("https://portal.example.com/api/certificates/" + value, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version: 1, certificates: [pin] }),
+    });
+  assert.equal((await worker.fetch(request(token), env)).status, 204);
+  assert.equal((await worker.fetch(request(master), env)).status, 404);
+  assert.equal(
+    (
+      await worker.fetch(
+        request(await deriveSecret(master, "lantern-dock:other:v1")),
+        env,
+      )
+    ).status,
+    404,
+  );
+  assert.equal(
+    (await worker.fetch(request(token), { ...env, SECRET_KEY: "n".repeat(64) }))
+      .status,
+    404,
+  );
+  assert.equal(
+    (await worker.fetch(request(token), { ...env, SECRET_KEY: "short" }))
+      .status,
+    404,
+  );
+  assert.equal(writes, 1);
+  const publicConfig = await (
+    await worker.fetch(
+      new Request("https://portal.example.com/api/config"),
+      env,
+    )
+  ).text();
+  assert.ok(!publicConfig.includes(master));
+  assert.ok(!publicConfig.includes(token));
+  const publicSetup = await (
+    await worker.fetch(new Request("https://portal.example.com/api/config"), {
+      ...env,
+      BACKEND_ENDPOINT: "",
+    })
+  ).text();
+  assert.ok(!publicSetup.includes(master));
+  assert.ok(!publicSetup.includes(token));
+});
+
+test("an explicit legacy webhook credential stays valid during migration", async () => {
+  const master = "m".repeat(64),
+    legacy = "l".repeat(64),
+    token = await deriveSecret(master, CERTIFICATE_WEBHOOK_PURPOSE);
+  const env = {
+    SECRET_KEY: master,
+    CERT_WEBHOOK_SECRET: legacy,
+    PINS: { put: async () => {} },
+  };
+  const request = (value) =>
+    new Request("https://portal.example.com/api/certificates/" + value, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version: 1, certificates: [pin] }),
+    });
+  assert.equal((await worker.fetch(request(legacy), env)).status, 204);
+  assert.equal((await worker.fetch(request(token), env)).status, 204);
+  assert.equal(
+    (
+      await worker.fetch(request(legacy), {
+        ...env,
+        CERT_WEBHOOK_SECRET: undefined,
+      })
+    ).status,
+    404,
+  );
 });

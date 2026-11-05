@@ -1,7 +1,9 @@
 node_modules/
 .wrangler/
-.dev.vars
-.env
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
 .webhook-secret
 .DS_Store
 dist/

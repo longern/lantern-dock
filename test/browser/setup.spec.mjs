@@ -150,7 +150,10 @@ test("wizard exports real configuration, keeps form values on retry, and detects
   });
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "下载配置", exact: true }).click();
-  expect(await readFile(await (await downloaded).path(), "utf8")).toBe(local);
+  const file = await downloaded;
+  expect(file.suggestedFilename()).toBe("lantern-dock.env");
+  expect(await readFile(await file.path(), "utf8")).toBe(local);
+  expect(local).not.toContain("SECRET_KEY");
   await page.evaluate(() =>
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,

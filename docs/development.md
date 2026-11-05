@@ -2,7 +2,7 @@
 
 [← Back to the project](../README.md)
 
-Install dependencies with `npm ci`. The frontend uses Preact and Vite; the Worker and WebDAV/HTTP framing modules are independent of the UI framework.
+Install dependencies with `npm ci`, then run `npm run init` to create the site key in `.env`. The frontend uses Preact and Vite; the Worker and WebDAV/HTTP framing modules are independent of the UI framework.
 
 ## Checks
 
@@ -42,6 +42,7 @@ It checks gateway 407 versus backend 401, separate credentials, PROPFIND, encode
 
 | Command                | Purpose                                                                       |
 | ---------------------- | ----------------------------------------------------------------------------- |
+| `npm run init`         | Initialize or reuse `SECRET_KEY` in `.env` without printing it.               |
 | `npm run dev`          | Run Vite and the local Worker configuration API on port 8787.                 |
 | `npm run check`        | Check JavaScript syntax and build the JSX frontend.                           |
 | `npm test`             | Run protocol, transport, WebDAV, and Worker unit tests.                       |
@@ -54,7 +55,7 @@ It checks gateway 407 versus backend 401, separate credentials, PROPFIND, encode
 
 ## Configuration API states
 
-`GET /api/config` returns normal backend metadata for a configured site. Missing or invalid settings return HTTP 200 with `setupRequired: true` and a `setup` object containing a reason and safe public defaults. Operational failures, such as a KV read outage, still return HTTP 503. No public API writes deployment settings. New configurations use exactly one of `WEBDAV_URL` and `WEBTRANSPORT_URL`; the legacy endpoint/transport variables remain supported. Shared defaults live in `shared/backend-defaults.js`.
+`GET /api/config` returns normal backend metadata for a configured site. Missing or invalid settings return HTTP 200 with `setupRequired: true` and a `setup` object containing a reason and safe public defaults. Operational failures, such as a KV read outage, still return HTTP 503. No public API writes deployment settings or returns `SECRET_KEY`. The local API adapter loads `.env` (or legacy `.dev.vars`), and certificate webhook tokens are derived on the server. New configurations use exactly one of `WEBDAV_URL` and `WEBTRANSPORT_URL`; the legacy endpoint/transport variables remain supported. Shared defaults live in `shared/backend-defaults.js`.
 
 ## Project structure
 
@@ -66,6 +67,8 @@ src/
   hooks/                   Connections, listings, local records, downloads
   lib/                     WebDAV, transports, HTTP framing, demo fixtures
   styles/                  Component styles and responsive layouts
+scripts/init.mjs           Persistent .env site-key initialization
+worker/secrets.js          Purpose-separated server-side token derivation
 shared/backend-defaults.js Shared defaults and URL selection
 worker/index.js            Connection API and certificate webhook
 vite.config.js             Build configuration and local Worker API adapter

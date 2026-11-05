@@ -9,6 +9,10 @@ import { promisify } from "node:util";
 import { Readable } from "node:stream";
 import { X509Certificate, createHash } from "node:crypto";
 import worker from "../../worker/index.js";
+import {
+  deriveSecret,
+  CERTIFICATE_WEBHOOK_PURPOSE,
+} from "../../worker/secrets.js";
 
 const exec = promisify(execFile);
 const listen = (server) =>
@@ -173,7 +177,8 @@ export async function startFixture() {
     const bridgePort = udp.address().port;
     await new Promise((resolve) => udp.close(resolve));
     const endpoint = `https://127.0.0.1:${bridgePort}/webtransport`;
-    const secret = "fixture-webhook-secret-0123456789abcdef";
+    const masterKey = "fixture-site-secret-key-0123456789abcdef";
+    const secret = await deriveSecret(masterKey, CERTIFICATE_WEBHOOK_PURPOSE);
     const env = {
       BACKEND_NAME: "Bridge 测试资源",
       BACKEND_TRANSPORT: "webtransport",
@@ -181,7 +186,7 @@ export async function startFixture() {
       BACKEND_ROOT: "/public/",
       BACKEND_AUTH: "bearer",
       GATEWAY_AUTH: "true",
-      CERT_WEBHOOK_SECRET: secret,
+      SECRET_KEY: masterKey,
       PINS: {
         async get(key) {
           return pins.has(key) ? JSON.parse(pins.get(key)) : null;

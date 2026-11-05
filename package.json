@@ -5,6 +5,7 @@
   "type": "module",
   "description": "A direct-access frontend for sharing self-hosted files, apps, and tasks",
   "scripts": {
+    "init": "node scripts/init.mjs",
     "dev": "vite",
     "test": "node --test test/*.test.mjs",
     "check": "node scripts/check.mjs && vite build",

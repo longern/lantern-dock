@@ -45,12 +45,12 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
   };
   const download = () => {
     const url = URL.createObjectURL(
-      new Blob([snippet], { type: "text/plain;charset=utf-8" }),
+      new Blob([snippet], { type: "application/octet-stream" }),
     );
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download =
-      target === "local" ? ".dev.vars" : "lantern-dock.vars.json";
+      target === "local" ? "lantern-dock.env" : "lantern-dock.vars.json";
     document.body.append(anchor);
     anchor.click();
     anchor.remove();
@@ -279,8 +279,8 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
             <p class="setup-instructions">
               {target === "local" ? (
                 <>
-                  将下面内容保存到项目根目录的 <code>.dev.vars</code>，然后重启{" "}
-                  <code>npm run dev</code>。
+                  将下面的连接变量合入项目根目录的 <code>.env</code>，保留已有的{" "}
+                  <code>SECRET_KEY</code>，然后重启 <code>npm run dev</code>。
                 </>
               ) : (
                 <>
@@ -292,7 +292,7 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
             </p>
             <div class="setup-code-heading">
               <span>
-                {target === "local" ? ".dev.vars" : "wrangler.jsonc · vars"}
+                {target === "local" ? ".env" : "wrangler.jsonc · vars"}
               </span>
               <div>
                 <button class="text-button" onClick={download}>
@@ -336,13 +336,14 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
                       <li>
                         {target === "local" ? (
                           <>
-                            在 <code>.dev.vars</code> 中补充{" "}
+                            在 <code>.env</code> 中补充{" "}
                             <code>CERTIFICATES_JSON</code>
                             ，填入网关实际发布的证书哈希文档。
                           </>
                         ) : (
                           <>
-                            绑定 <code>PINS</code> KV、设置私密证书
+                            绑定 <code>PINS</code> KV、设置{" "}
+                            <code>SECRET_KEY</code>，生成私密证书
                             webhook，并让网关发布有效证书哈希。
                           </>
                         )}

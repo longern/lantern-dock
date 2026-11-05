@@ -47,6 +47,7 @@ Requires **Node.js 22.12+** and npm.
 git clone https://github.com/longern/lantern-dock.git
 cd lantern-dock
 npm ci
+npm run init
 npm run dev
 ```
 
@@ -54,11 +55,7 @@ Open [http://127.0.0.1:8787](http://127.0.0.1:8787). With no backend configured,
 
 ### Connect a WebDAV server
 
-Copy the example configuration, then edit `.dev.vars` before starting the server:
-
-```sh
-cp .dev.vars.example .dev.vars
-```
+Edit the `.env` created by `npm run init`, keeping its generated `SECRET_KEY`. Add your connection URL before restarting the server:
 
 ```dotenv
 WEBDAV_URL="https://files.example.com/dav/public/"
@@ -96,7 +93,7 @@ Both connection modes use WebDAV for file access. The bridge carries one HTTP/1.
 
 3. Allow the deployed frontend origin in the backend's CORS policy or the bridge's origin policy.
 
-The deploy command builds the Preact frontend into `dist/` and uploads it with the Worker. Local `.dev.vars` settings do not configure production. Pinned WebTransport also requires Workers KV and a private certificate webhook; follow the [deployment and certificate setup](docs/configuration.md#certificate-updates).
+The deploy command builds the Preact frontend into `dist/` and uploads it with the Worker. Local `.env` settings do not configure production. Pinned WebTransport also requires Workers KV and a private certificate webhook; follow the [deployment and certificate setup](docs/configuration.md#certificate-updates).
 
 ## Project status
 

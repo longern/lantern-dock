@@ -2,6 +2,7 @@ import {
   backendDefaults as defaults,
   backendAddress,
 } from "../shared/backend-defaults.js";
+import { certificateWebhookTokens } from "./secrets.js";
 
 const json = (data, status = 200) =>
   Response.json(data, {
@@ -241,18 +242,15 @@ export default {
       }
     }
     if (url.pathname.startsWith("/api/certificates/")) {
-      if (
-        request.method !== "PUT" ||
-        url.search ||
-        !env.PINS ||
-        !env.CERT_WEBHOOK_SECRET ||
-        env.CERT_WEBHOOK_SECRET.length < 32 ||
-        !(await equalSecret(
-          url.pathname,
-          `/api/certificates/${env.CERT_WEBHOOK_SECRET}`,
-        ))
-      )
+      if (request.method !== "PUT" || url.search || !env.PINS)
         return json({ error: "Not found" }, 404);
+      const tokens = await certificateWebhookTokens(env).catch(() => []);
+      let authorized = false;
+      for (const token of tokens)
+        authorized =
+          (await equalSecret(url.pathname, `/api/certificates/${token}`)) ||
+          authorized;
+      if (!authorized) return json({ error: "Not found" }, 404);
       if (
         request.headers.get("Content-Type")?.split(";")[0].trim() !==
         "application/json"

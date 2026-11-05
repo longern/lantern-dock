@@ -1,27 +1,15 @@
 import { defineConfig } from "vite";
 import preact from "@preact/preset-vite";
-import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
 import worker from "./worker/index.js";
-import { parseLocalVariables } from "./scripts/local-env.mjs";
-
-async function localEnvironment() {
-  const env = { ...process.env };
-  try {
-    const vars = await readFile(
-      new URL("./.dev.vars", import.meta.url),
-      "utf8",
-    );
-    Object.assign(env, parseLocalVariables(vars));
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
-  return env;
-}
+import { loadLocalEnvironment } from "./scripts/local-env.mjs";
 
 function connectionAPI() {
   const setup = async (server) => {
-    const env = await localEnvironment();
+    const env = await loadLocalEnvironment(
+      fileURLToPath(new URL(".", import.meta.url)),
+    );
     server.middlewares.use("/api", async (req, res, next) => {
       try {
         const method = req.method || "GET";

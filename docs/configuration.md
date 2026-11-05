@@ -2,9 +2,9 @@
 
 [← Back to the project](../README.md)
 
-LanternDock serves one configured WebDAV root. Configure it in `.dev.vars` for Vite development and in `wrangler.jsonc` for Cloudflare deployment. Restart the development server after changing local settings.
+LanternDock serves one configured WebDAV root. Configure it in `.env` for Vite development and in `wrangler.jsonc` for Cloudflare deployment. Restart the development server after changing local settings.
 
-Missing or invalid backend settings, and missing certificate pins, open a setup wizard. It generates `.dev.vars` or a `vars` block for `wrangler.jsonc`, supports copy/download, and rechecks `/api/config` after the maintainer applies the settings. The public page does not write server configuration or persist wizard inputs. Apply local settings and restart Vite, or update the Worker variables and redeploy.
+Missing or invalid backend settings, and missing certificate pins, open a setup wizard. It generates `.env` or a `vars` block for `wrangler.jsonc`, supports copy/download, and rechecks `/api/config` after the maintainer applies the settings. The public page does not write server configuration or persist wizard inputs. Apply local settings and restart Vite, or update the Worker variables and redeploy.
 
 Credentials are entered in the connection dialog and kept in page memory. The public `/api/config` document contains connection metadata and certificate pins.
 
@@ -18,34 +18,48 @@ WEBDAV_URL="https://files.example.com/dav/public/"
 
 The browser connects to `https://files.example.com` and browses `/dav/public/`. For WebTransport, use `WEBTRANSPORT_URL` instead. Setting both nonempty URLs opens the setup wizard so the maintainer can choose one. Empty URL variables are ignored.
 
+## Site key and local environment
+
+```sh
+npm run init
+```
+
+Initialization appends a cryptographically random 32-byte `SECRET_KEY` to `.env` without replacing existing connection settings. Repeated runs reuse the key. The file is excluded from Git and initialized with owner-only permissions. Production uses a Worker Secret named `SECRET_KEY`, outside the public `vars` block.
+
+The certificate-update token is `HMAC-SHA256(SECRET_KEY, "lantern-dock:certificate-webhook:v1")`. Other signed features can use separate purpose labels in the future; the master key stays server-side. Certificate renewal and service restarts keep the URL stable. Changing `SECRET_KEY` changes the derived URL, so update the bridge when rotating it. Existing certificate pins stay in KV.
+
+A sole legacy `.dev.vars` file is moved to `.env` by initialization, preserving its contents. If both exist, initialization asks the maintainer to consolidate them first rather than silently choose a key. The runtime retains Wrangler's legacy precedence: `.dev.vars` wins when it exists; otherwise it loads `.env`. Explicit process variables override local values in the Vite adapter. Use only `.env` for new setups.
+
 ## Optional settings
 
-Defaults can stay unset. The wizard keeps advanced controls collapsed and exports only the selected URL and values that differ from the defaults.
+Defaults can stay unset. The public wizard exports connection variables only; it never generates, reads, or exports `SECRET_KEY`. Local downloads are named `lantern-dock.env` so browsers do not rename a hidden `.env` file. Merge their connection settings into the existing `.env`, preserving its key. The wizard keeps advanced controls collapsed and exports only the selected URL and values that differ from the defaults.
 
-| Variable              | Default                                      | Description                                                                                                |
-| --------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `WEBDAV_URL`          | Unset                                        | Complete HTTP(S) WebDAV URL, including the mount path. Choose this or `WEBTRANSPORT_URL`.                  |
-| `WEBTRANSPORT_URL`    | Unset                                        | Complete HTTPS bridge session URL. Choose this or `WEBDAV_URL`.                                            |
-| `BACKEND_NAME`        | `我的文件`                                   | Resource name shown in the interface.                                                                      |
-| `BACKEND_ROOT`        | Path from `WEBDAV_URL`; `/` for WebTransport | Optional root override. WebTransport's session URL does not identify the WebDAV directory.                 |
-| `BACKEND_AUTH`        | `none`                                       | Optional login-form preset: `none`, `basic`, or `bearer`. The backend enforces authentication.             |
-| `GATEWAY_AUTH`        | `true` for WebTransport                      | Show a separate bridge-token field. Set `false` to hide it for a public bridge. Ignored for direct WebDAV. |
-| `CERTIFICATE_MODE`    | `pinned`                                     | Certificate hashes by default; use `webpki` for a publicly trusted gateway certificate.                    |
-| `CERTIFICATES_JSON`   | Unset                                        | Local certificate document when no `PINS` binding is available.                                            |
-| `DEMO_MODE`           | `false`                                      | Set `true` for a site-wide sample-only experience. Otherwise, an unconfigured site opens the wizard.       |
-| `CERT_WEBHOOK_SECRET` | Unset                                        | Private Worker secret for certificate updates.                                                             |
+| Variable            | Default                                      | Description                                                                                                |
+| ------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `WEBDAV_URL`        | Unset                                        | Complete HTTP(S) WebDAV URL, including the mount path. Choose this or `WEBTRANSPORT_URL`.                  |
+| `WEBTRANSPORT_URL`  | Unset                                        | Complete HTTPS bridge session URL. Choose this or `WEBDAV_URL`.                                            |
+| `BACKEND_NAME`      | `我的文件`                                   | Resource name shown in the interface.                                                                      |
+| `BACKEND_ROOT`      | Path from `WEBDAV_URL`; `/` for WebTransport | Optional root override. WebTransport's session URL does not identify the WebDAV directory.                 |
+| `BACKEND_AUTH`      | `none`                                       | Optional login-form preset: `none`, `basic`, or `bearer`. The backend enforces authentication.             |
+| `GATEWAY_AUTH`      | `true` for WebTransport                      | Show a separate bridge-token field. Set `false` to hide it for a public bridge. Ignored for direct WebDAV. |
+| `CERTIFICATE_MODE`  | `pinned`                                     | Certificate hashes by default; use `webpki` for a publicly trusted gateway certificate.                    |
+| `CERTIFICATES_JSON` | Unset                                        | Local certificate document when no `PINS` binding is available.                                            |
+| `DEMO_MODE`         | `false`                                      | Set `true` for a site-wide sample-only experience. Otherwise, an unconfigured site opens the wizard.       |
+| `SECRET_KEY`        | Generated by `npm run init`                  | Site-wide private key; certificate webhook tokens are derived from it.                                     |
 
 When updating an existing deployment, the wizard may also emit a value that resets an old override, or an empty string to clear the other URL. Those entries are necessary to apply the chosen connection without leaving conflicting variables behind. A direct WebDAV root override is folded into the generated URL; the wizard clears an existing `BACKEND_ROOT` override when needed.
 
-Pinned WebTransport deployments also need a `PINS` Workers KV binding. Keep the webhook secret and URL in private deployment configuration.
+Pinned WebTransport deployments also need a `PINS` Workers KV binding. Keep `SECRET_KEY` and the webhook URL in private deployment configuration.
 
 ### Existing configurations
 
 `BACKEND_ENDPOINT` and `BACKEND_TRANSPORT` remain supported. A nonempty `WEBDAV_URL` or `WEBTRANSPORT_URL` takes precedence over that legacy pair. Explicit `BACKEND_ROOT`, authentication, and certificate settings remain supported. There is no need to migrate a working deployment immediately.
 
+Existing `CERT_WEBHOOK_SECRET` credentials remain accepted during migration, including when `SECRET_KEY` is also present. Deploy the site key, generate the new derived URL, and update the bridge; remove the old Worker Secret when the old URL should stop working. The old `.webhook-secret` file is not reused as a master key.
+
 ## HTTPS / WebDAV
 
-Use the full WebDAV URL in `.dev.vars` locally or in the `vars` object of [`wrangler.jsonc`](../wrangler.jsonc):
+Use the full WebDAV URL in `.env` locally or in the `vars` object of [`wrangler.jsonc`](../wrangler.jsonc):
 
 ```dotenv
 WEBDAV_URL="https://files.example.com/dav/public/"
@@ -78,6 +92,8 @@ For a publicly trusted gateway certificate, set `CERTIFICATE_MODE="webpki"` to u
 
 ### Certificate updates
 
+Initialize the site key with `npm run init` before configuring certificate updates.
+
 Create a Workers KV namespace and add its returned ID to `wrangler.jsonc`:
 
 ```sh
@@ -96,13 +112,15 @@ Generate a private webhook URL, replacing the example Worker origin:
 npm run webhook -- https://lantern-dock.example.workers.dev
 ```
 
-The script saves a random secret in `.webhook-secret` and prints the corresponding URL. Store the file's contents as the Worker secret:
+The command initializes `SECRET_KEY` in `.env` if needed, reuses it on later runs, and prints a purpose-derived webhook URL. It never puts the master key in that URL. Store the same key as a Worker Secret:
 
 ```sh
-npx wrangler secret put CERT_WEBHOOK_SECRET
+node scripts/init.mjs --print-secret | npx wrangler secret put SECRET_KEY
 ```
 
-Paste the secret when prompted. Configure the printed URL as the bridge's certificate webhook. Treat the complete URL as a credential and avoid sharing it or recording it in public logs.
+Use the direct `node` command when piping the key so npm's log banner is not included. The key is printed only when `--print-secret` is explicitly requested. The default `npm run init` output contains no key value.
+
+Configure the printed URL as the bridge's `CERT_WEBHOOK_URL`. Treat the URL as a credential and avoid sharing it or recording it in public logs. New setups do not need a separate `CERT_WEBHOOK_SECRET`.
 
 The webhook accepts `PUT` with `Content-Type: application/json`:
 
@@ -124,7 +142,7 @@ Use the actual certificate dates and digest; this is a format example. At most t
 
 KV updates are eventually consistent. Publish replacement pins ahead of certificate activation and keep an overlap window; a successful webhook does not mean every edge location has already observed the update. Use the connection dialog's **Connect** action to fetch current pins.
 
-For local pinned-certificate development without KV, set `CERTIFICATES_JSON` in `.dev.vars` to the same document. The Vite development server does not emulate KV; use Wrangler for binding-based development.
+For local pinned-certificate development without KV, set `CERTIFICATES_JSON` in `.env` to the same document. The Vite development server does not emulate KV; use Wrangler for binding-based development.
 
 ## Deploy to Cloudflare Workers
 
@@ -141,6 +159,8 @@ The project uses Workers Static Assets, configured in [`wrangler.jsonc`](../wran
 3. Allow the deployed frontend origin in the backend CORS policy or bridge origin policy.
 4. For pinned WebTransport, configure KV and the webhook, then let the bridge publish its certificate before connecting.
 
-`.dev.vars` is for local development; it is not the production configuration. Keep `DEMO_MODE` unset in production unless you intentionally want a sample-only site.
+`.env` is for local development; it is not the production configuration. Keep `DEMO_MODE` unset in production unless you intentionally want a sample-only site.
 
 See Cloudflare's [Static Assets](https://developers.cloudflare.com/workers/static-assets/) and [KV setup](https://developers.cloudflare.com/kv/get-started/) documentation for platform configuration.
+
+See [Cloudflare secrets](https://developers.cloudflare.com/workers/configuration/secrets/) for secret storage and local-file precedence.

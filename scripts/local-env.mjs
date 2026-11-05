@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
+
 // Accept the wizard's JSON-quoted values and the existing single-quoted examples.
 export function parseLocalVariables(source) {
   const values = {};
@@ -16,4 +19,24 @@ export function parseLocalVariables(source) {
     values[match[1]] = value;
   }
   return values;
+}
+
+export async function loadLocalEnvironment(
+  directory,
+  environment = process.env,
+) {
+  // Match Wrangler: a legacy .dev.vars file takes precedence if it still exists.
+  for (const name of [".dev.vars", ".env"]) {
+    try {
+      return {
+        ...parseLocalVariables(
+          await readFile(resolve(directory, name), "utf8"),
+        ),
+        ...environment,
+      };
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
+    }
+  }
+  return { ...environment };
 }
