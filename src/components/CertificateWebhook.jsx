@@ -153,7 +153,7 @@ export function CertificateWebhook({
         </button>
       </div>
       <p class="field-note">
-        与站点配置配套，请一并保存。Worker 需绑定 <code>PINS</code> KV。
+        与站点配置配套，请一并保存。Worker 的 KV 绑定名为 <code>KV</code>。
       </p>
       {error && <p role="status">{error}</p>}
     </section>

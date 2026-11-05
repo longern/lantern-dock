@@ -187,7 +187,7 @@ export async function startFixture() {
       BACKEND_AUTH: "bearer",
       GATEWAY_AUTH: "true",
       SECRET_KEY: masterKey,
-      PINS: {
+      KV: {
         async get(key) {
           return pins.has(key) ? JSON.parse(pins.get(key)) : null;
         },

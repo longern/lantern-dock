@@ -9,7 +9,7 @@ export function SetupCertificates({ wizard, notify }) {
       </div>
       <ol class="setup-certificate-tasks">
         <li>
-          为 Worker 绑定 <code>PINS</code> KV。
+          Worker 的 KV 绑定名设为 <code>KV</code>。
         </li>
         <li>
           将保存的 <code>bridge.env</code> 合入网关配置，并启用{" "}

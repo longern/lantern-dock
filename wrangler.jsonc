@@ -11,5 +11,5 @@
   },
   "vars": {},
   // For automatic WebTransport certificate pin updates, create and bind KV:
-  // "kv_namespaces": [{"binding":"PINS", "id":"YOUR_NAMESPACE_ID"}]
+  // "kv_namespaces": [{"binding":"KV", "id":"YOUR_NAMESPACE_ID"}]
 }

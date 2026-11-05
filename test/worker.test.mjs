@@ -67,7 +67,7 @@ test("WebTransport requires published valid pins unless using Web PKI", async ()
     ...base,
     BACKEND_TRANSPORT: "webtransport",
     BACKEND_ENDPOINT: "https://bridge.example.com:4433/webtransport",
-    PINS: { get: async () => ({ version: 1, certificates: [pin] }) },
+    KV: { get: async () => ({ version: 1, certificates: [pin] }) },
   };
   const config = await configuration(env);
   assert.equal(config.backend.certificates.length, 1);
@@ -77,7 +77,7 @@ test("WebTransport requires published valid pins unless using Web PKI", async ()
       await configuration({
         ...env,
         CERTIFICATE_MODE: "webpki",
-        PINS: undefined,
+        KV: undefined,
       })
     ).backend.certificates.length,
     0,
@@ -89,7 +89,7 @@ test("private webhook authenticates, validates and acknowledges storage", async 
   const env = {
     ...base,
     CERT_WEBHOOK_SECRET: secret,
-    PINS: { put: async (_, value) => (stored = JSON.parse(value)) },
+    KV: { put: async (_, value) => (stored = JSON.parse(value)) },
   };
   const url = "https://portal.example.com/api/certificates/" + secret;
   const req = (path) =>
@@ -105,7 +105,7 @@ test("private webhook authenticates, validates and acknowledges storage", async 
     (
       await worker.fetch(req(url), {
         ...env,
-        PINS: {
+        KV: {
           put: async () => {
             throw new Error("offline");
           },
@@ -160,7 +160,7 @@ test("URL variables select the transport and retain legacy settings", async () =
   const bridge = (
     await configuration({
       WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
-      PINS: { get: async () => ({ version: 1, certificates: [pin] }) },
+      KV: { get: async () => ({ version: 1, certificates: [pin] }) },
     })
   ).backend;
   assert.equal(bridge.transport, "webtransport");
@@ -283,7 +283,7 @@ test("storage outages remain errors and the public config endpoint cannot write 
   const env = {
     ...base,
     BACKEND_TRANSPORT: "webtransport",
-    PINS: {
+    KV: {
       get: async () => {
         throw new Error("private storage diagnostics");
       },
@@ -315,7 +315,7 @@ test("certificate updates accept only a purpose-derived token, never the master 
   const env = {
     ...base,
     SECRET_KEY: master,
-    PINS: {
+    KV: {
       put: async () => {
         writes++;
       },
@@ -374,7 +374,7 @@ test("an explicit legacy webhook credential stays valid during migration", async
   const env = {
     SECRET_KEY: master,
     CERT_WEBHOOK_SECRET: legacy,
-    PINS: { put: async () => {} },
+    KV: { put: async () => {} },
   };
   const request = (value) =>
     new Request("https://portal.example.com/api/certificates/" + value, {

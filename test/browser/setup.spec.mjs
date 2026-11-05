@@ -438,7 +438,7 @@ test("missing certificate guidance retains the WebTransport settings", async ({
   await page
     .getByRole("button", { name: "Cloudflare Workers", exact: true })
     .click();
-  await expect(page.locator(".setup-checklist")).toContainText("PINS");
+  await expect(page.locator(".setup-checklist")).toContainText("KV");
   await expect(page.locator(".setup-checklist")).toContainText("PROPFIND");
 });
 

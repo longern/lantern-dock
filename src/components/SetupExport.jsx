@@ -179,7 +179,7 @@ export function SetupExport({ wizard, setup, notify }) {
                     </>
                   ) : (
                     <>
-                      Worker 绑定 <code>PINS</code> KV，bridge 启用{" "}
+                      Worker 的 KV 绑定名设为 <code>KV</code>，bridge 启用{" "}
                       <code>--auto-cert</code> 发布证书。
                     </>
                   )}

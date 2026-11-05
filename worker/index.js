@@ -166,8 +166,8 @@ export async function configuration(env) {
   let certificates = [];
   if (transport === "webtransport" && env.CERTIFICATE_MODE !== "webpki") {
     // Storage outages are operational errors, not an invitation to reconfigure.
-    const saved = env.PINS
-      ? await env.PINS.get("certificate-pins", "json")
+    const saved = env.KV
+      ? await env.KV.get("certificate-pins", "json")
       : env.CERTIFICATES_JSON;
     try {
       certificates = validatePins(
@@ -248,7 +248,7 @@ export default {
       }
     }
     if (url.pathname.startsWith("/api/certificates/")) {
-      if (request.method !== "PUT" || url.search || !env.PINS)
+      if (request.method !== "PUT" || url.search || !env.KV)
         return json({ error: "Not found" }, 404);
       const tokens = await certificateWebhookTokens(env).catch(() => []);
       let authorized = false;
@@ -273,7 +273,7 @@ export default {
       }
       // Acknowledge only durable writes. A failed PUT is retried by the gateway.
       try {
-        await env.PINS.put("certificate-pins", JSON.stringify(data));
+        await env.KV.put("certificate-pins", JSON.stringify(data));
       } catch {
         return json({ error: "Certificate storage unavailable" }, 503);
       }
