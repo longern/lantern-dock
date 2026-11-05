@@ -7,12 +7,12 @@ export function Toast({ message }) {
     // Popovers stay above modal dialogs without making the notification modal.
     node.showPopover?.();
     return () => node.hidePopover?.();
-  }, [message]);
+  }, []);
   return (
     <div
       ref={element}
       popover="manual"
-      class="toast"
+      class={`toast${message.leaving ? " leaving" : ""}`}
       role={message.error ? "alert" : "status"}
     >
       {message.text}

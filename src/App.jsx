@@ -23,7 +23,14 @@ export function App() {
   const toast = useCallback((text, error = false) => {
     setMessage({ text, error });
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => setMessage(null), error ? 6500 : 4500);
+    timer.current = setTimeout(
+      () => {
+        setMessage((current) => current && { ...current, leaving: true });
+        // Keep the node in the popover layer until the fade-out has finished.
+        timer.current = setTimeout(() => setMessage(null), 200);
+      },
+      error ? 6500 : 4500,
+    );
   }, []);
   useEffect(() => () => clearTimeout(timer.current), []);
   useEffect(() => {

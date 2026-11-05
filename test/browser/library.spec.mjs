@@ -218,8 +218,39 @@ test("error notifications use a translucent black surface below center above pre
   expect(style.y).toBeGreaterThan(0.6);
   expect(style.y).toBeLessThan(0.85);
   expect(style.height).toBeLessThan(100);
+  await expect(notification).toHaveCSS("opacity", "1");
   await page.screenshot({
     path: testInfo.outputPath("error-toast.png"),
     fullPage: false,
   });
+});
+
+test("notifications fade out before removal and respect reduced motion", async ({
+  page,
+}) => {
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await page
+    .getByRole("button", { name: "预览 归档资料.zip", exact: true })
+    .click();
+  for (const reducedMotion of ["no-preference", "reduce"]) {
+    await page.emulateMedia({ reducedMotion });
+    await page.getByRole("button", { name: "下载", exact: true }).click();
+    const notification = page.getByRole("alert");
+    await expect(notification).toContainText("连接真实后端");
+    await expect(notification).toHaveCSS(
+      "animation-name",
+      reducedMotion === "reduce" ? "none" : "toast-in",
+    );
+    await page.clock.runFor(6500);
+    await expect(notification).toHaveCSS(
+      "animation-name",
+      reducedMotion === "reduce" ? "none" : "toast-out",
+    );
+    expect(
+      await notification.evaluate((node) => node.matches(":popover-open")),
+    ).toBe(true);
+    await page.clock.runFor(200);
+    await expect(notification).toHaveCount(0);
+  }
 });
