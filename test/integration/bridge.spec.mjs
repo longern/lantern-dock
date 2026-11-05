@@ -302,3 +302,42 @@ test("dashboard dotenv export provisions a new key and its derived certificate w
     Object.assign(fixture.env, previous);
   }
 });
+
+test("missing pins resume at certificate setup and publishing them enables the real bridge", async ({
+  page,
+}) => {
+  const previous = new Map(fixture.pins);
+  try {
+    fixture.pins.clear();
+    await page.goto(fixture.origin);
+    await expect(
+      page.getByRole("heading", { name: "配置网关证书", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "下一步", exact: true }),
+    ).toHaveCount(0);
+    expect(
+      await page
+        .getByRole("textbox", { name: "生成的配置", exact: true })
+        .inputValue(),
+    ).not.toContain("SECRET_KEY");
+    const token = await deriveSecret(
+      fixture.env.SECRET_KEY,
+      CERTIFICATE_WEBHOOK_PURPOSE,
+    );
+    const response = await page.request.put(
+      `${fixture.origin}/api/certificates/${token}`,
+      { data: JSON.parse(previous.get("certificate-pins")) },
+    );
+    expect(response.status()).toBe(204);
+    await page
+      .getByRole("button", { name: "已完成，重新检测", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("网关需要认证");
+    await login(page);
+    await expect(page.locator(".file-card")).toHaveCount(5);
+  } finally {
+    fixture.pins.clear();
+    for (const [key, value] of previous) fixture.pins.set(key, value);
+  }
+});

@@ -6,6 +6,8 @@ LanternDock serves one configured WebDAV root. Configure it in `.env` for Vite d
 
 Missing or invalid backend settings, and missing certificate pins, open a setup wizard. It generates `.env` for local development or dashboard import, or a public `vars` block for `wrangler.jsonc`. It supports copy/download and rechecks `/api/config` after the maintainer applies the settings. The public page does not write server configuration or persist wizard inputs. Apply local settings and restart Vite, or update the Worker variables and redeploy.
 
+Once the WebTransport address is valid, `missing-certificates` resumes directly at the certificate setup step, including after a refresh or recheck. Publish valid pins and recheck to connect; there is no need to choose the transport or re-enter the address.
+
 Credentials are entered in the connection dialog and kept in page memory. The public `/api/config` document contains connection metadata and certificate pins.
 
 ## Choose one connection URL
@@ -35,6 +37,8 @@ A sole legacy `.dev.vars` file is moved to `.env` by initialization, preserving 
 Defaults can stay unset. For a new deployment without a valid site key, the wizard generates a cryptographically random 32-byte `SECRET_KEY` using Web Crypto in the current browser. Its contents are masked by default; **Copy configuration** and **Download configuration** include the full key in `.env`. The key stays in page memory, survives back/recheck/target changes, and is lost on refresh. The page does not save it in browser storage or send it to the server.
 
 If the server already has a valid key, the wizard reports only that fact and leaves `SECRET_KEY` out of its export. Preserve the existing key. **Generate a key for a new deployment** explicitly creates a separate key; it does not change the running site. The wizard never reads the existing key. The Wrangler JSON export always excludes the key: store it as a Worker Secret instead of a plain `vars` value.
+
+When using the wizard on localhost, switching to a Cloudflare export prepares a new deployment with its own random key, even if the local environment already has one. Switching back to local development preserves the local key and omits it from the export. A deployed site's existing key is preserved by default.
 
 Downloads are named `lantern-dock.env` so browsers do not rename a hidden `.env` file. Merge settings into the project's `.env`, preserving an existing key. Advanced controls stay collapsed; connection settings include only the selected URL, non-default values, and any required resets.
 

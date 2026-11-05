@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { setupVariables, setupSnippet } from "../lib/setup.js";
 import { backendDefaults } from "../../shared/backend-defaults.js";
@@ -14,21 +14,24 @@ const reasons = {
 };
 
 export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
-  const [step, setStep] = useState(0);
+  const isLocal = ["localhost", "127.0.0.1", "[::1]"].includes(
+    location.hostname,
+  );
+  const [step, setStep] = useState(
+    setup.reason === "missing-certificates" ? 2 : 0,
+  );
   const [form, setForm] = useState({
     ...backendDefaults,
     endpoint: "",
     rootPath: "",
     ...setup.backend,
   });
-  const [target, setTarget] = useState(
-    ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname)
-      ? "local"
-      : "worker",
-  );
+  const [target, setTarget] = useState(isLocal ? "local" : "worker");
   const [vars, setVars] = useState(null);
   const [secretKey, setSecretKey] = useState("");
   const [secretRevealed, setSecretRevealed] = useState(false);
+  const exportSecretKey =
+    isLocal && setup.hasSecretKey && target === "local" ? "" : secretKey;
   const heading = useRef(null),
     code = useRef(null);
   const update = (field, value) =>
@@ -36,15 +39,45 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
   useLayoutEffect(() => {
     if (step > 0) heading.current?.focus();
   }, [step]);
-  const snippet = vars ? setupSnippet(vars, target, secretKey) : "";
+  // A configured backend only needs certificate setup, including after a recheck.
+  useEffect(() => {
+    if (setup.reason !== "missing-certificates") return;
+    const configuredForm = {
+      ...backendDefaults,
+      endpoint: "",
+      rootPath: "",
+      ...setup.backend,
+    };
+    try {
+      setForm(configuredForm);
+      setVars(setupVariables(configuredForm, setup.resetVariables));
+      if (!setup.hasSecretKey && !secretKey) setSecretKey(generateSecretKey());
+      setStep(2);
+    } catch (error) {
+      setStep(1);
+      notify(error.message, true);
+    }
+  }, [setup.reason]);
+  const snippet = vars ? setupSnippet(vars, target, exportSecretKey) : "";
   const displayedSnippet =
-    secretKey && !secretRevealed && target !== "wrangler"
-      ? snippet.replace(secretKey, "•".repeat(32))
+    exportSecretKey && !secretRevealed && target !== "wrangler"
+      ? snippet.replace(exportSecretKey, "•".repeat(32))
       : snippet;
   const generateKey = () => {
     try {
       setSecretKey(generateSecretKey());
       setSecretRevealed(false);
+      if (isLocal && setup.hasSecretKey && target === "local")
+        setTarget("worker");
+    } catch {
+      notify("无法生成部署密钥，请使用支持 Web Crypto 的浏览器。", true);
+    }
+  };
+  const selectTarget = (nextTarget) => {
+    try {
+      if (isLocal && nextTarget !== "local" && !secretKey)
+        setSecretKey(generateSecretKey());
+      setTarget(nextTarget);
     } catch {
       notify("无法生成部署密钥，请使用支持 Web Crypto 的浏览器。", true);
     }
@@ -54,7 +87,7 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
       await navigator.clipboard.writeText(snippet);
       notify("已复制配置。");
     } catch {
-      if (secretKey && target !== "wrangler") setSecretRevealed(true);
+      if (exportSecretKey && target !== "wrangler") setSecretRevealed(true);
       requestAnimationFrame(() => {
         code.current?.focus();
         code.current?.select();
@@ -104,7 +137,9 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
           ))}
         </ol>
         <h2 ref={heading} tabIndex="-1">
-          {steps[step]}
+          {step === 2 && setup.reason === "missing-certificates"
+            ? "配置网关证书"
+            : steps[step]}
         </h2>
         {step === 0 && (
           <>
@@ -279,27 +314,29 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
         {step === 2 && (
           <>
             <p class="setup-description">
-              将配置应用到运行 LanternDock 的环境，然后重新检测连接。
+              {setup.reason === "missing-certificates"
+                ? "连接地址已配置。完成下面的证书接入后，直接重新检测，无需重复配置连接方式。"
+                : "将配置应用到运行 LanternDock 的环境，然后重新检测连接。"}
             </p>
             <div class="setup-targets" role="group" aria-label="运行环境">
               <button
                 aria-pressed={target === "local"}
                 class={target === "local" ? "active" : ""}
-                onClick={() => setTarget("local")}
+                onClick={() => selectTarget("local")}
               >
                 本地开发
               </button>
               <button
                 aria-pressed={target === "worker"}
                 class={target === "worker" ? "active" : ""}
-                onClick={() => setTarget("worker")}
+                onClick={() => selectTarget("worker")}
               >
                 Cloudflare Workers
               </button>
               <button
                 aria-pressed={target === "wrangler"}
                 class={target === "wrangler" ? "active" : ""}
-                onClick={() => setTarget("wrangler")}
+                onClick={() => selectTarget("wrangler")}
               >
                 Wrangler 配置
               </button>
@@ -325,7 +362,7 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
               )}
             </p>
             <DeploymentSecret
-              secretKey={secretKey}
+              secretKey={exportSecretKey}
               hasSecretKey={setup.hasSecretKey}
               revealed={secretRevealed}
               onReveal={() => setSecretRevealed((value) => !value)}
@@ -358,7 +395,7 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
               spellCheck={false}
               rows={target === "wrangler" ? 12 : 8}
             />
-            {secretKey && !secretRevealed && target !== "wrangler" && (
+            {exportSecretKey && !secretRevealed && target !== "wrangler" && (
               <p class="field-note">
                 密钥已隐藏；请使用「复制配置」或「下载配置」获取完整内容。
               </p>

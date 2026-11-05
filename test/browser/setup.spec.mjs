@@ -260,7 +260,26 @@ test("missing certificate guidance retains the WebTransport settings", async ({
     page.getByText("网关地址已配置，接下来准备连接证书。"),
   ).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
-  await next(page);
+  await expect(
+    page.getByRole("heading", { name: "配置网关证书", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "下一步", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator(".setup-steps .current")).toContainText("应用配置");
+  await expect(page.locator(".setup-checklist")).toContainText(
+    "CERTIFICATES_JSON",
+  );
+  await page
+    .getByRole("button", { name: "已完成，重新检测", exact: true })
+    .click();
+  await expect(
+    page.getByText("尚未检测到有效网关证书。", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "配置网关证书", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "上一步", exact: true }).click();
   await expect(
     page.getByLabel("WebTransport 网关地址", { exact: true }),
   ).toHaveValue("https://bridge.example.com:4433/webtransport");
@@ -325,4 +344,104 @@ test("existing server key stays private and is preserved unless generating for a
   const key = parseLocalVariables(await code.inputValue()).SECRET_KEY;
   expect(key).toMatch(/^[a-f0-9]{64}$/);
   expect(key).not.toBe(existing);
+});
+
+test("local site key does not suppress generation for a new Cloudflare deployment", async ({
+  page,
+}) => {
+  const existing = "local-only-site-key-".repeat(4);
+  await serveConfiguration(page, { SECRET_KEY: existing });
+  await page.goto("/");
+  await next(page);
+  await page
+    .getByLabel("WebDAV 服务地址", { exact: true })
+    .fill("https://files.example.com/dav/");
+  await generate(page);
+  const code = page.getByRole("textbox", { name: "生成的配置", exact: true });
+  expect(await code.inputValue()).not.toContain("SECRET_KEY");
+  await page
+    .getByRole("button", { name: "Cloudflare Workers", exact: true })
+    .click();
+  expect(await code.inputValue()).toContain('SECRET_KEY="' + "•".repeat(32));
+  await page.getByRole("button", { name: "显示密钥", exact: true }).click();
+  const key = parseLocalVariables(await code.inputValue()).SECRET_KEY;
+  expect(key).toMatch(/^[a-f0-9]{64}$/);
+  expect(key).not.toBe(existing);
+  await page.getByRole("button", { name: "本地开发", exact: true }).click();
+  expect(await code.inputValue()).not.toContain("SECRET_KEY");
+  await page
+    .getByRole("button", { name: "Cloudflare Workers", exact: true })
+    .click();
+  expect(parseLocalVariables(await code.inputValue()).SECRET_KEY).toBe(key);
+  expect(await page.content()).not.toContain(existing);
+});
+
+test("applied WebTransport settings advance a first-run wizard directly to certificate setup", async ({
+  page,
+}) => {
+  let environment = {};
+  await serveConfiguration(page, () => environment);
+  await page.goto("/");
+  await next(page);
+  await page
+    .getByLabel("WebDAV 服务地址", { exact: true })
+    .fill("https://files.example.com/dav/");
+  await generate(page);
+  environment = {
+    WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
+    BACKEND_ROOT: "/public/",
+    SECRET_KEY: "configured-site-key-".repeat(4),
+  };
+  await page
+    .getByRole("button", { name: "已完成，重新检测", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "配置网关证书", exact: true }),
+  ).toBeVisible();
+  const variables = parseLocalVariables(
+    await page
+      .getByRole("textbox", { name: "生成的配置", exact: true })
+      .inputValue(),
+  );
+  expect(variables.WEBTRANSPORT_URL).toBe(environment.WEBTRANSPORT_URL);
+  expect(variables.WEBDAV_URL).toBeUndefined();
+  expect(variables.SECRET_KEY).toBeUndefined();
+  await page.getByRole("button", { name: "上一步", exact: true }).click();
+  await expect(
+    page.getByLabel("WebTransport 网关地址", { exact: true }),
+  ).toHaveValue(environment.WEBTRANSPORT_URL);
+});
+
+test("an existing deployed Worker key is preserved across export target switches", async ({
+  page,
+}) => {
+  await page.route("https://lantern-dock.example/**", async (route) => {
+    const url = new URL(route.request().url());
+    await route.fulfill({
+      response: await route.fetch({
+        url: `http://127.0.0.1:8788${url.pathname}${url.search}`,
+      }),
+    });
+  });
+  const existing = "deployed-worker-site-key-".repeat(4);
+  await serveConfiguration(page, { SECRET_KEY: existing });
+  await page.goto("https://lantern-dock.example/");
+  await next(page);
+  await page
+    .getByLabel("WebDAV 服务地址", { exact: true })
+    .fill("https://files.example.com/dav/");
+  await generate(page);
+  const code = page.getByRole("textbox", { name: "生成的配置", exact: true });
+  await expect(
+    page.getByRole("button", { name: "Cloudflare Workers", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  expect(await code.inputValue()).not.toContain("SECRET_KEY");
+  await page
+    .getByRole("button", { name: "Wrangler 配置", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Cloudflare Workers", exact: true })
+    .click();
+  expect(await code.inputValue()).not.toContain("SECRET_KEY");
+  expect(await page.content()).not.toContain(existing);
 });
