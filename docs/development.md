@@ -55,7 +55,7 @@ It checks gateway 407 versus backend 401, separate credentials, PROPFIND, encode
 
 ## Configuration API states
 
-`GET /api/config` returns normal backend metadata for a configured site. Missing or invalid settings return HTTP 200 with `setupRequired: true` and a `setup` object containing a reason and safe public defaults. Operational failures, such as a KV read outage, still return HTTP 503. No public API writes deployment settings or returns `SECRET_KEY`. The local API adapter loads `.env` (or legacy `.dev.vars`), and certificate webhook tokens are derived on the server. New configurations use exactly one of `WEBDAV_URL` and `WEBTRANSPORT_URL`; the legacy endpoint/transport variables remain supported. Shared defaults live in `shared/backend-defaults.js`.
+`GET /api/config` returns normal backend metadata for a configured site. Missing or invalid settings return HTTP 200 with `setupRequired: true` and a `setup` object containing a reason and safe public defaults. Operational failures, such as a KV read outage, still return HTTP 503. No public API writes deployment settings or returns `SECRET_KEY`; setup metadata includes only `hasSecretKey`. New deployment keys are generated with Web Crypto in the browser and included only in explicit dotenv copy/download exports. The local API adapter loads `.env` (or legacy `.dev.vars`), and certificate webhook tokens are derived on the server. New configurations use exactly one of `WEBDAV_URL` and `WEBTRANSPORT_URL`; the legacy endpoint/transport variables remain supported. Shared defaults live in `shared/backend-defaults.js`.
 
 ## Project structure
 

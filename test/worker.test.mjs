@@ -227,6 +227,7 @@ test("missing backend configuration returns setup metadata instead of an error",
     const data = await r.json();
     assert.equal(data.setupRequired, true);
     assert.equal(data.setup.reason, "missing-backend");
+    assert.equal(data.setup.hasSecretKey, false);
     assert.equal(data.error, undefined);
     assert.equal(data.backend, undefined);
     assert.ok(!JSON.stringify(data).includes("private-"));
@@ -236,6 +237,18 @@ test("missing backend configuration returns setup metadata instead of an error",
     { DEMO_MODE: "true" },
   );
   assert.equal((await demo.json()).backend.transport, "demo");
+});
+
+test("setup reports only whether a valid site key is already configured", async () => {
+  for (const key of ["short", "private-site-key-".repeat(4)]) {
+    const response = await worker.fetch(
+      new Request("https://portal.example.com/api/config"),
+      { SECRET_KEY: key },
+    );
+    const data = await response.json();
+    assert.equal(data.setup.hasSecretKey, key.length >= 32);
+    assert.ok(!JSON.stringify(data).includes(key));
+  }
 });
 
 test("configuration mistakes and missing pins provide safe setup defaults", async () => {

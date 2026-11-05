@@ -2,6 +2,8 @@ import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { setupVariables, setupSnippet } from "../lib/setup.js";
 import { backendDefaults } from "../../shared/backend-defaults.js";
+import { generateSecretKey } from "../../shared/site-secret.js";
+import { DeploymentSecret } from "./DeploymentSecret.jsx";
 
 const steps = ["选择连接方式", "填写后端信息", "应用配置"];
 const reasons = {
@@ -25,6 +27,8 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
       : "worker",
   );
   const [vars, setVars] = useState(null);
+  const [secretKey, setSecretKey] = useState("");
+  const [secretRevealed, setSecretRevealed] = useState(false);
   const heading = useRef(null),
     code = useRef(null);
   const update = (field, value) =>
@@ -32,14 +36,29 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
   useLayoutEffect(() => {
     if (step > 0) heading.current?.focus();
   }, [step]);
-  const snippet = vars ? setupSnippet(vars, target) : "";
+  const snippet = vars ? setupSnippet(vars, target, secretKey) : "";
+  const displayedSnippet =
+    secretKey && !secretRevealed && target !== "wrangler"
+      ? snippet.replace(secretKey, "•".repeat(32))
+      : snippet;
+  const generateKey = () => {
+    try {
+      setSecretKey(generateSecretKey());
+      setSecretRevealed(false);
+    } catch {
+      notify("无法生成部署密钥，请使用支持 Web Crypto 的浏览器。", true);
+    }
+  };
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(snippet);
       notify("已复制配置。");
     } catch {
-      code.current?.focus();
-      code.current?.select();
+      if (secretKey && target !== "wrangler") setSecretRevealed(true);
+      requestAnimationFrame(() => {
+        code.current?.focus();
+        code.current?.select();
+      });
       notify("请复制已选中的配置文本。");
     }
   };
@@ -50,7 +69,7 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download =
-      target === "local" ? "lantern-dock.env" : "lantern-dock.vars.json";
+      target === "wrangler" ? "lantern-dock.vars.json" : "lantern-dock.env";
     document.body.append(anchor);
     anchor.click();
     anchor.remove();
@@ -131,6 +150,8 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
               event.preventDefault();
               try {
                 setVars(setupVariables(form, setup.resetVariables));
+                if (!secretKey && !setup.hasSecretKey)
+                  setSecretKey(generateSecretKey());
                 setStep(2);
               } catch (error) {
                 notify(error.message, true);
@@ -237,7 +258,7 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
                 </>
               )}
               <p class="field-note">
-                账号、密码和令牌在连接时填写，此处只生成公开连接配置。
+                账号、密码和访问令牌在连接时填写，不会导出到部署配置。
               </p>
             </details>
             <div class="setup-actions">
@@ -275,12 +296,25 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
               >
                 Cloudflare Workers
               </button>
+              <button
+                aria-pressed={target === "wrangler"}
+                class={target === "wrangler" ? "active" : ""}
+                onClick={() => setTarget("wrangler")}
+              >
+                Wrangler 配置
+              </button>
             </div>
             <p class="setup-instructions">
               {target === "local" ? (
                 <>
                   将下面的连接变量合入项目根目录的 <code>.env</code>，保留已有的{" "}
                   <code>SECRET_KEY</code>，然后重启 <code>npm run dev</code>。
+                </>
+              ) : target === "worker" ? (
+                <>
+                  复制下面完整的 .env，粘贴到 Cloudflare
+                  控制台的「变量和密钥」，将 <code>SECRET_KEY</code> 手动勾选为{" "}
+                  <strong>Secret</strong>，再部署。其他连接变量保持普通文本。
                 </>
               ) : (
                 <>
@@ -290,9 +324,21 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
                 </>
               )}
             </p>
+            <DeploymentSecret
+              secretKey={secretKey}
+              hasSecretKey={setup.hasSecretKey}
+              revealed={secretRevealed}
+              onReveal={() => setSecretRevealed((value) => !value)}
+              onGenerate={generateKey}
+              target={target}
+            />
             <div class="setup-code-heading">
               <span>
-                {target === "local" ? ".env" : "wrangler.jsonc · vars"}
+                {target === "wrangler"
+                  ? "wrangler.jsonc · vars"
+                  : target === "worker"
+                    ? ".env · 控制台批量粘贴"
+                    : ".env"}
               </span>
               <div>
                 <button class="text-button" onClick={download}>
@@ -308,10 +354,15 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
               class="setup-code"
               aria-label="生成的配置"
               readOnly
-              value={snippet}
+              value={displayedSnippet}
               spellCheck={false}
-              rows={target === "local" ? 8 : 12}
+              rows={target === "wrangler" ? 12 : 8}
             />
+            {secretKey && !secretRevealed && target !== "wrangler" && (
+              <p class="field-note">
+                密钥已隐藏；请使用「复制配置」或「下载配置」获取完整内容。
+              </p>
+            )}
             <div class="setup-checklist">
               <strong>连接前再确认</strong>
               <ul>
@@ -362,7 +413,8 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
               </a>
             </div>
             <p class="field-note">
-              此向导不会修改服务器设置。请由站点维护者应用以上配置；浏览器不会保存这些表单内容。
+              此向导不会修改服务器设置。密钥只保存在当前页面内存中；请妥善保存导出的
+              .env，刷新页面后无法找回新生成的密钥。
             </p>
             {setup.checked && !checking && (
               <p class="setup-hint" role="status">

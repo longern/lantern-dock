@@ -70,10 +70,11 @@ export function setupVariables(form, resetVariables = []) {
   return vars;
 }
 
-export function setupSnippet(vars, target) {
-  return target === "local"
-    ? Object.entries(vars)
-        .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-        .join("\n") + "\n"
-    : JSON.stringify({ vars }, null, 2) + "\n";
+export function setupSnippet(vars, target, secretKey = "") {
+  if (target === "wrangler") return JSON.stringify({ vars }, null, 2) + "\n";
+  return (
+    Object.entries(secretKey ? { ...vars, SECRET_KEY: secretKey } : vars)
+      .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
+      .join("\n") + "\n"
+  );
 }

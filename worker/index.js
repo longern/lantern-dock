@@ -2,7 +2,7 @@ import {
   backendDefaults as defaults,
   backendAddress,
 } from "../shared/backend-defaults.js";
-import { certificateWebhookTokens } from "./secrets.js";
+import { certificateWebhookTokens, validateSecretKey } from "./secrets.js";
 
 const json = (data, status = 200) =>
   Response.json(data, {
@@ -22,6 +22,11 @@ class SetupRequired extends Error {
 
 function setupConfiguration(env, reason) {
   const address = backendAddress(env);
+  let hasSecretKey = false;
+  try {
+    validateSecretKey(env.SECRET_KEY);
+    hasSecretKey = true;
+  } catch {}
   let endpoint = "";
   try {
     const url = new URL(address.endpoint);
@@ -39,6 +44,7 @@ function setupConfiguration(env, reason) {
     setupRequired: true,
     setup: {
       reason,
+      hasSecretKey,
       resetVariables: [
         ...["WEBDAV_URL", "WEBTRANSPORT_URL"].filter((key) => env[key]?.trim()),
         ...(env.BACKEND_ROOT ? ["BACKEND_ROOT"] : []),

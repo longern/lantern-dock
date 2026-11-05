@@ -2,6 +2,10 @@ import { test as base, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { parseLocalVariables } from "../../scripts/local-env.mjs";
 import {
+  deriveSecret,
+  CERTIFICATE_WEBHOOK_PURPOSE,
+} from "../../worker/secrets.js";
+import {
   startFixture,
   gatewayToken,
   backendToken,
@@ -243,5 +247,58 @@ test("first-run setup rechecks applied server settings and connects to the real 
     delete fixture.env.WEBTRANSPORT_URL;
     delete fixture.env.WEBDAV_URL;
     fixture.env.BACKEND_ENDPOINT = endpoint;
+  }
+});
+
+test("dashboard dotenv export provisions a new key and its derived certificate webhook", async ({
+  page,
+}) => {
+  const previous = { ...fixture.env };
+  try {
+    delete fixture.env.SECRET_KEY;
+    fixture.env.BACKEND_ENDPOINT = "";
+    await page.goto(fixture.origin);
+    await page.getByRole("button", { name: "下一步", exact: true }).click();
+    await page
+      .getByLabel("WebTransport 网关地址", { exact: true })
+      .fill(previous.BACKEND_ENDPOINT);
+    await page.getByRole("button", { name: "生成配置", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Cloudflare Workers", exact: true })
+      .click();
+    await page.getByRole("button", { name: "显示密钥", exact: true }).click();
+    const variables = parseLocalVariables(
+      await page
+        .getByRole("textbox", { name: "生成的配置", exact: true })
+        .inputValue(),
+    );
+    expect(variables.SECRET_KEY).toMatch(/^[a-f0-9]{64}$/);
+    // Apply outside the public UI, as a maintainer would in the dashboard.
+    Object.assign(fixture.env, variables);
+    const token = await deriveSecret(
+      variables.SECRET_KEY,
+      CERTIFICATE_WEBHOOK_PURPOSE,
+    );
+    const payload = JSON.parse(fixture.pins.get("certificate-pins"));
+    fixture.pins.clear();
+    const rejected = await page.request.put(
+      `${fixture.origin}/api/certificates/${variables.SECRET_KEY}`,
+      { data: payload },
+    );
+    expect(rejected.status()).toBe(404);
+    const accepted = await page.request.put(
+      `${fixture.origin}/api/certificates/${token}`,
+      { data: payload },
+    );
+    expect(accepted.status()).toBe(204);
+    await page
+      .getByRole("button", { name: "已完成，重新检测", exact: true })
+      .click();
+    await expect(page.getByRole("alert")).toContainText("网关需要认证");
+    await login(page);
+    await expect(page.locator(".file-card")).toHaveCount(5);
+  } finally {
+    for (const key of Object.keys(fixture.env)) delete fixture.env[key];
+    Object.assign(fixture.env, previous);
   }
 });

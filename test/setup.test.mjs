@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { setupVariables, setupSnippet } from "../src/lib/setup.js";
 import { parseLocalVariables } from "../scripts/local-env.mjs";
 import { configuration } from "../worker/index.js";
+import { generateSecretKey } from "../shared/site-secret.js";
 
 const base = {
   name: "我的文件",
@@ -30,8 +31,23 @@ test("setup generates equivalent local and Worker settings without secrets", () 
   assert.equal(vars.DEMO_MODE, undefined);
   assert.equal(vars.BACKEND_ROOT, undefined);
   assert.deepEqual(parseLocalVariables(setupSnippet(vars, "local")), vars);
-  assert.deepEqual(JSON.parse(setupSnippet(vars, "worker")), { vars });
+  assert.deepEqual(parseLocalVariables(setupSnippet(vars, "worker")), vars);
+  assert.deepEqual(JSON.parse(setupSnippet(vars, "wrangler")), { vars });
   assert.ok(!JSON.stringify(vars).includes("private-"));
+});
+
+test("new deployment keys are random and exported only in dotenv targets", () => {
+  const key = generateSecretKey();
+  assert.match(key, /^[a-f0-9]{64}$/);
+  assert.notEqual(generateSecretKey(), key);
+  const vars = { WEBDAV_URL: "https://files.example.com/dav/" };
+  for (const target of ["local", "worker"])
+    assert.deepEqual(parseLocalVariables(setupSnippet(vars, target, key)), {
+      ...vars,
+      SECRET_KEY: key,
+    });
+  assert.deepEqual(JSON.parse(setupSnippet(vars, "wrangler", key)), { vars });
+  assert.equal(vars.SECRET_KEY, undefined);
 });
 
 test("setup validates addresses and paths before offering configuration", () => {

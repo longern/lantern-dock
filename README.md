@@ -83,17 +83,17 @@ Both connection modes use WebDAV for file access. The bridge carries one HTTP/1.
 
 ## Deploy
 
-1. Set the real backend in [`wrangler.jsonc`](wrangler.jsonc).
-2. Authenticate and deploy:
+1. Authenticate and deploy:
 
    ```sh
    npx wrangler login
    npm run deploy
    ```
 
+2. Open the deployed site and complete the setup wizard. Copy its `.env` into the Cloudflare dashboard's variables import, **manually mark `SECRET_KEY` as Secret**, then deploy the variable changes and recheck.
 3. Allow the deployed frontend origin in the backend's CORS policy or the bridge's origin policy.
 
-The deploy command builds the Preact frontend into `dist/` and uploads it with the Worker. Local `.env` settings do not configure production. Pinned WebTransport also requires Workers KV and a private certificate webhook; follow the [deployment and certificate setup](docs/configuration.md#certificate-updates).
+The deploy command builds the Preact frontend into `dist/` and uploads it with the Worker. The wizard generates a key for a new deployment and preserves existing keys. Dashboard variables survive later Wrangler deployments; you can also configure public variables in [`wrangler.jsonc`](wrangler.jsonc). Local `.env` settings are not automatically uploaded. Pinned WebTransport also requires Workers KV and a private certificate webhook; follow the [deployment and certificate setup](docs/configuration.md#certificate-updates).
 
 ## Project status
 

@@ -408,3 +408,58 @@
   color: var(--accent);
   margin-bottom: 16px;
 }
+.setup-secret {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  margin: 18px 0;
+  background: #fcfcff;
+  min-width: 0;
+}
+.setup-secret-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.setup-secret-heading h3 {
+  font-size: 13px;
+  font-weight: 500;
+  margin: 0;
+  line-height: 1.7;
+}
+.setup-secret-heading > span {
+  font:
+    10px ui-monospace,
+    SFMono-Regular,
+    monospace;
+  color: var(--accent);
+  background: #eeedfb;
+  padding: 4px 7px;
+  border-radius: 4px;
+}
+.setup-secret p {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #858593;
+  overflow-wrap: anywhere;
+  margin: 10px 0;
+}
+.setup-secret .text-button {
+  color: var(--accent);
+}
+.setup-secret .secondary-button {
+  font-size: 12px;
+  margin-top: 6px;
+}
+@media (max-width: 700px) {
+  .setup-targets button {
+    font-size: 11px;
+  }
+  .setup-secret {
+    padding: 14px;
+  }
+  .setup-secret-heading {
+    gap: 8px;
+  }
+}

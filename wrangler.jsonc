@@ -3,14 +3,13 @@
   "name": "lantern-dock",
   "main": "worker/index.js",
   "compatibility_date": "2026-11-04",
+  "keep_vars": true,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/api/*"],
   },
-  "vars": {
-    "WEBDAV_URL": ""
-  }
+  "vars": {},
   // For automatic WebTransport certificate pin updates, create and bind KV:
-  // , "kv_namespaces": [{"binding":"PINS", "id":"YOUR_NAMESPACE_ID"}]
+  // "kv_namespaces": [{"binding":"PINS", "id":"YOUR_NAMESPACE_ID"}]
 }

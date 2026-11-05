@@ -2,9 +2,9 @@
 
 [← Back to the project](../README.md)
 
-LanternDock serves one configured WebDAV root. Configure it in `.env` for Vite development and in `wrangler.jsonc` for Cloudflare deployment. Restart the development server after changing local settings.
+LanternDock serves one configured WebDAV root. Configure it in `.env` for Vite development and through the Cloudflare dashboard or `wrangler.jsonc` for deployment. Restart the development server after changing local settings.
 
-Missing or invalid backend settings, and missing certificate pins, open a setup wizard. It generates `.env` or a `vars` block for `wrangler.jsonc`, supports copy/download, and rechecks `/api/config` after the maintainer applies the settings. The public page does not write server configuration or persist wizard inputs. Apply local settings and restart Vite, or update the Worker variables and redeploy.
+Missing or invalid backend settings, and missing certificate pins, open a setup wizard. It generates `.env` for local development or dashboard import, or a public `vars` block for `wrangler.jsonc`. It supports copy/download and rechecks `/api/config` after the maintainer applies the settings. The public page does not write server configuration or persist wizard inputs. Apply local settings and restart Vite, or update the Worker variables and redeploy.
 
 Credentials are entered in the connection dialog and kept in page memory. The public `/api/config` document contains connection metadata and certificate pins.
 
@@ -26,13 +26,17 @@ npm run init
 
 Initialization appends a cryptographically random 32-byte `SECRET_KEY` to `.env` without replacing existing connection settings. Repeated runs reuse the key. The file is excluded from Git and initialized with owner-only permissions. Production uses a Worker Secret named `SECRET_KEY`, outside the public `vars` block.
 
-The certificate-update token is `HMAC-SHA256(SECRET_KEY, "lantern-dock:certificate-webhook:v1")`. Other signed features can use separate purpose labels in the future; the master key stays server-side. Certificate renewal and service restarts keep the URL stable. Changing `SECRET_KEY` changes the derived URL, so update the bridge when rotating it. Existing certificate pins stay in KV.
+The certificate-update token is `HMAC-SHA256(SECRET_KEY, "lantern-dock:certificate-webhook:v1")`. Other signed features can use separate purpose labels in the future; after configuration, the master key stays server-side and is never returned by the configuration API. Certificate renewal and service restarts keep the URL stable. Changing `SECRET_KEY` changes the derived URL, so update the bridge when rotating it. Existing certificate pins stay in KV.
 
 A sole legacy `.dev.vars` file is moved to `.env` by initialization, preserving its contents. If both exist, initialization asks the maintainer to consolidate them first rather than silently choose a key. The runtime retains Wrangler's legacy precedence: `.dev.vars` wins when it exists; otherwise it loads `.env`. Explicit process variables override local values in the Vite adapter. Use only `.env` for new setups.
 
 ## Optional settings
 
-Defaults can stay unset. The public wizard exports connection variables only; it never generates, reads, or exports `SECRET_KEY`. Local downloads are named `lantern-dock.env` so browsers do not rename a hidden `.env` file. Merge their connection settings into the existing `.env`, preserving its key. The wizard keeps advanced controls collapsed and exports only the selected URL and values that differ from the defaults.
+Defaults can stay unset. For a new deployment without a valid site key, the wizard generates a cryptographically random 32-byte `SECRET_KEY` using Web Crypto in the current browser. Its contents are masked by default; **Copy configuration** and **Download configuration** include the full key in `.env`. The key stays in page memory, survives back/recheck/target changes, and is lost on refresh. The page does not save it in browser storage or send it to the server.
+
+If the server already has a valid key, the wizard reports only that fact and leaves `SECRET_KEY` out of its export. Preserve the existing key. **Generate a key for a new deployment** explicitly creates a separate key; it does not change the running site. The wizard never reads the existing key. The Wrangler JSON export always excludes the key: store it as a Worker Secret instead of a plain `vars` value.
+
+Downloads are named `lantern-dock.env` so browsers do not rename a hidden `.env` file. Merge settings into the project's `.env`, preserving an existing key. Advanced controls stay collapsed; connection settings include only the selected URL, non-default values, and any required resets.
 
 | Variable            | Default                                      | Description                                                                                                |
 | ------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -45,7 +49,7 @@ Defaults can stay unset. The public wizard exports connection variables only; it
 | `CERTIFICATE_MODE`  | `pinned`                                     | Certificate hashes by default; use `webpki` for a publicly trusted gateway certificate.                    |
 | `CERTIFICATES_JSON` | Unset                                        | Local certificate document when no `PINS` binding is available.                                            |
 | `DEMO_MODE`         | `false`                                      | Set `true` for a site-wide sample-only experience. Otherwise, an unconfigured site opens the wizard.       |
-| `SECRET_KEY`        | Generated by `npm run init`                  | Site-wide private key; certificate webhook tokens are derived from it.                                     |
+| `SECRET_KEY`        | Generated by the wizard or `npm run init`    | Site-wide private key; certificate webhook tokens are derived from it.                                     |
 
 When updating an existing deployment, the wizard may also emit a value that resets an old override, or an empty string to clear the other URL. Those entries are necessary to apply the chosen connection without leaving conflicting variables behind. A direct WebDAV root override is folded into the generated URL; the wizard clears an existing `BACKEND_ROOT` override when needed.
 
@@ -92,7 +96,7 @@ For a publicly trusted gateway certificate, set `CERTIFICATE_MODE="webpki"` to u
 
 ### Certificate updates
 
-Initialize the site key with `npm run init` before configuring certificate updates.
+Use the same site key for the Worker and local webhook generation. If the wizard generated your deployment key, save that exported `SECRET_KEY` in the local `.env` before running these commands. Otherwise initialize a key with `npm run init` and deploy it as a Worker Secret. An unrelated local key produces a different webhook URL.
 
 Create a Workers KV namespace and add its returned ID to `wrangler.jsonc`:
 
@@ -148,18 +152,21 @@ For local pinned-certificate development without KV, set `CERTIFICATES_JSON` in 
 
 The project uses Workers Static Assets, configured in [`wrangler.jsonc`](../wrangler.jsonc). `npm run deploy` builds the frontend into `dist/`, then Wrangler uploads that directory and the Worker together.
 
-1. Configure the real backend in `wrangler.jsonc`. Leaving both connection URLs blank opens the setup wizard.
-2. Authenticate Wrangler and deploy:
+1. Authenticate and deploy the app. Leaving both connection URLs blank opens the setup wizard:
 
    ```sh
    npx wrangler login
    npm run deploy
    ```
 
-3. Allow the deployed frontend origin in the backend CORS policy or bridge origin policy.
-4. For pinned WebTransport, configure KV and the webhook, then let the bridge publish its certificate before connecting.
+2. Open the deployed site and complete the wizard. On **Cloudflare Workers**, copy the complete `.env` and paste it into the dashboard's **Variables and Secrets** import.
+3. **Manually mark `SECRET_KEY` as Secret before deploying.** Keep connection variables such as `WEBDAV_URL` as Text. If the wizard preserves an existing key, leave that Worker Secret in place.
+4. Deploy the variable changes, return to the wizard, and recheck. Allow the deployed frontend origin in the backend CORS policy or bridge origin policy.
+5. For pinned WebTransport, also bind KV and configure the derived certificate webhook, then let the bridge publish its certificate before connecting.
 
-`.env` is for local development; it is not the production configuration. Keep `DEMO_MODE` unset in production unless you intentionally want a sample-only site.
+The repository sets `keep_vars: true` and ships an empty `vars` object so a later Wrangler deploy preserves ordinary variables configured through the dashboard. Values explicitly added to `wrangler.jsonc` override matching dashboard values. Secrets are stored separately.
+
+For CLI deployment, use the wizard's **Wrangler configuration** export for public variables and set `SECRET_KEY` with `wrangler secret put`. The local `.env` file is not automatically uploaded to production; the dashboard import is an explicit step. Keep `DEMO_MODE` unset in production unless you intentionally want a sample-only site.
 
 See Cloudflare's [Static Assets](https://developers.cloudflare.com/workers/static-assets/) and [KV setup](https://developers.cloudflare.com/kv/get-started/) documentation for platform configuration.
 
