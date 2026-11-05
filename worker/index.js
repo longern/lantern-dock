@@ -256,7 +256,14 @@ export default {
         return json({ error: "Use PUT to publish certificates." }, 405, {
           Allow: "PUT",
         });
-      if (url.search) return json({ error: "Not found" }, 404);
+      if (url.search)
+        return json(
+          {
+            error: "Webhook URLs must not contain query parameters.",
+            code: "INVALID_WEBHOOK_URL",
+          },
+          400,
+        );
       if (typeof env.KV?.put !== "function")
         return json(
           {
@@ -280,7 +287,16 @@ export default {
         authorized =
           (await equalSecret(url.pathname, `/api/certificates/${token}`)) ||
           authorized;
-      if (!authorized) return json({ error: "Not found" }, 404);
+      if (!authorized)
+        return json(
+          {
+            error:
+              "This webhook URL does not match the configured credentials.",
+            code: "INVALID_WEBHOOK_TOKEN",
+          },
+          401,
+          { "WWW-Authenticate": 'Webhook realm="certificate-updates"' },
+        );
       if (
         request.headers.get("Content-Type")?.split(";")[0].trim() !==
         "application/json"

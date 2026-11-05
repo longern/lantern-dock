@@ -98,7 +98,7 @@ test("private webhook authenticates, validates and acknowledges storage", async 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ version: 1, certificates: [pin] }),
     });
-  assert.equal((await worker.fetch(req(url + "wrong"), env)).status, 404);
+  assert.equal((await worker.fetch(req(url + "wrong"), env)).status, 401);
   assert.equal((await worker.fetch(req(url), env)).status, 204);
   assert.equal(stored.certificates.length, 1);
   assert.equal(
@@ -328,7 +328,7 @@ test("certificate updates accept only a purpose-derived token, never the master 
       body: JSON.stringify({ version: 1, certificates: [pin] }),
     });
   assert.equal((await worker.fetch(request(token), env)).status, 204);
-  assert.equal((await worker.fetch(request(master), env)).status, 404);
+  assert.equal((await worker.fetch(request(master), env)).status, 401);
   assert.equal(
     (
       await worker.fetch(
@@ -336,12 +336,12 @@ test("certificate updates accept only a purpose-derived token, never the master 
         env,
       )
     ).status,
-    404,
+    401,
   );
   assert.equal(
     (await worker.fetch(request(token), { ...env, SECRET_KEY: "n".repeat(64) }))
       .status,
-    404,
+    401,
   );
   assert.equal(
     (await worker.fetch(request(token), { ...env, SECRET_KEY: "short" }))
@@ -401,7 +401,18 @@ test("webhook reports deployment errors separately from an invalid private URL",
     new Request(url + "wrong", { method: "PUT", body: "{}" }),
     env,
   );
-  assert.equal(wrong.status, 404);
+  assert.equal(wrong.status, 401);
+  assert.equal(
+    wrong.headers.get("WWW-Authenticate"),
+    'Webhook realm="certificate-updates"',
+  );
+  assert.equal((await wrong.json()).code, "INVALID_WEBHOOK_TOKEN");
+  const query = await worker.fetch(
+    new Request(url + "?extra=value", { method: "PUT", body: "{}" }),
+    env,
+  );
+  assert.equal(query.status, 400);
+  assert.equal((await query.json()).code, "INVALID_WEBHOOK_URL");
   const get = await worker.fetch(new Request(url), env);
   assert.equal(get.status, 405);
   assert.equal(get.headers.get("Allow"), "PUT");
@@ -457,6 +468,6 @@ test("an explicit legacy webhook credential stays valid during migration", async
         CERT_WEBHOOK_SECRET: undefined,
       })
     ).status,
-    404,
+    401,
   );
 });

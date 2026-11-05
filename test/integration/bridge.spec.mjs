@@ -299,7 +299,8 @@ test("dashboard dotenv export provisions a new key and its derived certificate w
       `${fixture.origin}/api/certificates/${variables.SECRET_KEY}`,
       { data: payload },
     );
-    expect(rejected.status()).toBe(404);
+    expect(rejected.status()).toBe(401);
+    expect((await rejected.json()).code).toBe("INVALID_WEBHOOK_TOKEN");
     const accepted = await page.request.put(copiedUrl, { data: payload });
     expect(accepted.status()).toBe(204);
     await page.getByRole("button", { name: "重新检测", exact: true }).click();
