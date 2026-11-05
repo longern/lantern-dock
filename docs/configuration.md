@@ -59,7 +59,7 @@ When updating an existing deployment, the wizard may also emit a value that rese
 
 Pinned WebTransport deployments also need a Workers KV binding named `KV`. Keep `SECRET_KEY` and the webhook URL in private deployment configuration.
 
-For an existing deployment, rename the old `PINS` binding to `KV` while keeping the same namespace ID. The stored `certificate-pins` key is unchanged, so certificate data does not need to move.
+For an existing deployment, rename the old `PINS` binding to `KV` while keeping the same namespace ID. The stored `certificate-pins` key is unchanged, so certificate data does not need to move. Renaming the namespace itself does not create a binding: the Worker variable name must be exactly `KV`. The setup response at `/api/config` includes `setup.hasKV` when setup is required, and the certificate page calls out a missing binding.
 
 ### Existing configurations
 
@@ -154,7 +154,7 @@ The webhook accepts `PUT` with `Content-Type: application/json`:
 }
 ```
 
-Use the actual certificate dates and digest; this is a format example. At most two certificate pins are accepted, each with a validity period of at most 14 days. Expired pins are excluded. The Worker responds with `204` only after the KV write succeeds, or `503` if storage fails.
+Use the actual certificate dates and digest; this is a format example. At most two certificate pins are accepted, each with a validity period of at most 14 days. Expired pins are excluded. The Worker responds with `204` only after the KV write succeeds. `405` means the request must use PUT; `503` with `MISSING_KV_BINDING` means the Worker has no KV namespace bound as `KV`; `503` with `INVALID_SITE_KEY` means the webhook credentials are missing or invalid. Storage failures also return `503`. With valid deployment settings, `404` means the URL token or path does not match. A changed `SECRET_KEY` requires the matching derived webhook URL.
 
 KV updates are eventually consistent. Publish replacement pins ahead of certificate activation and keep an overlap window; a successful webhook does not mean every edge location has already observed the update. Use the connection dialog's **Connect** action to fetch current pins.
 

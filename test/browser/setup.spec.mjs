@@ -681,3 +681,33 @@ test("a new Worker deployment opens its destination instead of rechecking localh
   await expect(destination).toHaveAttribute("href", "https://dock.example.com");
   expect(count).toBe(before);
 });
+
+test("certificate setup distinguishes a namespace name from an attached KV binding", async ({
+  page,
+}) => {
+  await page.route("https://dock.example/**", async (route) => {
+    const url = new URL(route.request().url());
+    await route.fulfill({
+      response: await route.fetch({
+        url: `http://127.0.0.1:8788${url.pathname}${url.search}`,
+      }),
+    });
+  });
+  const env = {
+    WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
+    SECRET_KEY: "diagnostic-site-key-".repeat(4),
+  };
+  await serveConfiguration(page, () => env);
+  await page.goto("https://dock.example/");
+  await expect(
+    page.getByText("未检测到 KV 绑定。", { exact: false }),
+  ).toBeVisible();
+  env.KV = { get: async () => null, put: async () => {} };
+  await page.getByRole("button", { name: "重新检测", exact: true }).click();
+  await expect(
+    page.getByText("未检测到 KV 绑定。", { exact: false }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByText("KV 存储已连接。", { exact: true }),
+  ).toBeVisible();
+});

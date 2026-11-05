@@ -346,7 +346,7 @@ test("certificate updates accept only a purpose-derived token, never the master 
   assert.equal(
     (await worker.fetch(request(token), { ...env, SECRET_KEY: "short" }))
       .status,
-    404,
+    503,
   );
   assert.equal(writes, 1);
   const publicConfig = await (
@@ -365,6 +365,72 @@ test("certificate updates accept only a purpose-derived token, never the master 
   ).text();
   assert.ok(!publicSetup.includes(master));
   assert.ok(!publicSetup.includes(token));
+});
+
+test("webhook reports deployment errors separately from an invalid private URL", async () => {
+  const master = "diagnostic-site-key-".repeat(4);
+  const token = await deriveSecret(master, CERTIFICATE_WEBHOOK_PURPOSE);
+  const url = `https://portal.example.com/api/certificates/${token}`;
+  let writes = 0;
+  const env = {
+    SECRET_KEY: master,
+    KV: {
+      get: async () => null,
+      put: async () => {
+        writes++;
+      },
+    },
+  };
+  const request = () =>
+    new Request(url, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version: 1, certificates: [pin] }),
+    });
+  for (const KV of [undefined, "lantern-dock", {}]) {
+    const response = await worker.fetch(request(), { ...env, KV });
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).code, "MISSING_KV_BINDING");
+  }
+  for (const SECRET_KEY of [undefined, "short"]) {
+    const response = await worker.fetch(request(), { ...env, SECRET_KEY });
+    assert.equal(response.status, 503);
+    assert.equal((await response.json()).code, "INVALID_SITE_KEY");
+  }
+  const wrong = await worker.fetch(
+    new Request(url + "wrong", { method: "PUT", body: "{}" }),
+    env,
+  );
+  assert.equal(wrong.status, 404);
+  const get = await worker.fetch(new Request(url), env);
+  assert.equal(get.status, 405);
+  assert.equal(get.headers.get("Allow"), "PUT");
+  assert.equal(writes, 0);
+  assert.equal((await worker.fetch(request(), env)).status, 204);
+  assert.equal(writes, 1);
+});
+
+test("setup exposes KV binding availability without returning a namespace or secret", async () => {
+  const key = "private-setup-key-".repeat(4);
+  for (const KV of [
+    undefined,
+    "lantern-dock",
+    { get: async () => null, put: async () => {} },
+  ]) {
+    const response = await worker.fetch(
+      new Request("https://portal.example.com/api/config"),
+      {
+        WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
+        SECRET_KEY: key,
+        KV,
+      },
+    );
+    const data = await response.json();
+    assert.equal(data.setup.hasKV, typeof KV === "object");
+    assert.equal(data.setup.hasSecretKey, true);
+    assert.ok(!JSON.stringify(data).includes(key));
+    assert.ok(!JSON.stringify(data).includes("lantern-dock"));
+  }
 });
 
 test("an explicit legacy webhook credential stays valid during migration", async () => {

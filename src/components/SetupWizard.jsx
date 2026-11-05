@@ -75,7 +75,11 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
         ) : (
           <>
             {certificates ? (
-              <SetupCertificates wizard={wizard} notify={notify} />
+              <SetupCertificates
+                wizard={wizard}
+                notify={notify}
+                hasKV={setup.hasKV}
+              />
             ) : (
               <SetupExport wizard={wizard} setup={setup} notify={notify} />
             )}

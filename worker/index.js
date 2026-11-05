@@ -4,12 +4,13 @@ import {
 } from "../shared/backend-defaults.js";
 import { certificateWebhookTokens, validateSecretKey } from "./secrets.js";
 
-const json = (data, status = 200) =>
+const json = (data, status = 200, headers = {}) =>
   Response.json(data, {
     status,
     headers: {
       "Cache-Control": "no-store",
       "X-Content-Type-Options": "nosniff",
+      ...headers,
     },
   });
 
@@ -45,6 +46,8 @@ function setupConfiguration(env, reason) {
     setup: {
       reason,
       hasSecretKey,
+      hasKV:
+        typeof env.KV?.get === "function" && typeof env.KV?.put === "function",
       resetVariables: [
         ...["WEBDAV_URL", "WEBTRANSPORT_URL"].filter((key) => env[key]?.trim()),
         ...(env.BACKEND_ROOT ? ["BACKEND_ROOT"] : []),
@@ -166,9 +169,10 @@ export async function configuration(env) {
   let certificates = [];
   if (transport === "webtransport" && env.CERTIFICATE_MODE !== "webpki") {
     // Storage outages are operational errors, not an invitation to reconfigure.
-    const saved = env.KV
-      ? await env.KV.get("certificate-pins", "json")
-      : env.CERTIFICATES_JSON;
+    const saved =
+      typeof env.KV?.get === "function"
+        ? await env.KV.get("certificate-pins", "json")
+        : env.CERTIFICATES_JSON;
     try {
       certificates = validatePins(
         typeof saved === "string" ? JSON.parse(saved) : saved,
@@ -248,9 +252,29 @@ export default {
       }
     }
     if (url.pathname.startsWith("/api/certificates/")) {
-      if (request.method !== "PUT" || url.search || !env.KV)
-        return json({ error: "Not found" }, 404);
-      const tokens = await certificateWebhookTokens(env).catch(() => []);
+      if (request.method !== "PUT")
+        return json({ error: "Use PUT to publish certificates." }, 405, {
+          Allow: "PUT",
+        });
+      if (url.search) return json({ error: "Not found" }, 404);
+      if (typeof env.KV?.put !== "function")
+        return json(
+          {
+            error: "Workers KV binding named KV is not configured.",
+            code: "MISSING_KV_BINDING",
+          },
+          503,
+        );
+      const tokens = await certificateWebhookTokens(env).catch(() => null);
+      if (!tokens?.length)
+        return json(
+          {
+            error:
+              "Certificate webhook credentials are missing or invalid. Configure SECRET_KEY.",
+            code: "INVALID_SITE_KEY",
+          },
+          503,
+        );
       let authorized = false;
       for (const token of tokens)
         authorized =
