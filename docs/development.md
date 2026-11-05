@@ -36,7 +36,7 @@ npm run test:bridge
 GO_BIN=/path/to/go BRIDGE_SOURCE=/path/to/webtransport-bridge npm run test:bridge
 ```
 
-It checks gateway 407 versus backend 401, separate credentials, PROPFIND, encoded paths, image/text previews, byte-exact downloads, HEAD, Range, chunked responses, cancellation, and rejection of incorrect certificate hashes. The fixture publishes a generated certificate through the real Worker webhook into an in-memory KV substitute. Certificate auto-rotation is covered by the bridge's Go tests; this suite uses the bridge's manual-certificate mode. Only the local frontend's self-signed HTTPS certificate is bypassed by the browser test context; WebTransport certificate pins are still checked. Chromium mobile viewports do not substitute for testing on physical iOS/Android devices.
+It checks gateway 407 versus backend 401, separate credentials, PROPFIND, encoded paths, image/text previews, byte-exact downloads, HEAD, Range, chunked responses, cancellation, and rejection of incorrect certificate hashes. The fixture publishes a generated certificate through the real Worker webhook into an in-memory KV substitute. Setup integration also copies the browser-derived webhook URL, publishes pins through it, and reconnects using the real bridge; an existing key can derive the same URL entirely in the browser. Certificate auto-rotation is covered by the bridge's Go tests; this suite uses the bridge's manual-certificate mode. Only the local frontend's self-signed HTTPS certificate is bypassed by the browser test context; WebTransport certificate pins are still checked. Chromium mobile viewports do not substitute for testing on physical iOS/Android devices.
 
 ## Commands
 

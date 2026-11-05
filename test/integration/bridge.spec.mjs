@@ -279,6 +279,24 @@ test("dashboard dotenv export provisions a new key and its derived certificate w
       variables.SECRET_KEY,
       CERTIFICATE_WEBHOOK_PURPOSE,
     );
+    const webhook = page.getByLabel("证书更新 Webhook URL", { exact: true });
+    await expect(webhook).toHaveValue(
+      `${fixture.origin}/api/certificates/${token}`,
+    );
+    await page.evaluate(() =>
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: {
+          writeText: async (text) => {
+            window.copiedWebhook = text;
+          },
+        },
+      }),
+    );
+    await page
+      .getByRole("button", { name: "复制 Webhook URL", exact: true })
+      .click();
+    const copiedUrl = await page.evaluate(() => window.copiedWebhook);
     const payload = JSON.parse(fixture.pins.get("certificate-pins"));
     fixture.pins.clear();
     const rejected = await page.request.put(
@@ -286,10 +304,7 @@ test("dashboard dotenv export provisions a new key and its derived certificate w
       { data: payload },
     );
     expect(rejected.status()).toBe(404);
-    const accepted = await page.request.put(
-      `${fixture.origin}/api/certificates/${token}`,
-      { data: payload },
-    );
+    const accepted = await page.request.put(copiedUrl, { data: payload });
     expect(accepted.status()).toBe(204);
     await page
       .getByRole("button", { name: "已完成，重新检测", exact: true })
@@ -321,14 +336,14 @@ test("missing pins resume at certificate setup and publishing them enables the r
         .getByRole("textbox", { name: "生成的配置", exact: true })
         .inputValue(),
     ).not.toContain("SECRET_KEY");
-    const token = await deriveSecret(
-      fixture.env.SECRET_KEY,
-      CERTIFICATE_WEBHOOK_PURPOSE,
-    );
-    const response = await page.request.put(
-      `${fixture.origin}/api/certificates/${token}`,
-      { data: JSON.parse(previous.get("certificate-pins")) },
-    );
+    await page
+      .getByLabel("已部署的 SECRET_KEY", { exact: true })
+      .fill(fixture.env.SECRET_KEY);
+    const webhook = page.getByLabel("证书更新 Webhook URL", { exact: true });
+    await expect(webhook).toHaveValue(/\/api\/certificates\/[a-f0-9]{64}$/);
+    const response = await page.request.put(await webhook.inputValue(), {
+      data: JSON.parse(previous.get("certificate-pins")),
+    });
     expect(response.status()).toBe(204);
     await page
       .getByRole("button", { name: "已完成，重新检测", exact: true })

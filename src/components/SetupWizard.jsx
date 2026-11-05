@@ -1,9 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { setupVariables, setupSnippet } from "../lib/setup.js";
 import { backendDefaults } from "../../shared/backend-defaults.js";
 import { generateSecretKey } from "../../shared/site-secret.js";
 import { DeploymentSecret } from "./DeploymentSecret.jsx";
+import { CertificateWebhook } from "./CertificateWebhook.jsx";
 
 const steps = ["选择连接方式", "填写后端信息", "应用配置"];
 const reasons = {
@@ -40,7 +41,7 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
     if (step > 0) heading.current?.focus();
   }, [step]);
   // A configured backend only needs certificate setup, including after a recheck.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (setup.reason !== "missing-certificates") return;
     const configuredForm = {
       ...backendDefaults,
@@ -400,6 +401,13 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
                 密钥已隐藏；请使用「复制配置」或「下载配置」获取完整内容。
               </p>
             )}
+            {form.transport === "webtransport" &&
+              form.certificateMode === "pinned" && (
+                <CertificateWebhook
+                  secretKey={exportSecretKey}
+                  notify={notify}
+                />
+              )}
             <div class="setup-checklist">
               <strong>连接前再确认</strong>
               <ul>

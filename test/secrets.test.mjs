@@ -19,6 +19,7 @@ import {
   CERTIFICATE_WEBHOOK_PURPOSE,
 } from "../worker/secrets.js";
 import { initializeEnvironment } from "../scripts/site-key.mjs";
+import { certificateWebhookUrl } from "../shared/site-secret.js";
 import {
   parseLocalVariables,
   loadLocalEnvironment,
@@ -57,6 +58,34 @@ test("purpose-specific tokens match HMAC-SHA256 and do not disclose the master k
   );
   assert.notEqual(token, master);
   await assert.rejects(deriveSecret("short", CERTIFICATE_WEBHOOK_PURPOSE));
+});
+
+test("browser and CLI webhook URLs use the same derived credential and validate the deployment origin", async () => {
+  const token = createHmac("sha256", master)
+    .update(CERTIFICATE_WEBHOOK_PURPOSE)
+    .digest("hex");
+  const expected = `https://dock.example.com/api/certificates/${token}`;
+  assert.equal(
+    await certificateWebhookUrl(master, "https://dock.example.com/"),
+    expected,
+  );
+  assert.ok(!expected.includes(master));
+  for (const address of [
+    "",
+    "http://dock.example.com",
+    "https://user:password@dock.example.com",
+    "https://dock.example.com/path",
+    "https://dock.example.com/?token=secret",
+    "https://dock.example.com/#secret",
+  ])
+    await assert.rejects(
+      certificateWebhookUrl(master, address),
+      /HTTPS Worker origin/,
+    );
+  await assert.rejects(
+    certificateWebhookUrl("short", "https://dock.example.com"),
+    /SECRET_KEY/,
+  );
 });
 
 test("initialization appends a private persistent key without replacing existing settings", async (t) => {

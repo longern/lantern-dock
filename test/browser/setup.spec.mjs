@@ -2,6 +2,7 @@ import { test as base, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import worker from "../../worker/index.js";
 import { parseLocalVariables } from "../../scripts/local-env.mjs";
+import { certificateWebhookUrl } from "../../shared/site-secret.js";
 
 const test = base.extend({
   page: async ({ page }, use) => {
@@ -53,6 +54,140 @@ test("default setup exports one WebDAV URL plus a new masked deployment key", as
     SECRET_KEY: "•".repeat(32),
   });
   await expect(page.locator(".setup-checklist")).toContainText("CORS");
+  await expect(
+    page.getByRole("region", { name: "证书更新 Webhook", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("new deployment webhook URLs are derived locally and copy the complete URL", async ({
+  page,
+}, testInfo) => {
+  const requests = [];
+  page.on("request", (request) =>
+    requests.push(request.url() + (request.postData() || "")),
+  );
+  await serveConfiguration(page, {
+    WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
+  });
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "配置网关证书", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "显示密钥", exact: true }).click();
+  const key = parseLocalVariables(
+    await page
+      .getByRole("textbox", { name: "生成的配置", exact: true })
+      .inputValue(),
+  ).SECRET_KEY;
+  await page.getByRole("button", { name: "隐藏密钥", exact: true }).click();
+  const address = page.getByLabel("LanternDock 部署地址", { exact: true });
+  const output = page.getByLabel("证书更新 Webhook URL", { exact: true });
+  const copy = page.getByRole("button", {
+    name: "复制 Webhook URL",
+    exact: true,
+  });
+  await expect(copy).toBeDisabled();
+  await address.fill("https://dock.example.com");
+  const expected = await certificateWebhookUrl(key, "https://dock.example.com");
+  await expect(output).toHaveValue(expected);
+  await expect(output).toHaveAttribute("type", "password");
+  await page.evaluate(() =>
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (text) => {
+          window.copiedWebhook = text;
+        },
+      },
+    }),
+  );
+  await copy.click();
+  expect(await page.evaluate(() => window.copiedWebhook)).toBe(expected);
+  expect(expected).not.toContain(key);
+  await address.fill("https://user:password@dock.example.com");
+  await expect(output).toHaveValue("");
+  await expect(copy).toBeDisabled();
+  await address.fill("https://other.example.com");
+  await expect(output).toHaveValue(
+    await certificateWebhookUrl(key, "https://other.example.com"),
+  );
+  await page.evaluate(() =>
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async () => {
+          throw new Error("denied");
+        },
+      },
+    }),
+  );
+  await copy.click();
+  await expect(
+    page.getByText("请复制已选中的 Webhook URL。", { exact: true }),
+  ).toBeVisible();
+  await expect(output).toHaveAttribute("type", "text");
+  expect(
+    await output.evaluate((node) => node.selectionEnd - node.selectionStart),
+  ).toBe((await output.inputValue()).length);
+  await page
+    .getByRole("button", { name: "隐藏 Webhook URL", exact: true })
+    .click();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page
+    .getByRole("region", { name: "证书更新 Webhook", exact: true })
+    .screenshot({ path: testInfo.outputPath("certificate-webhook.png") });
+  expect(requests.join("\n")).not.toContain(key);
+  expect(requests.join("\n")).not.toContain("/api/certificates/");
+  expect(
+    await page.evaluate(() => JSON.stringify({ localStorage, sessionStorage })),
+  ).not.toContain(key);
+});
+
+test("an existing deployment key can derive a webhook without replacing it or sending it to the server", async ({
+  page,
+}) => {
+  const existing = "saved-existing-site-key-".repeat(4);
+  const requests = [];
+  page.on("request", (request) =>
+    requests.push(request.url() + (request.postData() || "")),
+  );
+  await serveConfiguration(page, {
+    WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
+    SECRET_KEY: existing,
+  });
+  await page.goto("/");
+  const key = page.getByLabel("已部署的 SECRET_KEY", { exact: true });
+  const output = page.getByLabel("证书更新 Webhook URL", { exact: true });
+  await expect(key).toHaveAttribute("type", "password");
+  await expect(key).toHaveValue("");
+  await page
+    .getByLabel("LanternDock 部署地址", { exact: true })
+    .fill("https://dock.example.com");
+  await key.fill(existing);
+  await expect(output).toHaveValue(
+    await certificateWebhookUrl(existing, "https://dock.example.com"),
+  );
+  expect(
+    await page
+      .getByRole("textbox", { name: "生成的配置", exact: true })
+      .inputValue(),
+  ).not.toContain("SECRET_KEY");
+  await key.fill("short");
+  await expect(output).toHaveValue("");
+  await expect(
+    page.getByRole("button", { name: "复制 Webhook URL", exact: true }),
+  ).toBeDisabled();
+  expect(requests.join("\n")).not.toContain(existing);
+  expect(
+    await page.evaluate(() => JSON.stringify({ localStorage, sessionStorage })),
+  ).not.toContain(existing);
+  await page.reload();
+  await expect(key).toHaveValue("");
+  await expect(output).toHaveValue("");
 });
 
 test("choosing one URL clears the other configured URL explicitly", async ({

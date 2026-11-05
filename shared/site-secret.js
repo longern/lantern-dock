@@ -44,3 +44,28 @@ export function generateSecretKey() {
     "",
   );
 }
+
+export function webhookOrigin(value) {
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("Pass an HTTPS Worker origin without a path.");
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash ||
+    url.username ||
+    url.password
+  )
+    throw new Error("Pass an HTTPS Worker origin without a path.");
+  return url.origin;
+}
+
+export async function certificateWebhookUrl(secretKey, origin) {
+  const base = webhookOrigin(origin);
+  const token = await deriveSecret(secretKey, CERTIFICATE_WEBHOOK_PURPOSE);
+  return `${base}/api/certificates/${token}`;
+}
