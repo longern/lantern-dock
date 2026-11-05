@@ -10,6 +10,6 @@
     "run_worker_first": ["/api/*"],
   },
   "vars": {},
-  // For automatic WebTransport certificate pin updates, create and bind KV:
-  // "kv_namespaces": [{"binding":"KV", "id":"YOUR_NAMESPACE_ID"}]
+  // Wrangler >=4.45 reuses this deployed binding or provisions it on first deploy.
+  "kv_namespaces": [{ "binding": "KV" }],
 }

@@ -57,7 +57,7 @@ Downloads are named `lantern-dock.env` so browsers do not rename a hidden `.env`
 
 When updating an existing deployment, the wizard may also emit a value that resets an old override, or an empty string to clear the other URL. Those entries are necessary to apply the chosen connection without leaving conflicting variables behind. A direct WebDAV root override is folded into the generated URL; the wizard clears an existing `BACKEND_ROOT` override when needed.
 
-Pinned WebTransport deployments also need a Workers KV binding named `KV`. Keep `SECRET_KEY` and the webhook URL in private deployment configuration.
+The repository declares a Workers KV binding named `KV`. Wrangler 4.45+ preserves an existing deployed binding with that name, or automatically creates and binds a namespace on first deployment. No account-specific namespace ID is required in this shared configuration. Keep `SECRET_KEY` and the webhook URL in private deployment configuration.
 
 For an existing deployment, rename the old `PINS` binding to `KV` while keeping the same namespace ID. The stored `certificate-pins` key is unchanged, so certificate data does not need to move. Renaming the namespace itself does not create a binding: the Worker variable name must be exactly `KV`. The setup response at `/api/config` includes `setup.hasKV` when setup is required, and the certificate page calls out a missing binding.
 
@@ -110,11 +110,7 @@ For an already configured site, reuse the URL saved during initialization. If it
 
 Use the same site key for the Worker and local webhook generation. If the wizard generated your deployment key, save that exported `SECRET_KEY` in the local `.env` before running these commands. Otherwise initialize a key with `npm run init` and deploy it as a Worker Secret. An unrelated local key produces a different webhook URL.
 
-Create a Workers KV namespace and add its returned ID to `wrangler.jsonc`:
-
-```sh
-npx wrangler kv namespace create KV
-```
+The default `wrangler.jsonc` already declares KV for automatic provisioning. To use a particular existing namespace instead, set its ID explicitly:
 
 ```json
 {
@@ -176,9 +172,11 @@ The project uses Workers Static Assets, configured in [`wrangler.jsonc`](../wran
 4. Deploy the variable changes, return to the wizard, and recheck. Allow the deployed frontend origin in the backend CORS policy or bridge origin policy.
 5. For pinned WebTransport, also bind KV and configure the derived certificate webhook, then let the bridge publish its certificate before connecting.
 
-The repository sets `keep_vars: true` and ships an empty `vars` object so a later Wrangler deploy preserves ordinary variables configured through the dashboard. Values explicitly added to `wrangler.jsonc` override matching dashboard values. Secrets are stored separately.
+The repository sets `keep_vars: true` and ships an empty `vars` object so a later Wrangler deploy preserves ordinary variables configured through the dashboard. KV has a separate explicit `kv_namespaces` declaration: `keep_vars` does not preserve resource bindings. Keep that declaration when using dashboard bindings or a later deploy can remove them. Values explicitly added to `wrangler.jsonc` override matching dashboard values. Secrets are stored separately.
 
 For CLI deployment, use **Other deployment methods → Download Wrangler JSON** for public variables and set `SECRET_KEY` with `wrangler secret put`. The local `.env` file is not automatically uploaded to production; the dashboard import is an explicit step. Keep `DEMO_MODE` unset in production unless you intentionally want a sample-only site.
+
+See Cloudflare's [automatic resource provisioning](https://developers.cloudflare.com/changelog/post/2025-10-24-automatic-resource-provisioning/) for namespace creation and reuse.
 
 See Cloudflare's [Static Assets](https://developers.cloudflare.com/workers/static-assets/) and [KV setup](https://developers.cloudflare.com/kv/get-started/) documentation for platform configuration.
 
