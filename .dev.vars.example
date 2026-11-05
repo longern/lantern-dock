@@ -1,18 +1,4 @@
-# HTTP endpoint is an origin; the WebDAV mount goes in BACKEND_ROOT.
-BACKEND_NAME="Public resources"
-BACKEND_TRANSPORT="http"
-# Fill in your real origin, e.g. https://files.example.com. Blank opens the setup wizard.
-BACKEND_ENDPOINT=""
-BACKEND_ROOT="/dav/"
-BACKEND_AUTH="none"
-GATEWAY_AUTH="false"
+# Full WebDAV URL. Leave blank to open the setup wizard.
+WEBDAV_URL=""
 
-# Alternative: the HTTPS WebTransport URL of webtransport-bridge.
-# BACKEND_TRANSPORT="webtransport"
-# BACKEND_ENDPOINT="https://bridge.example.com:4433/webtransport"
-# BACKEND_ROOT="/public/"
-# CERTIFICATE_MODE="pinned"
-# GATEWAY_AUTH="true"
-# Bind PINS KV for rotating certificates, or set CERTIFICATES_JSON locally.
-# CERTIFICATES_JSON='{"version":1,"certificates":[{"algorithm":"sha-256","value":"BASE64_SHA256","notBefore":"...","notAfter":"..."}]}'
-# CERT_WEBHOOK_SECRET is a secret, not a public configuration value.
+# For WebTransport and optional settings, see docs/configuration.md.

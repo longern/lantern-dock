@@ -8,37 +8,50 @@ Missing or invalid backend settings, and missing certificate pins, open a setup 
 
 Credentials are entered in the connection dialog and kept in page memory. The public `/api/config` document contains connection metadata and certificate pins.
 
-## Environment variables
+## Choose one connection URL
 
-| Variable              | Default                    | Description                                                                                  |
-| --------------------- | -------------------------- | -------------------------------------------------------------------------------------------- |
-| `BACKEND_NAME`        | `Public files`             | Resource name shown in the interface.                                                        |
-| `BACKEND_TRANSPORT`   | `http`                     | `http` for Fetch over HTTP(S), or `webtransport` for the bridge.                             |
-| `BACKEND_ENDPOINT`    | Required outside demo mode | HTTP(S) origin, or a complete HTTPS WebTransport session URL.                                |
-| `BACKEND_ROOT`        | `/`                        | WebDAV root, including any mount prefix.                                                     |
-| `BACKEND_AUTH`        | `none`                     | `none`, `basic`, or `bearer`; visitors supply credentials.                                   |
-| `GATEWAY_AUTH`        | `false`                    | Set to `true` to collect a separate bridge token in WebTransport mode.                       |
-| `CERTIFICATE_MODE`    | Pinned                     | Use `pinned` for certificate hashes or `webpki` for a publicly trusted certificate.          |
-| `CERTIFICATES_JSON`   | Unset                      | Local certificate document when no `PINS` binding is available.                              |
-| `DEMO_MODE`           | Unset in the Worker        | Set to `true` to serve sample files. Otherwise, an unconfigured site opens the setup wizard. |
-| `CERT_WEBHOOK_SECRET` | Unset                      | Private Worker secret for certificate updates.                                               |
+Only one address variable is needed for direct WebDAV:
 
-Pinned WebTransport deployments also need a `PINS` Workers KV binding. The webhook secret and URL belong only in private deployment configuration.
+```dotenv
+WEBDAV_URL="https://files.example.com/dav/public/"
+```
+
+The browser connects to `https://files.example.com` and browses `/dav/public/`. For WebTransport, use `WEBTRANSPORT_URL` instead. Setting both nonempty URLs opens the setup wizard so the maintainer can choose one. Empty URL variables are ignored.
+
+## Optional settings
+
+Defaults can stay unset. The wizard keeps advanced controls collapsed and exports only the selected URL and values that differ from the defaults.
+
+| Variable              | Default                                      | Description                                                                                                |
+| --------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `WEBDAV_URL`          | Unset                                        | Complete HTTP(S) WebDAV URL, including the mount path. Choose this or `WEBTRANSPORT_URL`.                  |
+| `WEBTRANSPORT_URL`    | Unset                                        | Complete HTTPS bridge session URL. Choose this or `WEBDAV_URL`.                                            |
+| `BACKEND_NAME`        | `我的文件`                                   | Resource name shown in the interface.                                                                      |
+| `BACKEND_ROOT`        | Path from `WEBDAV_URL`; `/` for WebTransport | Optional root override. WebTransport's session URL does not identify the WebDAV directory.                 |
+| `BACKEND_AUTH`        | `none`                                       | Optional login-form preset: `none`, `basic`, or `bearer`. The backend enforces authentication.             |
+| `GATEWAY_AUTH`        | `true` for WebTransport                      | Show a separate bridge-token field. Set `false` to hide it for a public bridge. Ignored for direct WebDAV. |
+| `CERTIFICATE_MODE`    | `pinned`                                     | Certificate hashes by default; use `webpki` for a publicly trusted gateway certificate.                    |
+| `CERTIFICATES_JSON`   | Unset                                        | Local certificate document when no `PINS` binding is available.                                            |
+| `DEMO_MODE`           | `false`                                      | Set `true` for a site-wide sample-only experience. Otherwise, an unconfigured site opens the wizard.       |
+| `CERT_WEBHOOK_SECRET` | Unset                                        | Private Worker secret for certificate updates.                                                             |
+
+When updating an existing deployment, the wizard may also emit a value that resets an old override, or an empty string to clear the other URL. Those entries are necessary to apply the chosen connection without leaving conflicting variables behind. A direct WebDAV root override is folded into the generated URL; the wizard clears an existing `BACKEND_ROOT` override when needed.
+
+Pinned WebTransport deployments also need a `PINS` Workers KV binding. Keep the webhook secret and URL in private deployment configuration.
+
+### Existing configurations
+
+`BACKEND_ENDPOINT` and `BACKEND_TRANSPORT` remain supported. A nonempty `WEBDAV_URL` or `WEBTRANSPORT_URL` takes precedence over that legacy pair. Explicit `BACKEND_ROOT`, authentication, and certificate settings remain supported. There is no need to migrate a working deployment immediately.
 
 ## HTTPS / WebDAV
 
-For local development, place these values in `.dev.vars`. For deployment, edit `vars` in [`wrangler.jsonc`](../wrangler.jsonc).
+Use the full WebDAV URL in `.dev.vars` locally or in the `vars` object of [`wrangler.jsonc`](../wrangler.jsonc):
 
 ```dotenv
-BACKEND_NAME="Public resources"
-BACKEND_TRANSPORT="http"
-BACKEND_ENDPOINT="https://files.example.com"
-BACKEND_ROOT="/dav/public/"
-BACKEND_AUTH="none"
-GATEWAY_AUTH="false"
+WEBDAV_URL="https://files.example.com/dav/public/"
 ```
 
-`BACKEND_ENDPOINT` must be an origin without a path. `BACKEND_ROOT` is the WebDAV directory to display, including its mount prefix. Use `BACKEND_AUTH="basic"` or `"bearer"` to accept visitor-supplied credentials.
+For a protected backend, optionally add `BACKEND_AUTH="basic"` or `"bearer"`. Visitors supply their credentials in the connection dialog.
 
 The backend must support WebDAV `PROPFIND` with `Depth: 1`, plus `GET` and `HEAD`. A plain HTTP directory listing is not sufficient. Configure CORS on the backend for your frontend origin:
 
@@ -53,18 +66,13 @@ The frontend does not use ambient backend cookies. Basic and Bearer credentials 
 ## WebTransport
 
 ```dotenv
-BACKEND_NAME="Public resources"
-BACKEND_TRANSPORT="webtransport"
-BACKEND_ENDPOINT="https://bridge.example.com:4433/webtransport"
+WEBTRANSPORT_URL="https://bridge.example.com:4433/webtransport"
 BACKEND_ROOT="/public/"
-BACKEND_AUTH="none"
-GATEWAY_AUTH="true"
-CERTIFICATE_MODE="pinned"
 ```
 
 The endpoint is the complete WebTransport session URL. Configure the bridge to permit the frontend origin and `GET`, `HEAD`, and **`PROPFIND`**. Restrict its allowed paths and backend permissions to the intended resources. WebTransport requires a compatible browser, a secure frontend context, and network reachability to the bridge's UDP port.
 
-With `GATEWAY_AUTH="true"`, visitors enter a bridge token separately from their backend credentials. The bridge must consume `Proxy-Authorization`; the backend's `Authorization` stays intact. This header is encoded inside the WebTransport stream, not sent through browser Fetch.
+The bridge-token field is shown by default. Visitors enter a bridge token separately from their backend credentials. Set `GATEWAY_AUTH="false"` to hide that field for a public bridge. The bridge must consume `Proxy-Authorization`; the backend's `Authorization` stays intact. This header is encoded inside the WebTransport stream, not sent through browser Fetch.
 
 For a publicly trusted gateway certificate, set `CERTIFICATE_MODE="webpki"` to use browser certificate validation without pins. Otherwise configure the pinned-certificate flow below. There is no automatic fallback from WebTransport to HTTPS.
 
@@ -122,7 +130,7 @@ For local pinned-certificate development without KV, set `CERTIFICATES_JSON` in 
 
 The project uses Workers Static Assets, configured in [`wrangler.jsonc`](../wrangler.jsonc). `npm run deploy` builds the frontend into `dist/`, then Wrangler uploads that directory and the Worker together.
 
-1. Configure the real backend in `wrangler.jsonc`. Leaving the endpoint blank opens the setup wizard.
+1. Configure the real backend in `wrangler.jsonc`. Leaving both connection URLs blank opens the setup wizard.
 2. Authenticate Wrangler and deploy:
 
    ```sh

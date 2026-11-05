@@ -77,7 +77,7 @@ export function ConnectionDialog({
                 : "HTTP / HTTPS"}
           </span>
           <strong>
-            {backend?.endpoint || "请在 Worker 环境变量中配置 BACKEND_ENDPOINT"}
+            {backend?.endpoint || "请配置 WEBDAV_URL 或 WEBTRANSPORT_URL"}
           </strong>
           <span>{backend && `根目录 ${backend.rootPath}`}</span>
         </div>

@@ -9,13 +9,7 @@
     "run_worker_first": ["/api/*"]
   },
   "vars": {
-    "BACKEND_NAME": "Public files",
-    "BACKEND_TRANSPORT": "http",
-    "BACKEND_ENDPOINT": "",
-    "BACKEND_ROOT": "/dav/",
-    "BACKEND_AUTH": "none",
-    "GATEWAY_AUTH": "false",
-    "CERTIFICATE_MODE": "pinned"
+    "WEBDAV_URL": ""
   }
   // For automatic WebTransport certificate pin updates, create and bind KV:
   // , "kv_namespaces": [{"binding":"PINS", "id":"YOUR_NAMESPACE_ID"}]

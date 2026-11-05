@@ -130,10 +130,83 @@ test("certificate lifespan has a 14-day upper bound", () => {
 test("configuration rejects credential-bearing endpoints and invalid roots", async () => {
   for (const env of [
     { ...base, BACKEND_ENDPOINT: "https://user:secret@files.example.com" },
-    { ...base, BACKEND_ENDPOINT: "https://files.example.com/dav/" },
     { ...base, BACKEND_ROOT: "/../secret/" },
   ])
     await assert.rejects(configuration(env));
+});
+
+test("URL variables select the transport and retain legacy settings", async () => {
+  const direct = (
+    await configuration({ WEBDAV_URL: "https://files.example.com/dav/public/" })
+  ).backend;
+  assert.equal(direct.transport, "http");
+  assert.equal(direct.endpoint, "https://files.example.com");
+  assert.equal(direct.rootPath, "/dav/public/");
+  assert.equal(
+    (
+      await configuration({
+        WEBDAV_URL: "https://files.example.com/dav/",
+        BACKEND_ROOT: "/override/",
+      })
+    ).backend.rootPath,
+    "/override/",
+  );
+  const legacy = (await configuration(base)).backend;
+  assert.equal(legacy.rootPath, "/dav/");
+  const bridge = (
+    await configuration({
+      WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
+      PINS: { get: async () => ({ version: 1, certificates: [pin] }) },
+    })
+  ).backend;
+  assert.equal(bridge.transport, "webtransport");
+  assert.equal(bridge.rootPath, "/");
+  assert.equal(bridge.gatewayAuth, true);
+  assert.equal(
+    (
+      await configuration({
+        WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
+        GATEWAY_AUTH: "false",
+        CERTIFICATE_MODE: "webpki",
+      })
+    ).backend.gatewayAuth,
+    false,
+  );
+  assert.equal(
+    (
+      await configuration({
+        WEBDAV_URL: "https://files.example.com",
+        BACKEND_TRANSPORT: "webtransport",
+        BACKEND_ENDPOINT: "https://old.example.com",
+      })
+    ).backend.transport,
+    "http",
+  );
+});
+
+test("two active URL variables require an explicit choice instead of falling back", async () => {
+  const env = {
+    WEBDAV_URL: "https://files.example.com/dav/",
+    WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
+  };
+  const response = await worker.fetch(
+    new Request("https://portal.example.com/api/config"),
+    env,
+  );
+  const data = await response.json();
+  assert.equal(data.setupRequired, true);
+  assert.equal(data.setup.reason, "conflicting-backends");
+  assert.deepEqual(data.setup.resetVariables, [
+    "WEBDAV_URL",
+    "WEBTRANSPORT_URL",
+  ]);
+  const withRoot = await worker.fetch(
+    new Request("https://portal.example.com/api/config"),
+    { ...env, BACKEND_ROOT: "/" },
+  );
+  assert.ok(
+    (await withRoot.json()).setup.resetVariables.includes("BACKEND_ROOT"),
+  );
 });
 
 test("missing backend configuration returns setup metadata instead of an error", async () => {

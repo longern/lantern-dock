@@ -1,24 +1,22 @@
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { setupVariables, setupSnippet } from "../lib/setup.js";
+import { backendDefaults } from "../../shared/backend-defaults.js";
 
 const steps = ["选择连接方式", "填写后端信息", "应用配置"];
 const reasons = {
   "missing-backend": "还差一步，就能连接你的文件。",
   "missing-certificates": "网关地址已配置，接下来准备连接证书。",
   "invalid-configuration": "一起检查并完善后端配置。",
+  "conflicting-backends": "检测到两种连接地址，请选择保留其中一种。",
 };
 
 export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
-    name: "我的文件",
-    transport: "http",
+    ...backendDefaults,
     endpoint: "",
-    rootPath: "/",
-    auth: "none",
-    gatewayAuth: false,
-    certificateMode: "pinned",
+    rootPath: "",
     ...setup.backend,
   });
   const [target, setTarget] = useState(
@@ -132,23 +130,13 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
             onSubmit={(event) => {
               event.preventDefault();
               try {
-                setVars(setupVariables(form));
+                setVars(setupVariables(form, setup.resetVariables));
                 setStep(2);
               } catch (error) {
                 notify(error.message, true);
               }
             }}
           >
-            <label class="form-label" for="setup-name">
-              资源名称
-            </label>
-            <input
-              id="setup-name"
-              value={form.name}
-              maxLength="100"
-              onInput={(event) => update("name", event.currentTarget.value)}
-              placeholder="我的文件"
-            />
             <label class="form-label" for="setup-endpoint">
               {form.transport === "http"
                 ? "WebDAV 服务地址"
@@ -162,7 +150,7 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
               autoComplete="url"
               placeholder={
                 form.transport === "http"
-                  ? "https://files.example.com"
+                  ? "https://files.example.com/dav/public/"
                   : "https://bridge.example.com:4433/webtransport"
               }
               onInput={(event) => update("endpoint", event.currentTarget.value)}
@@ -170,70 +158,88 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
             />
             <p id="setup-endpoint-help" class="field-note">
               {form.transport === "http"
-                ? "只填写域名和端口，挂载路径填写到下方根目录。"
+                ? "直接粘贴完整 WebDAV 地址，根目录会从地址中自动识别。"
                 : "填写完整会话地址，通常以 /webtransport 结尾。"}
             </p>
-            <div class="setup-fields">
-              <div>
-                <label class="form-label" for="setup-root">
-                  WebDAV 根目录
-                </label>
-                <input
-                  id="setup-root"
-                  value={form.rootPath}
-                  placeholder="/dav/public/"
-                  onInput={(event) =>
-                    update("rootPath", event.currentTarget.value)
-                  }
-                />
-              </div>
-              <div>
-                <label class="form-label" for="setup-auth">
-                  后端认证
-                </label>
-                <select
-                  id="setup-auth"
-                  value={form.auth}
-                  onChange={(event) =>
-                    update("auth", event.currentTarget.value)
-                  }
-                >
-                  <option value="none">无需认证</option>
-                  <option value="basic">用户名与密码（Basic）</option>
-                  <option value="bearer">访问令牌（Bearer）</option>
-                </select>
-              </div>
-            </div>
-            {form.transport === "webtransport" && (
-              <>
-                <label class="form-label" for="setup-certificate">
-                  网关证书
-                </label>
-                <select
-                  id="setup-certificate"
-                  value={form.certificateMode}
-                  onChange={(event) =>
-                    update("certificateMode", event.currentTarget.value)
-                  }
-                >
-                  <option value="pinned">短期证书 + 证书哈希</option>
-                  <option value="webpki">公开受信任的 HTTPS 证书</option>
-                </select>
-                <label class="setup-checkbox">
+            <details class="setup-advanced">
+              <summary>高级设置</summary>
+              <p class="field-note">
+                可保持默认。只有需要自定义时才填写这些选项。
+              </p>
+              <label class="form-label" for="setup-name">
+                资源名称
+              </label>
+              <input
+                id="setup-name"
+                value={form.name}
+                maxLength="100"
+                onInput={(event) => update("name", event.currentTarget.value)}
+                placeholder={backendDefaults.name}
+              />
+              <div class="setup-fields">
+                <div>
+                  <label class="form-label" for="setup-root">
+                    WebDAV 根目录
+                  </label>
                   <input
-                    type="checkbox"
-                    checked={form.gatewayAuth}
-                    onChange={(event) =>
-                      update("gatewayAuth", event.currentTarget.checked)
+                    id="setup-root"
+                    value={form.rootPath}
+                    placeholder={
+                      form.transport === "http" ? "自动从地址识别" : "/（默认）"
+                    }
+                    onInput={(event) =>
+                      update("rootPath", event.currentTarget.value)
                     }
                   />
-                  网关要求访问令牌
-                </label>
-              </>
-            )}
-            <p class="field-note">
-              账号、密码和令牌在连接时填写，此处只生成公开连接配置。
-            </p>
+                </div>
+                <div>
+                  <label class="form-label" for="setup-auth">
+                    后端认证
+                  </label>
+                  <select
+                    id="setup-auth"
+                    value={form.auth}
+                    onChange={(event) =>
+                      update("auth", event.currentTarget.value)
+                    }
+                  >
+                    <option value="none">无需认证</option>
+                    <option value="basic">用户名与密码（Basic）</option>
+                    <option value="bearer">访问令牌（Bearer）</option>
+                  </select>
+                </div>
+              </div>
+              {form.transport === "webtransport" && (
+                <>
+                  <label class="form-label" for="setup-certificate">
+                    网关证书
+                  </label>
+                  <select
+                    id="setup-certificate"
+                    value={form.certificateMode}
+                    onChange={(event) =>
+                      update("certificateMode", event.currentTarget.value)
+                    }
+                  >
+                    <option value="pinned">短期证书 + 证书哈希</option>
+                    <option value="webpki">公开受信任的 HTTPS 证书</option>
+                  </select>
+                  <label class="setup-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={form.gatewayAuth}
+                      onChange={(event) =>
+                        update("gatewayAuth", event.currentTarget.checked)
+                      }
+                    />
+                    网关要求访问令牌
+                  </label>
+                </>
+              )}
+              <p class="field-note">
+                账号、密码和令牌在连接时填写，此处只生成公开连接配置。
+              </p>
+            </details>
             <div class="setup-actions">
               <button
                 type="button"
@@ -309,7 +315,7 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
             <div class="setup-checklist">
               <strong>连接前再确认</strong>
               <ul>
-                {vars.BACKEND_TRANSPORT === "http" ? (
+                {form.transport === "http" ? (
                   <>
                     <li>后端已启用 WebDAV，支持 PROPFIND、GET 和 HEAD。</li>
                     <li>
@@ -326,7 +332,7 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
                     <li>
                       网关已允许 GET、HEAD 和 PROPFIND，以及配置的根目录。
                     </li>
-                    {vars.CERTIFICATE_MODE === "pinned" && (
+                    {form.certificateMode === "pinned" && (
                       <li>
                         {target === "local" ? (
                           <>

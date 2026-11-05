@@ -61,18 +61,14 @@ cp .dev.vars.example .dev.vars
 ```
 
 ```dotenv
-BACKEND_NAME="My files"
-BACKEND_TRANSPORT="http"
-BACKEND_ENDPOINT="https://files.example.com"
-BACKEND_ROOT="/dav/public/"
-BACKEND_AUTH="none"
+WEBDAV_URL="https://files.example.com/dav/public/"
 ```
 
-Run `npm run dev` again. For a protected backend, set `BACKEND_AUTH` to `basic` or `bearer` and enter credentials in the connection dialog.
+Run `npm run dev` again. LanternDock derives the server origin and root directory from the URL. The default name, authentication choice, and other settings can stay unset. For a protected backend, optionally set `BACKEND_AUTH="basic"` or `"bearer"` to preselect the login method; visitors enter credentials in the connection dialog.
 
-The backend needs WebDAV `PROPFIND` with `Depth: 1`, plus `GET` and `HEAD`. Direct HTTPS connections also need CORS configured for the frontend origin. Put the server origin in `BACKEND_ENDPOINT` and the WebDAV mount path in `BACKEND_ROOT`.
+The backend needs WebDAV `PROPFIND` with `Depth: 1`, plus `GET` and `HEAD`. Direct HTTPS connections also need CORS configured for the frontend origin.
 
-See the [configuration guide](docs/configuration.md) for CORS, WebTransport, authentication, and certificate updates.
+For a bridge, use `WEBTRANSPORT_URL` instead of `WEBDAV_URL`. They are mutually exclusive; no separate transport variable is needed. See the [configuration guide](docs/configuration.md) for WebTransport, optional settings, CORS, and certificate updates.
 
 ## How it works
 

@@ -1,3 +1,8 @@
+import {
+  backendDefaults as defaults,
+  backendAddress,
+} from "../shared/backend-defaults.js";
+
 const json = (data, status = 200) =>
   Response.json(data, {
     status,
@@ -15,9 +20,10 @@ class SetupRequired extends Error {
 }
 
 function setupConfiguration(env, reason) {
+  const address = backendAddress(env);
   let endpoint = "";
   try {
-    const url = new URL(env.BACKEND_ENDPOINT);
+    const url = new URL(address.endpoint);
     if (
       ["http:", "https:"].includes(url.protocol) &&
       !url.username &&
@@ -32,16 +38,29 @@ function setupConfiguration(env, reason) {
     setupRequired: true,
     setup: {
       reason,
+      resetVariables: [
+        ...["WEBDAV_URL", "WEBTRANSPORT_URL"].filter((key) => env[key]?.trim()),
+        ...(env.BACKEND_ROOT ? ["BACKEND_ROOT"] : []),
+        ...Object.entries({
+          BACKEND_NAME: defaults.name,
+          BACKEND_AUTH: defaults.auth,
+          GATEWAY_AUTH: String(defaults.gatewayAuth),
+          CERTIFICATE_MODE: defaults.certificateMode,
+        })
+          .filter(([key, value]) => env[key] && env[key] !== value)
+          .map(([key]) => key),
+      ],
       backend: {
-        name: env.BACKEND_NAME || "我的文件",
+        name: env.BACKEND_NAME || defaults.name,
         transport:
-          env.BACKEND_TRANSPORT === "webtransport" ? "webtransport" : "http",
+          address.transport === "webtransport" ? "webtransport" : "http",
         endpoint,
-        rootPath: env.BACKEND_ROOT || "/",
+        rootPath:
+          env.BACKEND_ROOT === defaults.rootPath ? "" : env.BACKEND_ROOT || "",
         auth: ["basic", "bearer"].includes(env.BACKEND_AUTH)
           ? env.BACKEND_AUTH
           : "none",
-        gatewayAuth: env.GATEWAY_AUTH === "true",
+        gatewayAuth: env.GATEWAY_AUTH !== "false",
         certificateMode:
           env.CERTIFICATE_MODE === "webpki" ? "webpki" : "pinned",
       },
@@ -95,17 +114,23 @@ export async function configuration(env) {
         certificates: [],
       },
     };
-  const transport = env.BACKEND_TRANSPORT || "http";
+  const address = backendAddress(env);
+  if (address.conflict)
+    throw new SetupRequired(
+      "Set either WEBDAV_URL or WEBTRANSPORT_URL",
+      "conflicting-backends",
+    );
+  const transport = address.transport;
   if (!["http", "webtransport"].includes(transport))
     throw new SetupRequired("BACKEND_TRANSPORT must be http or webtransport");
-  if (!env.BACKEND_ENDPOINT?.trim())
+  if (!address.endpoint)
     throw new SetupRequired(
       "Configure BACKEND_ENDPOINT before connecting",
       "missing-backend",
     );
   let endpoint;
   try {
-    endpoint = new URL(env.BACKEND_ENDPOINT);
+    endpoint = new URL(address.endpoint);
   } catch {
     throw new SetupRequired("Configure a valid BACKEND_ENDPOINT");
   }
@@ -119,18 +144,16 @@ export async function configuration(env) {
     throw new SetupRequired("Invalid backend URL");
   if (transport === "webtransport" && endpoint.protocol !== "https:")
     throw new SetupRequired("WebTransport requires an HTTPS endpoint");
-  if (transport === "http" && endpoint.pathname !== "/")
-    throw new SetupRequired(
-      "HTTP BACKEND_ENDPOINT must be an origin; put the WebDAV path in BACKEND_ROOT",
-    );
-  const root = env.BACKEND_ROOT || "/";
+  const root =
+    env.BACKEND_ROOT ||
+    (transport === "http" ? endpoint.pathname : defaults.rootPath);
   if (
     !root.startsWith("/") ||
     /[?#\\\x00-\x1f]/.test(root) ||
     root.split("/").some((part) => [".", ".."].includes(part))
   )
     throw new SetupRequired("Invalid BACKEND_ROOT");
-  const auth = env.BACKEND_AUTH || "none";
+  const auth = env.BACKEND_AUTH || defaults.auth;
   if (!["none", "basic", "bearer"].includes(auth))
     throw new SetupRequired("Invalid BACKEND_AUTH");
   let certificates = [];
@@ -158,12 +181,12 @@ export async function configuration(env) {
   return {
     version: 1,
     backend: {
-      name: env.BACKEND_NAME || "Public files",
+      name: env.BACKEND_NAME || defaults.name,
       transport,
       endpoint: transport === "http" ? endpoint.origin : endpoint.href,
       rootPath: root.endsWith("/") ? root : root + "/",
       auth,
-      gatewayAuth: transport === "webtransport" && env.GATEWAY_AUTH === "true",
+      gatewayAuth: transport === "webtransport" && env.GATEWAY_AUTH !== "false",
       certificates,
     },
   };

@@ -1,5 +1,6 @@
 import { test as base, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { parseLocalVariables } from "../../scripts/local-env.mjs";
 import {
   startFixture,
   gatewayToken,
@@ -224,7 +225,14 @@ test("first-run setup rechecks applied server settings and connects to the real 
       .fill(endpoint);
     await page.getByRole("button", { name: "生成配置", exact: true }).click();
     // This simulates a maintainer applying environment variables outside the public UI.
-    fixture.env.BACKEND_ENDPOINT = endpoint;
+    const variables = parseLocalVariables(
+      await page
+        .getByRole("textbox", { name: "生成的配置", exact: true })
+        .inputValue(),
+    );
+    expect(variables.WEBTRANSPORT_URL).toBe(endpoint);
+    expect(variables).not.toHaveProperty("BACKEND_TRANSPORT");
+    Object.assign(fixture.env, variables);
     await page
       .getByRole("button", { name: "已完成，重新检测", exact: true })
       .click();
@@ -232,6 +240,8 @@ test("first-run setup rechecks applied server settings and connects to the real 
     await login(page);
     await expect(page.locator(".file-card")).toHaveCount(5);
   } finally {
+    delete fixture.env.WEBTRANSPORT_URL;
+    delete fixture.env.WEBDAV_URL;
     fixture.env.BACKEND_ENDPOINT = endpoint;
   }
 });

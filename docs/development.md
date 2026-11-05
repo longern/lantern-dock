@@ -54,7 +54,7 @@ It checks gateway 407 versus backend 401, separate credentials, PROPFIND, encode
 
 ## Configuration API states
 
-`GET /api/config` returns normal backend metadata for a configured site. Missing or invalid settings return HTTP 200 with `setupRequired: true` and a `setup` object containing a reason and safe public defaults. Operational failures, such as a KV read outage, still return HTTP 503. No public API writes deployment settings.
+`GET /api/config` returns normal backend metadata for a configured site. Missing or invalid settings return HTTP 200 with `setupRequired: true` and a `setup` object containing a reason and safe public defaults. Operational failures, such as a KV read outage, still return HTTP 503. No public API writes deployment settings. New configurations use exactly one of `WEBDAV_URL` and `WEBTRANSPORT_URL`; the legacy endpoint/transport variables remain supported. Shared defaults live in `shared/backend-defaults.js`.
 
 ## Project structure
 
@@ -66,6 +66,7 @@ src/
   hooks/                   Connections, listings, local records, downloads
   lib/                     WebDAV, transports, HTTP framing, demo fixtures
   styles/                  Component styles and responsive layouts
+shared/backend-defaults.js Shared defaults and URL selection
 worker/index.js            Connection API and certificate webhook
 vite.config.js             Build configuration and local Worker API adapter
 test/

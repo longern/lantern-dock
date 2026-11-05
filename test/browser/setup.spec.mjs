@@ -32,6 +32,60 @@ async function generate(page) {
   await page.getByRole("button", { name: "生成配置", exact: true }).click();
 }
 
+test("default setup exports one WebDAV URL and the advanced controls stay optional", async ({
+  page,
+}) => {
+  await serveConfiguration(page, {});
+  await page.goto("/");
+  await next(page);
+  await expect(page.getByLabel("资源名称", { exact: true })).not.toBeVisible();
+  await page
+    .getByLabel("WebDAV 服务地址", { exact: true })
+    .fill("https://files.example.com/dav/public/");
+  await generate(page);
+  const vars = parseLocalVariables(
+    await page
+      .getByRole("textbox", { name: "生成的配置", exact: true })
+      .inputValue(),
+  );
+  expect(vars).toEqual({ WEBDAV_URL: "https://files.example.com/dav/public/" });
+  await expect(page.locator(".setup-checklist")).toContainText("CORS");
+});
+
+test("choosing one URL clears the other configured URL explicitly", async ({
+  page,
+}) => {
+  await serveConfiguration(page, {
+    WEBDAV_URL: "https://files.example.com/dav/",
+    WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
+  });
+  await page.goto("/");
+  await expect(
+    page.getByText("检测到两种连接地址，请选择保留其中一种。"),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: /WebTransport.*需要部署网关/ })
+    .click();
+  await next(page);
+  await page
+    .getByLabel("WebTransport 网关地址", { exact: true })
+    .fill("https://bridge.example.com/webtransport");
+  await generate(page);
+  expect(
+    parseLocalVariables(
+      await page
+        .getByRole("textbox", { name: "生成的配置", exact: true })
+        .inputValue(),
+    ),
+  ).toEqual({
+    WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
+    WEBDAV_URL: "",
+  });
+  await expect(page.locator(".setup-checklist")).toContainText(
+    "CERTIFICATES_JSON",
+  );
+});
+
 test("missing configuration opens a responsive wizard and demo is an explicit temporary choice", async ({
   page,
 }, testInfo) => {
@@ -79,6 +133,7 @@ test("wizard exports real configuration, keeps form values on retry, and detects
   await page.goto("/");
   await next(page);
   const name = `My "files" 'box' \\ home`;
+  await page.getByText("高级设置", { exact: true }).click();
   await page.getByLabel("资源名称", { exact: true }).fill(name);
   await page
     .getByLabel("WebDAV 服务地址", { exact: true })
@@ -90,9 +145,8 @@ test("wizard exports real configuration, keeps form values on retry, and detects
   const local = await code.inputValue();
   expect(parseLocalVariables(local)).toMatchObject({
     BACKEND_NAME: name,
-    BACKEND_ROOT: "/dav/%E7%85%A7%E7%89%87/",
+    WEBDAV_URL: "https://files.example.com/dav/%E7%85%A7%E7%89%87/",
     BACKEND_AUTH: "basic",
-    DEMO_MODE: "false",
   });
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "下载配置", exact: true }).click();
@@ -163,6 +217,7 @@ test("missing certificate guidance retains the WebTransport settings", async ({
   await expect(
     page.getByLabel("WebTransport 网关地址", { exact: true }),
   ).toHaveValue("https://bridge.example.com:4433/webtransport");
+  await page.getByText("高级设置", { exact: true }).click();
   await expect(page.getByLabel("网关要求访问令牌")).toBeChecked();
   await generate(page);
   await expect(page.locator(".setup-checklist")).toContainText(
@@ -183,15 +238,16 @@ test("wizard validates mount paths without saving or attempting a backend connec
   await next(page);
   await page
     .getByLabel("WebDAV 服务地址", { exact: true })
-    .fill("https://files.example.com/dav/");
+    .fill("https://user:secret@files.example.com/dav/");
   await generate(page);
-  await expect(page.getByRole("alert")).toContainText("挂载路径");
+  await expect(page.getByRole("alert")).toContainText("账号和令牌");
   await expect(
     page.getByRole("textbox", { name: "生成的配置", exact: true }),
   ).toHaveCount(0);
   await page
     .getByLabel("WebDAV 服务地址", { exact: true })
     .fill("https://files.example.com");
+  await page.getByText("高级设置", { exact: true }).click();
   await page.getByLabel("WebDAV 根目录", { exact: true }).fill("/../private/");
   await generate(page);
   await expect(page.getByRole("alert")).toContainText("根目录");

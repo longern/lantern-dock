@@ -387,3 +387,24 @@
     padding: 6px 16px;
   }
 }
+
+.setup-advanced {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin: 20px 0 0;
+  padding: 14px 16px;
+}
+.setup-advanced summary {
+  cursor: pointer;
+  color: #747383;
+  font-size: 13px;
+  line-height: 1.7;
+}
+.setup-advanced summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.setup-advanced[open] summary {
+  color: var(--accent);
+  margin-bottom: 16px;
+}
