@@ -29,6 +29,7 @@ test("search, sorting, views, folders and navigation work", async ({
   await expect(page.locator(".file-card")).toHaveCount(1);
   await page.getByRole("searchbox").fill("no-such-file");
   await expect(page.getByText("没有找到匹配的文件")).toBeVisible();
+  await expect(page.locator(".list-head")).toBeHidden();
   await page.getByRole("searchbox").fill("");
   await page.getByLabel("排序", { exact: true }).selectOption("size");
   await expect(
@@ -182,10 +183,12 @@ test("config failures stay visible and reconnect can recover", async ({
     "No unexpired certificate pins",
   );
   await expect(page.locator(".file-card")).toHaveCount(0);
+  await expect(page.locator(".list-head")).toBeHidden();
   await page.unroute("**/api/config");
   await page.getByRole("button", { name: "登录与连接设置" }).click();
   await page.getByRole("button", { name: "连接", exact: true }).click();
   await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".list-head")).not.toHaveAttribute("hidden");
 });
 
 test("error notifications use a translucent black surface below center above preview dialogs", async ({

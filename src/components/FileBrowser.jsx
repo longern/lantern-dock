@@ -157,7 +157,14 @@ export function FileBrowser({
           </button>
         </div>
       )}
-      <div class="list-head" hidden={library.view !== "list"}>
+      <div
+        class="list-head"
+        hidden={
+          library.view !== "list" ||
+          !!library.error ||
+          (!busy && !entries.length)
+        }
+      >
         <span>文件名</span>
         <span>修改时间</span>
         <span>大小</span>
