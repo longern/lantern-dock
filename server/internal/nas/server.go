@@ -20,6 +20,7 @@ import (
 )
 
 type Server struct {
+	identity        *identityAuth
 	Store           *Store
 	public, private *os.Root
 	lock            *os.File
@@ -177,10 +178,12 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PROPFIND, POST, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Depth")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Depth, DPoP")
 		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, ETag")
 	}
 	switch {
+	case r.URL.Path == "/api/account" || strings.HasPrefix(r.URL.Path, "/api/account/"):
+		s.serveAccount(w, r)
 	case r.URL.Path == "/healthz" && (r.Method == "GET" || r.Method == "HEAD"):
 		w.WriteHeader(200)
 	case r.URL.Path == "/dav" || strings.HasPrefix(r.URL.Path, "/dav/"):

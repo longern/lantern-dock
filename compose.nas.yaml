@@ -3,6 +3,10 @@ services:
     build: ./server
     image: lantern-dock-server:local
     restart: unless-stopped
+    environment:
+      SITE_ORIGIN: ${SITE_ORIGIN}
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
+      ADMIN_SUBJECTS: ${ADMIN_SUBJECTS:-[]}
     volumes:
       - type: bind
         source: ${PUBLIC_DIR:?Set PUBLIC_DIR to the folder you want to publish}
@@ -26,7 +30,7 @@ services:
       - --backend=http://nas:8080
       - --origins=${SITE_ORIGIN:?Set the frontend HTTPS origin without a trailing slash}
       - --public
-      - --paths=/dav,/api/uploads
+      - --paths=/dav,/api/uploads,/api/account
       - --methods=GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS
       - --auto-cert
       - --cert-dir=/certs

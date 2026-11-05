@@ -1,6 +1,9 @@
 import http from "node:http";
 import https from "node:https";
 import dgram from "node:dgram";
+import net from "node:net";
+import { startSSO } from "./sso-fixture.mjs";
+import { clientMetadata } from "../../worker/auth.js";
 import { mkdir, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, extname } from "node:path";
@@ -43,14 +46,15 @@ const items = [
 const xml = (path) =>
   `<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">${[{ name: "", folder: true }, ...items].map((item) => `<d:response><d:href>${path}${encodeURIComponent(item.name)}${item.folder && item.name ? "/" : ""}</d:href><d:propstat><d:prop><d:resourcetype>${item.folder ? "<d:collection/>" : ""}</d:resourcetype><d:getcontentlength>${item.size || Buffer.byteLength(item.data || "")}</d:getcontentlength><d:getlastmodified>Wed, 04 Nov 2026 08:30:00 GMT</d:getlastmodified><d:getcontenttype>${item.mime || ""}</d:getcontenttype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`).join("")}</d:multistatus>`;
 
-export async function startFixture({ nas = false } = {}) {
+export async function startFixture({ nas = false, identity = false } = {}) {
   const directory = await mkdtemp(resolve(tmpdir(), "lantern-bridge-test-"));
   const source = resolve(process.env.BRIDGE_SOURCE || "../webtransport-bridge");
   const go = process.env.GO_BIN || "go";
   const requests = [],
     cancellations = [],
     pins = new Map();
-  let processBridge, processNAS, frontend, backend;
+  let processBridge, processNAS, frontend, backend, proxy, sso;
+  const proxySockets = new Set();
   let logs = "";
   const stop = async () => {
     if (processBridge && processBridge.exitCode === null) {
@@ -67,6 +71,9 @@ export async function startFixture({ nas = false } = {}) {
       processNAS.kill("SIGTERM");
       await exited;
     }
+    for (const socket of proxySockets) socket.destroy();
+    if (proxy) await close(proxy);
+    await sso?.stop();
     await rm(directory, { recursive: true, force: true });
   };
   try {
@@ -98,7 +105,7 @@ export async function startFixture({ nas = false } = {}) {
         modfile,
         "./cmd/certgen",
         "--host",
-        "localhost",
+        identity ? "portal.example" : "localhost",
         "--out",
         certDirectory,
       ],
@@ -228,7 +235,7 @@ export async function startFixture({ nas = false } = {}) {
           }
           const method = req.method || "GET";
           const request = new Request(
-            `https://localhost:${frontend.address().port}${req.url}`,
+            `${env.SITE_ORIGIN || `https://localhost:${frontend.address().port}`}${req.url}`,
             {
               method,
               headers: req.headers,
@@ -265,7 +272,10 @@ export async function startFixture({ nas = false } = {}) {
             },
           };
           const response = await worker.fetch(request, env, {});
-          res.writeHead(response.status, Object.fromEntries(response.headers));
+          const responseHeaders = Object.fromEntries(response.headers);
+          const cookies = response.headers.getSetCookie();
+          if (cookies.length) responseHeaders["set-cookie"] = cookies;
+          res.writeHead(response.status, responseHeaders);
           if (response.body) Readable.fromWeb(response.body).pipe(res);
           else res.end();
         } catch (error) {
@@ -275,7 +285,40 @@ export async function startFixture({ nas = false } = {}) {
       },
     );
     await listen(frontend);
-    const origin = `https://localhost:${frontend.address().port}`;
+    const nativeOrigin = `https://localhost:${frontend.address().port}`;
+    const origin = identity ? "https://portal.example" : nativeOrigin;
+    if (identity) {
+      env.SITE_ORIGIN = origin;
+      sso = await startSSO(origin, () => clientMetadata(env));
+      env.OIDC_ISSUER_URL = sso.issuer;
+      env.SSO_SERVICE = sso;
+      proxy = http.createServer();
+      proxy.on("connect", (request, client, head) => {
+        if (request.url !== "portal.example:443") {
+          client.destroy();
+          return;
+        }
+        const upstream = net.connect(
+          frontend.address().port,
+          "127.0.0.1",
+          () => {
+            client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+            if (head.length) upstream.write(head);
+            upstream.pipe(client);
+            client.pipe(upstream);
+          },
+        );
+        for (const socket of [client, upstream]) {
+          proxySockets.add(socket);
+          socket.on("close", () => proxySockets.delete(socket));
+          socket.on("error", () => {
+            client.destroy();
+            upstream.destroy();
+          });
+        }
+      });
+      await listen(proxy);
+    }
     let backendEndpoint = `http://127.0.0.1:${backend.address().port}`;
     let nasFixture;
     if (nas) {
@@ -290,17 +333,28 @@ export async function startFixture({ nas = false } = {}) {
       await writeFile(resolve(publicDir, "hello.txt"), textFile);
       await writeFile(resolve(publicDir, "coast.svg"), picture);
       let nasLogs = "";
-      processNAS = spawn(
-        nasBinary,
-        [
-          "serve",
-          "--listen=127.0.0.1:0",
-          `--public-dir=${publicDir}`,
-          `--data-dir=${dataDir}`,
-          `--origins=${origin}`,
-        ],
-        { stdio: ["ignore", "pipe", "pipe"] },
-      );
+      const nasArguments = [
+        "serve",
+        "--listen=127.0.0.1:0",
+        `--public-dir=${publicDir}`,
+        `--data-dir=${dataDir}`,
+        `--origins=${origin}`,
+      ];
+      const nasEnvironment = identity
+        ? {
+            ...process.env,
+            SITE_ORIGIN: origin,
+            OIDC_ISSUER_URL: sso.issuer,
+            ADMIN_SUBJECTS: "[]",
+            SSL_CERT_FILE: resolve(certDirectory, "cert.pem"),
+            HTTPS_PROXY: `http://127.0.0.1:${proxy.address().port}`,
+            NO_PROXY: "localhost,127.0.0.1",
+          }
+        : process.env;
+      processNAS = spawn(nasBinary, nasArguments, {
+        env: nasEnvironment,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
       processNAS.stdout.on("data", (chunk) => {
         nasLogs += chunk;
       });
@@ -320,6 +374,37 @@ export async function startFixture({ nas = false } = {}) {
       nasFixture = {
         endpoint: backendEndpoint,
         dataDir,
+        async administrators(subjects) {
+          const exited = new Promise((resolve) =>
+            processNAS.once("exit", resolve),
+          );
+          processNAS.kill("SIGTERM");
+          await exited;
+          nasLogs = "";
+          processNAS = spawn(
+            nasBinary,
+            nasArguments.map((value) =>
+              value === "--listen=127.0.0.1:0" ? `--listen=${address}` : value,
+            ),
+            {
+              env: {
+                ...nasEnvironment,
+                ADMIN_SUBJECTS: JSON.stringify(subjects),
+              },
+              stdio: ["ignore", "pipe", "pipe"],
+            },
+          );
+          processNAS.stdout.on("data", (chunk) => {
+            nasLogs += chunk;
+          });
+          processNAS.stderr.on("data", (chunk) => {
+            nasLogs += chunk;
+          });
+          for (let i = 0; !nasLogs.includes("listening on") && i < 100; i++) {
+            if (processNAS.exitCode !== null) throw new Error(nasLogs);
+            await sleep(50);
+          }
+        },
         async createLink({
           title = "临时收照片",
           maxFile = "1MiB",
@@ -356,7 +441,7 @@ export async function startFixture({ nas = false } = {}) {
         `--listen=127.0.0.1:${bridgePort}`,
         `--backend=${backendEndpoint}`,
         `--origins=${origin}`,
-        nas ? "--paths=/dav,/api/uploads" : "--paths=/public",
+        nas ? "--paths=/dav,/api/uploads,/api/account" : "--paths=/public",
         nas
           ? "--methods=GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS"
           : "--methods=GET,HEAD,PROPFIND",
@@ -391,10 +476,11 @@ export async function startFixture({ nas = false } = {}) {
     // Supply the fixture CA only to this webhook client; no system trust changes.
     const webhookStatus = await new Promise((resolve, reject) => {
       const request = https.request(
-        `${origin}/api/certificates/${secret}`,
+        `${nativeOrigin}/api/certificates/${secret}`,
         {
           method: "PUT",
           ca: certPEM,
+          ...(identity ? { servername: "portal.example" } : {}),
           headers: { "Content-Type": "application/json" },
         },
         (response) => {
@@ -423,6 +509,20 @@ export async function startFixture({ nas = false } = {}) {
       requests,
       cancellations,
       nas: nasFixture,
+      sso,
+      async browser(context) {
+        if (!identity) return;
+        await context.grantPermissions(["local-network-access"], { origin });
+        await context.route(origin + "/**", async (route) => {
+          const path = new URL(route.request().url());
+          const response = await route.fetch({
+            url: nativeOrigin + path.pathname + path.search,
+            maxRedirects: 0,
+          });
+          await route.fulfill({ response });
+        });
+        await sso.browser(context);
+      },
       stop,
       get logs() {
         return logs;

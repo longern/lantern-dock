@@ -80,6 +80,13 @@ func run(args []string, out io.Writer) error {
 			return err
 		}
 		defer service.Close()
+		identity, err := nas.IdentityEnvironment(os.Getenv)
+		if err != nil {
+			return err
+		}
+		if err = service.ConfigureIdentity(identity); err != nil {
+			return err
+		}
 		listener, err := net.Listen("tcp", *listen)
 		if err != nil {
 			return err

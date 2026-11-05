@@ -32,7 +32,7 @@ docker compose -f compose.nas.yaml up -d --build
 
 The NAS container runs as UID/GID `65532:65532`. Give that user or a suitable group read/search permission on the chosen public folder; use a Compose `user:` override if your NAS requires a particular UID/GID. The `nas-data` volume must remain writable by the chosen user. The public folder is mounted read-only, and the NAS process also rejects WebDAV write methods.
 
-The bridge listens on **4433/udp** (`BRIDGE_PORT` optionally changes the host port). Keep the existing UDP tunnel forwarding to this port. Its backend becomes `http://nas:8080`, allowed paths are `/dav,/api/uploads`, and methods are `GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS`. The bridge uses public mode; the NAS service checks every upload's own permission.
+The bridge listens on **4433/udp** (`BRIDGE_PORT` optionally changes the host port). Keep the existing UDP tunnel forwarding to this port. Its backend becomes `http://nas:8080`, allowed paths are `/dav,/api/uploads,/api/account`, and methods are `GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS`. The bridge uses public mode; the NAS service checks every upload's own permission and verifies identity proofs on the account API.
 
 If you keep an existing bridge container instead, attach it and the NAS service to the same Docker network and update those arguments. Preserve the bridge's existing certificate volume, certificate flags and frontend origin. Do not start a second bridge on an occupied host UDP port. Changing to a new bridge certificate volume requires that instance to publish its new hashes before clients connect.
 
@@ -110,7 +110,7 @@ go build -o lantern-dock ./cmd/lantern-dock
   --public-dir=/path/to/public --data-dir=/path/to/private-state
 ```
 
-The binary uses the same `link create`, `link list` and `link revoke` commands. Management is local CLI only in this version: there is no public administrative API or visitor registration.
+The binary uses the same `link create`, `link list` and `link revoke` commands. Management is local CLI only in this version: there is no public administrative write API or visitor registration. Optional [OIDC/CIMD login](authentication.md) adds an account page, copyable subjects and NAS-enforced administrator recognition through `ADMIN_SUBJECTS`; it does not change public DAV or collection-link access.
 
 For direct HTTPS connections, place the HTTP server behind your HTTPS reverse proxy and allow your exact frontend origin:
 

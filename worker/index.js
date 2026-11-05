@@ -3,6 +3,7 @@ import {
   backendAddress,
 } from "../shared/backend-defaults.js";
 import { certificateWebhookTokens, validateSecretKey } from "./secrets.js";
+import { authentication, secureResponse } from "./auth.js";
 
 const json = (data, status = 200, headers = {}) =>
   Response.json(data, {
@@ -242,6 +243,8 @@ async function equalSecret(a, b) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const account = await authentication(request, env);
+    if (account) return secureResponse(account);
     if (url.pathname === "/api/config" && request.method === "GET") {
       try {
         return json(await configuration(env));
@@ -324,6 +327,6 @@ export default {
     }
     if (url.pathname.startsWith("/api/"))
       return json({ error: "Not found" }, 404);
-    return env.ASSETS.fetch(request);
+    return secureResponse(await env.ASSETS.fetch(request));
   },
 };

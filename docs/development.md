@@ -85,7 +85,25 @@ Keep file access and protocol handling in `src/lib/`; components should consume 
 
 Use `npm run check` and `npm test` for code changes, and run the browser or bridge suite when the change touches those paths. Documentation-only changes need link and content checks.
 
-Authentication credentials stay in page memory. Favorites and recent paths are local browser records. Enforce access control at the backend or bridge; changing frontend navigation cannot authorize file access.
+Manually entered backend credentials and short NAS grants stay in page memory. OIDC login uses an encrypted HttpOnly cookie and a non-extractable proof key in IndexedDB. Favorites and recent paths are local browser records. Enforce access control at the backend or bridge; changing frontend navigation cannot authorize file access.
+
+## OIDC integration tests
+
+`test/auth.test.mjs` exercises PKCE, state/nonce validation, ID token/UserInfo matching, encrypted cookies, browser-key binding, short grants, logout and secret rotation. The Go identity tests verify signed credentials, proof replay rejection and local administrator decisions without per-request network lookups.
+
+`test/integration/identity.spec.mjs` runs the production frontend with the actual sibling workers-sso Worker in Miniflare, a disposable D1 database, the real bridge and the actual NAS binary. It seeds only a fixture SSO session and uses a minimal consent view around the real provider endpoints; no production identity is used. Build the sibling provider first:
+
+```sh
+git clone https://github.com/longern/workers-sso.git ../workers-sso
+cd ../workers-sso
+npm ci
+npm run build
+cd ../lantern-dock
+npm run build
+GO_BIN=/path/to/go PLAYWRIGHT_CHANNEL=chrome npm run test:bridge
+```
+
+Use `SSO_SOURCE` to override that source path. The test uses the sibling's Miniflare installation, forwards its public fixture hostname to local HTTPS, and grants local-network access to that test origin so Chromium can reach the loopback UDP bridge. The NAS trusts only the temporary fixture certificate for that connection, using a local CONNECT proxy. No system trust or production provider source is changed. Both desktop and mobile cases cover login, subject/config copying, reload, administrator changes and logout. These integration tests are local; CI currently runs unit checks and the NAS Docker smoke test.
 
 ## NAS backend
 

@@ -1,0 +1,99 @@
+.account-page .setup-card {
+  max-width: 620px;
+}
+.account-details {
+  margin: 24px 0;
+}
+.account-details > div {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.account-details dt {
+  color: var(--muted);
+}
+.account-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.account-copy {
+  display: flex;
+  gap: 8px;
+}
+.account-copy input {
+  min-width: 0;
+  flex: 1;
+  font-family: ui-monospace, monospace;
+}
+.account-copy button {
+  flex-shrink: 0;
+}
+.account-notice {
+  margin: 24px 0;
+  padding: 18px;
+  border-radius: 10px;
+  background: #f6f5fc;
+  font-size: 13px;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.account-notice h2 {
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+.account-notice p {
+  margin: 0 0 12px;
+}
+.account-notice textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  padding: 10px 12px;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+.account-notice.error {
+  background: #fbf5f5;
+  color: #964747;
+}
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 24px;
+  flex-wrap: wrap;
+}
+.account-actions .upload-back {
+  margin-top: 0;
+  margin-left: auto;
+}
+.account-feedback {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 16px;
+}
+@media (max-width: 700px) {
+  .topbar {
+    grid-template-columns: 28px minmax(0, 1fr) 36px 36px;
+  }
+  .topbar-right > .account-entry {
+    grid-column: 4;
+  }
+  .account-page .setup-card {
+    padding: 24px 20px;
+  }
+  .account-copy {
+    flex-wrap: wrap;
+  }
+  .account-copy input {
+    flex-basis: 100%;
+  }
+}

@@ -79,6 +79,9 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
         </nav>
         <div class="sidebar-spacer" />
         <div class="sidebar-bottom">
+          <a class="icon-button" href="#/account" aria-label="我的账户">
+            <Icon name="user" />
+          </a>
           <span class="mini-chip">
             {library.backend?.transport === "demo"
               ? "演示"
@@ -161,6 +164,13 @@ export function Topbar({ library, onMenu, onSettings }) {
         ))}
       </nav>
       <div class="topbar-right">
+        <a
+          class="account-entry icon-button"
+          href="#/account"
+          aria-label="我的账户"
+        >
+          <Icon name="user" />
+        </a>
         <label class="search-box">
           <Icon name="search" />
           <input

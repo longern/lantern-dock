@@ -26,6 +26,9 @@ import {
   Star,
   TriangleAlert,
   Upload,
+  UserRound,
+  Copy,
+  LogOut,
   X,
 } from "lucide-preact";
 
@@ -53,6 +56,9 @@ const icons = {
   archive: FileArchive,
   download: Download,
   upload: Upload,
+  user: UserRound,
+  copy: Copy,
+  logout: LogOut,
   x: X,
   menu: Menu,
   plug: Plug,

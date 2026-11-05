@@ -40,6 +40,7 @@ Give visitors a simple interface to files you already host. LanternDock provides
 - **Set up with guidance.** A first-run wizard generates local or Cloudflare configuration, with an explicit demo option.
 - **Host a public NAS folder.** The optional Go server provides anonymous, read-only WebDAV while keeping private state separate.
 - **Receive files without accounts.** Expiring, revocable upload links enforce file-size, capacity and file-count limits on the NAS.
+- **Use your existing SSO.** OIDC/CIMD login displays a copyable user subject; the NAS recognizes administrators from its environment configuration.
 
 ## Quick start
 
@@ -75,6 +76,10 @@ The optional [`server/`](server/) backend combines public read-only WebDAV with 
 
 Use [`compose.nas.yaml`](compose.nas.yaml) for the NAS backend plus WebTransport bridge. See the [NAS deployment guide](docs/nas-server.md) for folder mounts, frontend configuration, and CLI commands to create and revoke collection links.
 
+### Sign in with workers-sso
+
+Set `SITE_ORIGIN` and `OIDC_ISSUER_URL` on the Worker and NAS. Open **我的账户**, sign in, and copy your `sub` into the NAS `ADMIN_SUBJECTS` JSON array. The Worker signs short-lived, browser-bound credentials; the NAS verifies them locally and determines the role. See [authentication setup](docs/authentication.md) for deployment, cookies, key ownership and security boundaries. workers-sso requires no changes.
+
 ## How it works
 
 ```mermaid
@@ -105,7 +110,7 @@ The deploy command builds the Preact frontend into `dist/` and uploads it with t
 
 ## Project status
 
-LanternDock is in early development. Public browsing is **read-only WebDAV**. The optional NAS backend adds **private uploads through scoped collection links**. General file editing, public share management, identity adapters, resumable uploads, and task execution remain future work.
+LanternDock is in early development. Public browsing is **read-only WebDAV**. The optional NAS backend adds **private uploads through scoped collection links** and **OIDC identity/administrator recognition**. Collection management currently uses the NAS CLI. General file editing, public share management, resumable uploads, and task execution remain future work.
 
 | Area           | Current behavior                                                                                                                                                                                |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -113,7 +118,7 @@ LanternDock is in early development. Public browsing is **read-only WebDAV**. Th
 | Downloads      | Stream to disk when supported; otherwise buffer in memory with a 256 MiB limit.                                                                                                                 |
 | Directories    | Directory responses are limited to 8 MiB. Search and type filters apply to the current directory.                                                                                               |
 | Image listings | Real backend files use generic icons; images load when opened for preview.                                                                                                                      |
-| Local records  | Favorites and recent paths live in local storage; credentials live only in page memory.                                                                                                         |
+| Local records  | Favorites and recent paths use local storage. Backend credentials and NAS grants stay in memory; login uses an HttpOnly cookie and a non-extractable browser key in IndexedDB.                  |
 | File drops     | NAS-issued links with expiry, revocation, per-file and total byte limits, and file-count quotas. Files upload sequentially with progress and cancellation; incomplete files must be sent again. |
 | Validation     | Chromium desktop and mobile viewports, plus local real-bridge integration tests. Physical devices and individual backends need further testing.                                                 |
 
@@ -121,7 +126,7 @@ LanternDock is in early development. Public browsing is **read-only WebDAV**. Th
 
 ## Roadmap
 
-- [ ] Integrate existing backend identities.
+- [x] Add OIDC/CIMD login and NAS-enforced administrator identities.
 - [x] Add expiring, revocable guest upload grants with explicit scopes and quotas.
 - [x] Support scoped guest uploads and upload-only entry points.
 - [ ] Support resumable uploads and a web interface for managing collections.

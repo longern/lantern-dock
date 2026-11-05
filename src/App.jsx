@@ -13,6 +13,7 @@ import { DownloadPanel } from "./components/DownloadPanel.jsx";
 import { Toast } from "./components/Toast.jsx";
 import { SetupWizard } from "./components/SetupWizard.jsx";
 import { UploadPage } from "./components/UploadPage.jsx";
+import { AccountPage } from "./components/AccountPage.jsx";
 import { useLibrary } from "./hooks/useLibrary.js";
 import { useRecords } from "./hooks/useRecords.js";
 import { useDownload } from "./hooks/useDownload.js";
@@ -197,16 +198,21 @@ function LibraryApp() {
   );
 }
 
-const uploadToken = () => location.hash.match(/^#\/upload\/(.*)$/)?.[1] ?? null;
+const currentRoute = () =>
+  location.hash.startsWith("#/account")
+    ? "account"
+    : (location.hash.match(/^#\/upload\/(.*)$/)?.[1] ?? null);
 
 export function App() {
-  const [token, setToken] = useState(uploadToken);
+  const [token, setToken] = useState(currentRoute);
   useEffect(() => {
-    const changed = () => setToken(uploadToken());
+    const changed = () => setToken(currentRoute());
     window.addEventListener("hashchange", changed);
     return () => window.removeEventListener("hashchange", changed);
   }, []);
-  return token === null ? (
+  return token === "account" ? (
+    <AccountPage />
+  ) : token === null ? (
     <LibraryApp />
   ) : (
     <UploadPage key={token} token={token} />

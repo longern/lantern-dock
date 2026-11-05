@@ -12,6 +12,8 @@ Once the WebTransport address and site key are configured, `missing-certificates
 
 Credentials are entered in the connection dialog and kept in page memory. The public `/api/config` document contains connection metadata and certificate pins.
 
+Optional [OIDC/CIMD login](authentication.md) uses separate account endpoints and an HttpOnly cookie. Configure `SITE_ORIGIN` and `OIDC_ISSUER_URL` on both Worker and NAS; configure `ADMIN_SUBJECTS` on the NAS. These settings are independent of the backend connection wizard.
+
 ## Choose one connection URL
 
 Only one address variable is needed for direct WebDAV:
@@ -30,7 +32,7 @@ npm run init
 
 Initialization appends a cryptographically random 32-byte `SECRET_KEY` to `.env` without replacing existing connection settings. Repeated runs reuse the key. The file is excluded from Git and initialized with owner-only permissions. Production uses a Worker Secret named `SECRET_KEY`, outside the public `vars` block.
 
-The certificate-update token is `HMAC-SHA256(SECRET_KEY, "lantern-dock:certificate-webhook:v1")`. Other signed features can use separate purpose labels in the future; after configuration, the master key stays server-side and is never returned by the configuration API. Certificate renewal and service restarts keep the URL stable. Changing `SECRET_KEY` changes the derived URL, so update the bridge when rotating it. Existing certificate pins stay in KV.
+The certificate-update token is `HMAC-SHA256(SECRET_KEY, "lantern-dock:certificate-webhook:v1")`. OIDC sessions and NAS signing keys use separate, site-specific purpose labels; the master key stays server-side and is never returned by the configuration API. Certificate renewal and service restarts keep the URL stable. Changing `SECRET_KEY` changes the derived URL and signing key and invalidates login cookies, so update the bridge when rotating it. Existing certificate pins stay in KV.
 
 A sole legacy `.dev.vars` file is moved to `.env` by initialization, preserving its contents. If both exist, initialization asks the maintainer to consolidate them first rather than silently choose a key. The runtime retains Wrangler's legacy precedence: `.dev.vars` wins when it exists; otherwise it loads `.env`. Explicit process variables override local values in the Vite adapter. Use only `.env` for new setups.
 
