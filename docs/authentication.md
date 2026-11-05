@@ -31,10 +31,11 @@ OIDC_ISSUER_URL="https://auth.example.com"
 ADMIN_SUBJECTS='[]'
 ```
 
-Rebuild and restart the NAS container:
+Pull the updated image and recreate the NAS container with its new environment:
 
 ```sh
-docker compose -f compose.nas.yaml up -d --build
+docker compose -f compose.nas.yaml pull nas
+docker compose -f compose.nas.yaml up -d nas
 ```
 
 If you maintain your own bridge, add `/api/account` to its existing allowed paths, alongside `/dav` and `/api/uploads`. The NAS account API uses GET; the other existing method permissions remain necessary for DAV and uploads. A direct HTTPS reverse proxy must also forward `/api/account` unchanged. When the direct HTTPS NAS endpoint uses a different origin from the frontend, set `NAS_RESOURCE_ORIGIN="https://files.example.com"` on the NAS to bind proofs to that actual endpoint. This optional setting defaults to `SITE_ORIGIN` for WebTransport.

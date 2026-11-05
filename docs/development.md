@@ -118,6 +118,14 @@ go build ./cmd/lantern-dock
 
 Requires Go 1.26+ on Linux or macOS. The CI workflow also cross-compiles Linux amd64/arm64 binaries and builds/smoke-tests the Docker container.
 
+After the frontend and NAS checks succeed, pushes to `main` publish `ghcr.io/longern/lantern-dock:latest` and a full `sha-<commit>` tag. A Git version tag such as `v1.2.3` publishes `1.2.3` without moving `latest`. The **Checks** workflow can also be run manually on `main` or a version tag. Pull requests never publish images. Publishing uses the repository's `GITHUB_TOKEN` with job-scoped `packages: write`; no additional registry secret is required. OCI source/revision labels link the image to this repository.
+
+The image contains `linux/amd64` and `linux/arm64` manifests. After publication, native runners for each architecture pull the exact published digest and run `scripts/smoke-nas-image.sh`: it checks startup with a read-only root filesystem, WebDAV PROPFIND, and CLI link creation/listing. This verifies the distributed image, in addition to the NAS job's local container test.
+
+GHCR initially creates new packages as private. On first publication, the repository owner must ensure the `lantern-dock` container package is **Public** in its package settings; public repository access does not automatically make a granular-permission package public. Public images can then be pulled without login. See [GitHub's package visibility documentation](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
+
+For local Docker builds, use `docker compose -f compose.nas.yaml -f compose.nas.build.yaml up -d --build`. The default Compose file uses the published image and supports a `NAS_IMAGE` override for a version tag or digest.
+
 The existing real-bridge suite now includes `test/integration/nas.spec.mjs`. It builds and launches the actual NAS service, invokes its CLI to issue/revoke links, checks public DAV reads and denied writes, and verifies file contents in the private inbox after browser uploads. It also tests quota errors, expired/revoked links, cancellation and direct HTTPS uploads (the browser's HTTPS backend route is forwarded to the real local NAS API by the fixture).
 
 ```sh

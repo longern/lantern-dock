@@ -10,6 +10,7 @@ Browse, preview, and download from your own WebDAV server — directly over HTTP
 [![Node.js ≥22.12](https://img.shields.io/badge/Node.js-%E2%89%A522.12-43853d?style=flat-square)](#quick-start)
 [![Preact](https://img.shields.io/badge/UI-Preact-673ab8?style=flat-square)](https://preactjs.com/)
 [![Cloudflare Workers](https://img.shields.io/badge/deploy-Cloudflare_Workers-f38020?style=flat-square)](#deploy)
+[![NAS image](https://img.shields.io/badge/GHCR-amd64%20%7C%20arm64-2496ed?style=flat-square)](https://github.com/longern/lantern-dock/pkgs/container/lantern-dock)
 
 [Quick start](#quick-start) · [Configuration](docs/configuration.md) · [Development](docs/development.md) · [Report a bug](https://github.com/longern/lantern-dock/issues)
 
@@ -74,7 +75,7 @@ For a bridge, use `WEBTRANSPORT_URL` instead of `WEBDAV_URL`. They are mutually 
 
 The optional [`server/`](server/) backend combines public read-only WebDAV with private file drops. The NAS issues upload permissions and enforces quotas in SQLite; uploaded files stay in its private inbox until you choose to publish them. Visitors need only their collection link, with no account registration.
 
-Use [`compose.nas.yaml`](compose.nas.yaml) for the NAS backend plus WebTransport bridge. See the [NAS deployment guide](docs/nas-server.md) for folder mounts, frontend configuration, and CLI commands to create and revoke collection links.
+Use [`compose.nas.yaml`](compose.nas.yaml) for the NAS backend plus WebTransport bridge. It pulls `ghcr.io/longern/lantern-dock:latest` for amd64 or arm64; no NAS-side build is needed. See the [NAS deployment guide](docs/nas-server.md) for folder mounts, image updates, frontend configuration, and CLI commands to create and revoke collection links.
 
 ### Sign in with workers-sso
 

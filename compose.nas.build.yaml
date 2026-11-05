@@ -1,0 +1,4 @@
+services:
+  nas:
+    build: ./server
+    image: lantern-dock-server:local

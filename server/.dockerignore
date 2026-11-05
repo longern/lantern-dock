@@ -2,3 +2,5 @@ data/
 public/
 lantern-dock
 *_test.go
+.env*
+.dev.vars*

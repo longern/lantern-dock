@@ -16,7 +16,7 @@ flowchart LR
 
 ## Deploy on a NAS with Docker Compose
 
-Clone the repository onto your NAS. The included [`compose.nas.yaml`](../compose.nas.yaml) builds the NAS service and runs it with the existing bridge image. Set these values in a local `.env` beside the Compose file, preserving other existing settings:
+The NAS backend image is **`ghcr.io/longern/lantern-dock:latest`**, with `linux/amd64` and `linux/arm64` variants. The included [`compose.nas.yaml`](../compose.nas.yaml) pulls it alongside the bridge image; your NAS does not need Go or a local build. Clone the repository or copy the Compose file onto your NAS. Set these values in a local `.env` beside it, preserving other existing settings:
 
 ```dotenv
 PUBLIC_DIR="/replace/with/the/actual/public/folder"
@@ -27,8 +27,21 @@ CERT_WEBHOOK_URL="https://nas.example.com/api/certificates/your-private-derived-
 Use the certificate webhook URL paired with your Worker's `SECRET_KEY`. The NAS upload service does not need the Worker's master key. File-drop tokens are generated independently on the NAS, and only their SHA-256 hashes are stored in SQLite.
 
 ```sh
-docker compose -f compose.nas.yaml up -d --build
+docker compose -f compose.nas.yaml pull
+docker compose -f compose.nas.yaml up -d
 ```
+
+`latest` tracks tested commits on `main`. Each published build also has a full commit tag, `sha-<40-character-commit>`, and `v1.2.3` Git tags publish the image tag `1.2.3`. To pin a version or digest, optionally set `NAS_IMAGE="ghcr.io/longern/lantern-dock:sha-<commit>"` or `NAS_IMAGE="ghcr.io/longern/lantern-dock@sha256:<digest>"` in `.env`. Leave it unset for the default. Version-tag builds do not overwrite `latest`.
+
+To update, run `pull` and `up -d` again after reviewing the changes. Keep the same Compose project name/directory and persistent volumes when migrating an existing local build. The `nas-data` and `bridge-certs` volumes remain in use; do not remove them during an update.
+
+For source development, clone the repository and explicitly add the build override:
+
+```sh
+docker compose -f compose.nas.yaml -f compose.nas.build.yaml up -d --build
+```
+
+This override builds `server/` as `lantern-dock-server:local`; ordinary deployments use the GHCR image.
 
 The NAS container runs as UID/GID `65532:65532`. Give that user or a suitable group read/search permission on the chosen public folder; use a Compose `user:` override if your NAS requires a particular UID/GID. The `nas-data` volume must remain writable by the chosen user. The public folder is mounted read-only, and the NAS process also rejects WebDAV write methods.
 

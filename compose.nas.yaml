@@ -1,7 +1,6 @@
 services:
   nas:
-    build: ./server
-    image: lantern-dock-server:local
+    image: ${NAS_IMAGE:-ghcr.io/longern/lantern-dock:latest}
     restart: unless-stopped
     environment:
       SITE_ORIGIN: ${SITE_ORIGIN}
