@@ -4,10 +4,13 @@ import {
   webhookOrigin,
 } from "../../shared/site-secret.js";
 
-export function CertificateWebhook({ secretKey, notify }) {
-  const [address, setAddress] = useState(
-    location.protocol === "https:" ? location.origin : "",
-  );
+export function CertificateWebhook({
+  secretKey,
+  notify,
+  address,
+  onAddressChange,
+  showAddress = true,
+}) {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [revealed, setRevealed] = useState(false);
@@ -73,10 +76,6 @@ export function CertificateWebhook({ secretKey, notify }) {
   if (!key)
     return (
       <section class="setup-webhook" aria-label="证书更新 Webhook">
-        <div class="setup-secret-heading">
-          <h4>证书更新 Webhook</h4>
-          <span>Bridge</span>
-        </div>
         <p>
           将首次生成密钥时一并保存的 Webhook URL 填入 bridge 的{" "}
           <code>CERT_WEBHOOK_URL</code>。
@@ -98,37 +97,33 @@ export function CertificateWebhook({ secretKey, notify }) {
     );
   return (
     <section class="setup-webhook" aria-label="证书更新 Webhook">
-      <div class="setup-secret-heading">
-        <h4>证书更新 Webhook</h4>
-        <span>Bridge</span>
-      </div>
+      <h3>Bridge 配置</h3>
       <p>
-        将生成的 URL 填入 bridge 的 <code>CERT_WEBHOOK_URL</code>。Worker 需绑定{" "}
-        <code>PINS</code> KV，并将同一个 <code>SECRET_KEY</code> 部署为
-        Secret；bridge 使用 <code>--auto-cert</code> 发布证书。
+        将 URL 填入网关的 <code>CERT_WEBHOOK_URL</code>，启用{" "}
+        <code>--auto-cert</code>。
       </p>
-      <label class="form-label" for="webhook-origin">
-        LanternDock 部署地址
-      </label>
-      <input
-        id="webhook-origin"
-        type="url"
-        placeholder="https://lantern-dock.example.workers.dev"
-        value={address}
-        onInput={(event) => setAddress(event.currentTarget.value)}
-        aria-describedby="webhook-origin-help"
-        autoComplete="off"
-        spellCheck={false}
-      />
-      <p id="webhook-origin-help">
-        {address && !origin
-          ? "请填写 HTTPS 站点地址，不包含路径、参数或账号。"
-          : "填写运行 LanternDock 的 Worker 地址，网关地址无需填在这里。"}
-      </p>
-      <p>
-        已使用上方新密钥同步生成 URL。请一并保存站点 .env 和
-        bridge.env，分别部署到 Worker 和 bridge。
-      </p>
+      {showAddress && (
+        <>
+          <label class="form-label" for="webhook-origin">
+            LanternDock 部署地址
+          </label>
+          <input
+            id="webhook-origin"
+            type="url"
+            placeholder="https://lantern-dock.example.workers.dev"
+            value={address}
+            onInput={(event) => onAddressChange(event.currentTarget.value)}
+            aria-describedby="webhook-origin-help"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <p id="webhook-origin-help">
+            {address && !origin
+              ? "请填写 HTTPS 站点地址，不包含路径、参数或账号。"
+              : "填写 LanternDock 站点地址。"}
+          </p>
+        </>
+      )}
       <label class="form-label" for="certificate-webhook-url">
         证书更新 Webhook URL
       </label>
@@ -138,7 +133,7 @@ export function CertificateWebhook({ secretKey, notify }) {
         type={revealed ? "text" : "password"}
         value={url}
         readOnly
-        placeholder="填写部署地址和密钥后自动生成"
+        placeholder="填写站点地址后自动生成"
         autoComplete="off"
         spellCheck={false}
       />
@@ -157,6 +152,9 @@ export function CertificateWebhook({ secretKey, notify }) {
           下载 bridge.env
         </button>
       </div>
+      <p class="field-note">
+        与站点配置配套，请一并保存。Worker 需绑定 <code>PINS</code> KV。
+      </p>
       {error && <p role="status">{error}</p>}
     </section>
   );

@@ -4,9 +4,9 @@
 
 LanternDock serves one configured WebDAV root. Configure it in `.env` for Vite development and through the Cloudflare dashboard or `wrangler.jsonc` for deployment. Restart the development server after changing local settings.
 
-Missing or invalid backend settings, and missing certificate pins, open a setup wizard. It generates `.env` for local development or dashboard import, or a public `vars` block for `wrangler.jsonc`. It supports copy/download and rechecks `/api/config` after the maintainer applies the settings. The public page does not write server configuration or persist wizard inputs. Apply local settings and restart Vite, or update the Worker variables and redeploy.
+The setup wizard has two steps: **Connect a backend** combines transport selection, the connection address, and optional advanced settings; **Save and deploy** exports the site `.env` and, for pinned WebTransport, its matching bridge configuration. Only local development and Cloudflare Workers are deployment choices. Wrangler JSON is available under **Other deployment methods**. The page does not write server configuration or persist inputs.
 
-Once the WebTransport address is valid, `missing-certificates` resumes directly at the certificate setup step, including after a refresh or recheck. Publish valid pins and recheck to connect; there is no need to choose the transport or re-enter the address.
+Once the WebTransport address and site key are configured, `missing-certificates` opens a focused certificate page showing the saved address, publication steps, and a recheck action. It does not repeat environment exports or offer to replace the key. If the key is still missing, the wizard first opens **Save and deploy** to generate the paired key and webhook URL. After applying configuration, recheck the current site; a localhost export for a different Cloudflare site instead opens that deployed site.
 
 Credentials are entered in the connection dialog and kept in page memory. The public `/api/config` document contains connection metadata and certificate pins.
 
@@ -34,9 +34,9 @@ A sole legacy `.dev.vars` file is moved to `.env` by initialization, preserving 
 
 ## Optional settings
 
-Defaults can stay unset. For a new deployment without a valid site key, the wizard generates a cryptographically random 32-byte `SECRET_KEY` using Web Crypto in the current browser. Its contents are masked by default; **Copy configuration** and **Download configuration** include the full key in `.env`. The key stays in page memory, survives back/recheck/target changes, and is lost on refresh. The page does not save it in browser storage or send it to the server.
+Defaults can stay unset. For a new deployment without a valid site key, the wizard generates a cryptographically random 32-byte `SECRET_KEY` using Web Crypto in the current browser. Its contents are masked by default; **Copy configuration** and **Download configuration** include the full key in `.env`. The pending key and deployment address stay in page memory while editing or retrying unapplied settings. Once a deployed key is detected, the wizard preserves it and stops exporting the pending key. Refreshing the page discards unsaved values. The page does not save it in browser storage or send it to the server.
 
-If the server already has a valid key, the wizard reports only that fact and leaves `SECRET_KEY` out of its export. Preserve the existing key. **Generate a key for a new deployment** explicitly creates a separate key; it does not change the running site. The wizard never reads the existing key. The Wrangler JSON export always excludes the key: store it as a Worker Secret instead of a plain `vars` value.
+If the server already has a valid key, the wizard reports only that fact and leaves `SECRET_KEY` out of its export. Preserve the existing key. **Generate a key for a new deployment**, under **Other deployment methods**, explicitly creates a separate key; it does not change the running site. The wizard never reads the existing key. The Wrangler JSON export always excludes the key: store it as a Worker Secret instead of a plain `vars` value.
 
 When using the wizard on localhost, switching to a Cloudflare export prepares a new deployment with its own random key, even if the local environment already has one. Switching back to local development preserves the local key and omits it from the export. A deployed site's existing key is preserved by default.
 
@@ -100,7 +100,7 @@ For a publicly trusted gateway certificate, set `CERTIFICATE_MODE="webpki"` to u
 
 ### Certificate updates
 
-The pinned-certificate setup wizard generates the **site key and certificate Webhook URL together**, in the same section. On a deployed HTTPS site, the URL uses the current origin; from local development, enter the HTTPS origin of the LanternDock Worker. No key needs to be pasted back into the page. The key stays in page memory, and the public configuration API never returns the private URL.
+The pinned-certificate setup wizard generates the **site key and certificate Webhook URL together**, in the same setup step. On a deployed HTTPS site, the URL uses the current origin; from local development, enter the HTTPS origin of the LanternDock Worker. No key needs to be pasted back into the page. The key stays in page memory, and the public configuration API never returns the private URL.
 
 Save both configuration files before deploying: **Download configuration** saves the site settings, including `SECRET_KEY`, as `lantern-dock.env`; **Download bridge.env** saves `CERT_WEBHOOK_URL` for the bridge. Merge the bridge settings into its existing `.env`. You can also click **Copy Webhook URL** and paste the value into the bridge's `CERT_WEBHOOK_URL`. Deploy the same `SECRET_KEY` as a Worker Secret, bind `PINS` KV, and run the bridge with `--auto-cert`. The bridge can then publish certificate pins and renew them automatically. Return to the wizard and recheck after publication. This panel is unnecessary for direct WebDAV or publicly trusted WebTransport certificates.
 
@@ -176,7 +176,7 @@ The project uses Workers Static Assets, configured in [`wrangler.jsonc`](../wran
 
 The repository sets `keep_vars: true` and ships an empty `vars` object so a later Wrangler deploy preserves ordinary variables configured through the dashboard. Values explicitly added to `wrangler.jsonc` override matching dashboard values. Secrets are stored separately.
 
-For CLI deployment, use the wizard's **Wrangler configuration** export for public variables and set `SECRET_KEY` with `wrangler secret put`. The local `.env` file is not automatically uploaded to production; the dashboard import is an explicit step. Keep `DEMO_MODE` unset in production unless you intentionally want a sample-only site.
+For CLI deployment, use **Other deployment methods → Download Wrangler JSON** for public variables and set `SECRET_KEY` with `wrangler secret put`. The local `.env` file is not automatically uploaded to production; the dashboard import is an explicit step. Keep `DEMO_MODE` unset in production unless you intentionally want a sample-only site.
 
 See Cloudflare's [Static Assets](https://developers.cloudflare.com/workers/static-assets/) and [KV setup](https://developers.cloudflare.com/kv/get-started/) documentation for platform configuration.
 

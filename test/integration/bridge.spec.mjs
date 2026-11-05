@@ -223,7 +223,6 @@ test("first-run setup rechecks applied server settings and connects to the real 
       page.getByRole("heading", { name: "连接你的文件空间", exact: true }),
     ).toBeVisible();
     await expect(page.getByRole("alert")).toHaveCount(0);
-    await page.getByRole("button", { name: "下一步", exact: true }).click();
     await page
       .getByLabel("WebTransport 网关地址", { exact: true })
       .fill(endpoint);
@@ -237,9 +236,7 @@ test("first-run setup rechecks applied server settings and connects to the real 
     expect(variables.WEBTRANSPORT_URL).toBe(endpoint);
     expect(variables).not.toHaveProperty("BACKEND_TRANSPORT");
     Object.assign(fixture.env, variables);
-    await page
-      .getByRole("button", { name: "已完成，重新检测", exact: true })
-      .click();
+    await page.getByRole("button", { name: "重新检测", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("网关需要认证");
     await login(page);
     await expect(page.locator(".file-card")).toHaveCount(5);
@@ -258,7 +255,6 @@ test("dashboard dotenv export provisions a new key and its derived certificate w
     delete fixture.env.SECRET_KEY;
     fixture.env.BACKEND_ENDPOINT = "";
     await page.goto(fixture.origin);
-    await page.getByRole("button", { name: "下一步", exact: true }).click();
     await page
       .getByLabel("WebTransport 网关地址", { exact: true })
       .fill(previous.BACKEND_ENDPOINT);
@@ -306,9 +302,7 @@ test("dashboard dotenv export provisions a new key and its derived certificate w
     expect(rejected.status()).toBe(404);
     const accepted = await page.request.put(copiedUrl, { data: payload });
     expect(accepted.status()).toBe(204);
-    await page
-      .getByRole("button", { name: "已完成，重新检测", exact: true })
-      .click();
+    await page.getByRole("button", { name: "重新检测", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("网关需要认证");
     await login(page);
     await expect(page.locator(".file-card")).toHaveCount(5);
@@ -331,11 +325,9 @@ test("missing pins resume at certificate setup and publishing them enables the r
     await expect(
       page.getByRole("button", { name: "下一步", exact: true }),
     ).toHaveCount(0);
-    expect(
-      await page
-        .getByRole("textbox", { name: "生成的配置", exact: true })
-        .inputValue(),
-    ).not.toContain("SECRET_KEY");
+    await expect(
+      page.getByRole("textbox", { name: "生成的配置", exact: true }),
+    ).toHaveCount(0);
     await expect(
       page.getByLabel("已部署的 SECRET_KEY", { exact: true }),
     ).toHaveCount(0);
@@ -351,9 +343,7 @@ test("missing pins resume at certificate setup and publishing them enables the r
       },
     );
     expect(response.status()).toBe(204);
-    await page
-      .getByRole("button", { name: "已完成，重新检测", exact: true })
-      .click();
+    await page.getByRole("button", { name: "重新检测", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("网关需要认证");
     await login(page);
     await expect(page.locator(".file-card")).toHaveCount(5);
