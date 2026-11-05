@@ -86,7 +86,9 @@ func run(args []string, out io.Writer) error {
 		}
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
-		server := &http.Server{Handler: service, ReadHeaderTimeout: 10 * time.Second, IdleTimeout: time.Minute, MaxHeaderBytes: 32 << 10}
+		// Upload handlers extend this deadline as bytes arrive; rejected or
+		// otherwise small requests must not hold an unread body indefinitely.
+		server := &http.Server{Handler: service, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 15 * time.Second, IdleTimeout: time.Minute, MaxHeaderBytes: 32 << 10}
 		done := make(chan struct{})
 		go func() {
 			select {
