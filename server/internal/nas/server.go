@@ -179,7 +179,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PROPFIND, POST, PUT, DELETE")
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Depth, DPoP")
-		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, ETag")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, ETag, WWW-Authenticate, DPoP-Nonce")
 	}
 	switch {
 	case r.URL.Path == "/api/account" || strings.HasPrefix(r.URL.Path, "/api/account/"):

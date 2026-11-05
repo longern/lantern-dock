@@ -374,7 +374,7 @@ export async function startFixture({ nas = false, identity = false } = {}) {
       nasFixture = {
         endpoint: backendEndpoint,
         dataDir,
-        async administrators(subjects) {
+        async administrators(subjects, { resourceOrigin = origin } = {}) {
           const exited = new Promise((resolve) =>
             processNAS.once("exit", resolve),
           );
@@ -390,6 +390,7 @@ export async function startFixture({ nas = false, identity = false } = {}) {
               env: {
                 ...nasEnvironment,
                 ADMIN_SUBJECTS: JSON.stringify(subjects),
+                NAS_RESOURCE_ORIGIN: resourceOrigin,
               },
               stdio: ["ignore", "pipe", "pipe"],
             },

@@ -8,9 +8,17 @@ import {
   customFetch,
 } from "jose";
 import { deriveSecret, validateSecretKey } from "../shared/site-secret.js";
+import { signingKeys } from "./signing-keys.js";
+import {
+  AUTHORIZATION_METADATA_PATH,
+  SESSION_GRANT_TYPE,
+  ACCOUNT_SCOPE,
+  GRANT_SECONDS,
+  canonicalProofURI,
+} from "../shared/identity-protocol.js";
+export { GRANT_SECONDS } from "../shared/identity-protocol.js";
 
 const SESSION_SECONDS = 1800;
-export const GRANT_SECONDS = 60;
 const STATE_COOKIE = "__Host-lantern-oidc";
 const SESSION_COOKIE = "__Host-lantern-session";
 const encoder = new TextEncoder();
@@ -99,43 +107,6 @@ function stateFor(env) {
   }
   return state;
 }
-async function material(env) {
-  const state = stateFor(env);
-  const cfg = settings(env);
-  if (!state.keys)
-    state.keys = (async () => {
-      const seed = Uint8Array.from(
-        (
-          await deriveSecret(
-            env.SECRET_KEY,
-            "lantern-dock:identity-signing:v1:" + cfg.site,
-          )
-        ).match(/../g),
-        (x) => parseInt(x, 16),
-      );
-      const prefix = Uint8Array.from([
-        48, 46, 2, 1, 0, 48, 5, 6, 3, 43, 101, 112, 4, 34, 4, 32,
-      ]);
-      const key = await crypto.subtle.importKey(
-        "pkcs8",
-        new Uint8Array([...prefix, ...seed]),
-        "Ed25519",
-        true,
-        ["sign"],
-      );
-      const exported = await crypto.subtle.exportKey("jwk", key);
-      const jwk = {
-        kty: "OKP",
-        crv: "Ed25519",
-        x: exported.x,
-        alg: "EdDSA",
-        use: "sig",
-      };
-      jwk.kid = await calculateJwkThumbprint(jwk);
-      return { key, jwk };
-    })();
-  return state.keys;
-}
 async function cookieKey(env) {
   const state = stateFor(env);
   if (!state.cookieKey)
@@ -182,9 +153,9 @@ async function open(env, name, value) {
     return null;
   }
 }
-async function limitedJSON(response) {
-  if (!response.ok) throw new Error("OIDC response failed");
-  const reader = response.body.getReader();
+async function limitedText(body, limit) {
+  if (!body) return "";
+  const reader = body.getReader();
   const parts = [];
   let total = 0;
   try {
@@ -192,7 +163,7 @@ async function limitedJSON(response) {
       const { done, value } = await reader.read();
       if (done) break;
       total += value.length;
-      if (total > 128 * 1024) throw new Error("OIDC response too large");
+      if (total > limit) throw new Error("Response too large");
       parts.push(value);
     }
   } finally {
@@ -205,7 +176,11 @@ async function limitedJSON(response) {
     bytes.set(part, offset);
     offset += part.length;
   }
-  return JSON.parse(new TextDecoder().decode(bytes));
+  return new TextDecoder().decode(bytes);
+}
+async function limitedJSON(response) {
+  if (!response.ok) throw new Error("OIDC response failed");
+  return JSON.parse(await limitedText(response.body, 128 * 1024));
 }
 function fetchFor(env) {
   return env.SSO_SERVICE
@@ -275,7 +250,7 @@ async function proof(request, site, expectedThumbprint) {
   const target = site + new URL(request.url).pathname;
   if (
     payload.htm !== request.method ||
-    payload.htu !== target ||
+    canonicalProofURI(payload.htu) !== canonicalProofURI(target) ||
     typeof payload.jti !== "string" ||
     payload.jti.length < 16 ||
     payload.jti.length > 128
@@ -284,10 +259,168 @@ async function proof(request, site, expectedThumbprint) {
   const thumbprint = await calculateJwkThumbprint(jwk);
   if (expectedThumbprint && expectedThumbprint !== thumbprint)
     throw new Error("Browser key changed");
-  return thumbprint;
+  return { thumbprint, payload };
 }
 function sameOrigin(request, site) {
   return request.headers.get("Origin") === site;
+}
+function oauthError(error, description, message, status = 400, code = error) {
+  const response = json(
+    { error, error_description: description, message, code },
+    status,
+  );
+  response.headers.set("Pragma", "no-cache");
+  return response;
+}
+function authorizationMetadata(site) {
+  return {
+    issuer: site,
+    jwks_uri: site + "/api/auth/jwks.json",
+    token_endpoint: site + "/api/auth/token",
+    grant_types_supported: [SESSION_GRANT_TYPE],
+    response_types_supported: [],
+    token_endpoint_auth_methods_supported: ["none"],
+    scopes_supported: [ACCOUNT_SCOPE],
+    dpop_signing_alg_values_supported: ["ES256"],
+    // This is a session-backed extension grant, not a second OIDC provider.
+    lantern_dock: { protocol_version: 1, resource: site + "/nas" },
+  };
+}
+async function issueGrant(request, env, cfg) {
+  if (!sameOrigin(request, cfg.site))
+    return oauthError(
+      "invalid_request",
+      "The request origin is not allowed.",
+      "请求来源不匹配。",
+      403,
+    );
+  if (
+    request.headers
+      .get("Content-Type")
+      ?.split(";", 1)[0]
+      .trim()
+      .toLowerCase() !== "application/x-www-form-urlencoded"
+  )
+    return oauthError(
+      "invalid_request",
+      "Use application/x-www-form-urlencoded.",
+      "令牌请求格式不正确，请刷新页面。",
+    );
+  let params;
+  try {
+    params = new URLSearchParams(await limitedText(request.body, 8192));
+  } catch {
+    return oauthError(
+      "invalid_request",
+      "The request body is invalid or too large.",
+      "令牌请求无效。",
+    );
+  }
+  for (const key of ["grant_type", "client_id", "resource", "scope"])
+    if (params.getAll(key).length > 1)
+      return oauthError(
+        "invalid_request",
+        "Duplicate request parameter.",
+        "令牌请求参数重复。",
+      );
+  if (params.get("grant_type") !== SESSION_GRANT_TYPE)
+    return oauthError(
+      "unsupported_grant_type",
+      "Only the LanternDock session grant is supported.",
+      "请刷新页面后重新登录。",
+    );
+  if (params.get("client_id") !== cfg.site + "/")
+    return oauthError(
+      "invalid_client",
+      "The client_id is not allowed.",
+      "客户端不匹配。",
+    );
+  if (params.has("resource") && params.get("resource") !== cfg.site + "/nas")
+    return oauthError(
+      "invalid_target",
+      "The requested resource is not allowed.",
+      "请求的 NAS 不匹配。",
+    );
+  if (params.has("scope") && params.get("scope") !== ACCOUNT_SCOPE)
+    return oauthError(
+      "invalid_scope",
+      "The requested scope is not allowed.",
+      "请求的权限无效。",
+    );
+  const session = await open(
+    env,
+    SESSION_COOKIE,
+    cookie(request, SESSION_COOKIE),
+  );
+  if (!session || session.issuer !== cfg.issuer)
+    return oauthError(
+      "invalid_grant",
+      "The site session has expired or is missing.",
+      "请重新登录。",
+      400,
+      "LOGIN_REQUIRED",
+    );
+  let verified;
+  try {
+    verified = await proof(request, cfg.site, session.jkt);
+  } catch {
+    return oauthError(
+      "invalid_dpop_proof",
+      "The DPoP proof is invalid or uses a different key.",
+      "无法验证浏览器密钥，请重新登录。",
+      400,
+      "INVALID_PROOF",
+    );
+  }
+  const { thumbprint: jkt, payload } = verified;
+  const nonce =
+    typeof payload.nonce === "string"
+      ? await open(env, "dpop-nonce", payload.nonce)
+      : null;
+  const nextNonce = () =>
+    seal(env, "dpop-nonce", {
+      jkt,
+      sub: session.user.sub,
+      expires: now() + 60,
+    });
+  if (!nonce || nonce.jkt !== jkt || nonce.sub !== session.user.sub) {
+    const response = oauthError(
+      "use_dpop_nonce",
+      "Retry with the supplied DPoP nonce and a new proof.",
+      "正在验证浏览器请求。",
+    );
+    response.headers.set("DPoP-Nonce", await nextNonce());
+    return response;
+  }
+  const {
+    active: { key, jwk },
+  } = await signingKeys(env, cfg.site);
+  const issuedAt = now();
+  const accessToken = await new SignJWT({
+    identity_issuer: cfg.issuer,
+    client_id: cfg.site + "/",
+    scope: ACCOUNT_SCOPE,
+    name: session.user.name,
+    email: session.user.email,
+    cnf: { jkt },
+  })
+    .setProtectedHeader({ alg: "EdDSA", kid: jwk.kid, typ: "at+jwt" })
+    .setIssuer(cfg.site)
+    .setSubject(session.user.sub)
+    .setAudience(cfg.site + "/nas")
+    .setIssuedAt(issuedAt)
+    .setExpirationTime(issuedAt + GRANT_SECONDS)
+    .setJti(random())
+    .sign(key);
+  const response = json({
+    access_token: accessToken,
+    token_type: "DPoP",
+    expires_in: GRANT_SECONDS,
+    scope: ACCOUNT_SCOPE,
+  });
+  response.headers.set("Pragma", "no-cache");
+  response.headers.set("DPoP-Nonce", await nextNonce());
+  return response;
 }
 function redirect(site, path) {
   return new Response(null, {
@@ -324,7 +457,12 @@ export function clientMetadata(env) {
 
 export async function authentication(request, env) {
   const path = new URL(request.url).pathname;
-  if (path !== "/auth/callback" && !path.startsWith("/api/auth/")) return null;
+  if (
+    path !== AUTHORIZATION_METADATA_PATH &&
+    path !== "/auth/callback" &&
+    !path.startsWith("/api/auth/")
+  )
+    return null;
   if (path === "/api/auth/oidc/client.json") {
     if (request.method !== "GET")
       return json({ error: "Method not allowed" }, 405);
@@ -356,9 +494,15 @@ export async function authentication(request, env) {
     );
   }
   try {
+    if (path === AUTHORIZATION_METADATA_PATH && request.method === "GET") {
+      const response = json(authorizationMetadata(cfg.site));
+      response.headers.set("Cache-Control", "public, max-age=300");
+      response.headers.delete("Vary");
+      return response;
+    }
     if (path === "/api/auth/jwks.json" && request.method === "GET") {
-      const { jwk } = await material(env);
-      const response = json({ keys: [jwk] });
+      const { jwks } = await signingKeys(env, cfg.site);
+      const response = json(jwks);
       response.headers.set("Cache-Control", "public, max-age=300");
       response.headers.delete("Vary");
       return response;
@@ -382,7 +526,7 @@ export async function authentication(request, env) {
         return json({ error: "请求来源不匹配。" }, 403);
       let jkt;
       try {
-        jkt = await proof(request, cfg.site);
+        jkt = (await proof(request, cfg.site)).thumbprint;
       } catch {
         return json(
           { error: "无法验证浏览器密钥，请重试。", code: "INVALID_PROOF" },
@@ -530,45 +674,18 @@ export async function authentication(request, env) {
       );
       return response;
     }
-    if (path === "/api/auth/token" && request.method === "POST") {
-      if (!sameOrigin(request, cfg.site))
-        return json({ error: "请求来源不匹配。" }, 403);
-      const session = await open(
-        env,
-        SESSION_COOKIE,
-        cookie(request, SESSION_COOKIE),
-      );
-      if (!session || session.issuer !== cfg.issuer)
-        return json({ error: "请重新登录。", code: "LOGIN_REQUIRED" }, 401);
-      let jkt;
-      try {
-        jkt = await proof(request, cfg.site, session.jkt);
-      } catch {
-        return json(
-          { error: "浏览器密钥已改变，请重新登录。", code: "KEY_MISMATCH" },
-          401,
+    if (path === "/api/auth/token") {
+      if (request.method !== "POST") {
+        const response = oauthError(
+          "invalid_request",
+          "Use POST for token requests.",
+          "此接口需要 POST 请求。",
+          405,
         );
+        response.headers.set("Allow", "POST");
+        return response;
       }
-      const { key, jwk } = await material(env);
-      const issuedAt = now();
-      const accessToken = await new SignJWT({
-        identity_issuer: cfg.issuer,
-        name: session.user.name,
-        email: session.user.email,
-        cnf: { jkt },
-      })
-        .setProtectedHeader({ alg: "EdDSA", kid: jwk.kid, typ: "at+jwt" })
-        .setIssuer(cfg.site)
-        .setSubject(session.user.sub)
-        .setAudience(cfg.site + "/nas")
-        .setIssuedAt(issuedAt)
-        .setExpirationTime(issuedAt + GRANT_SECONDS)
-        .setJti(random())
-        .sign(key);
-      return json({
-        accessToken,
-        expiresAt: new Date((issuedAt + GRANT_SECONDS) * 1000).toISOString(),
-      });
+      return await issueGrant(request, env, cfg);
     }
     if (path === "/api/auth/logout" && request.method === "POST") {
       if (!sameOrigin(request, cfg.site))
@@ -582,6 +699,14 @@ export async function authentication(request, env) {
   } catch {
     if (path === "/auth/callback")
       return accountError(env, "登录验证失败，请重新登录。");
+    if (path === "/api/auth/token")
+      return oauthError(
+        "temporarily_unavailable",
+        "The authorization service is temporarily unavailable.",
+        "登录服务暂不可用，请稍后重试。",
+        503,
+        "AUTH_UNAVAILABLE",
+      );
     return json(
       { error: "登录服务暂不可用，请稍后重试。", code: "AUTH_UNAVAILABLE" },
       503,

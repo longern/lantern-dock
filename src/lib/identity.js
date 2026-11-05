@@ -1,4 +1,10 @@
 import { DirectTransport } from "./transport.js";
+import {
+  AUTHORIZATION_METADATA_PATH,
+  SESSION_GRANT_TYPE,
+  ACCOUNT_SCOPE,
+  canonicalProofURI,
+} from "../../shared/identity-protocol.js";
 const encoder = new TextEncoder();
 const b64 = (bytes) =>
   btoa(String.fromCharCode(...bytes))
@@ -50,7 +56,7 @@ async function browserKey() {
   });
   return keyPromise;
 }
-export async function identityProof(method, url, token) {
+export async function identityProof(method, url, token, nonce) {
   const pair = await browserKey();
   const publicKey = await crypto.subtle.exportKey("jwk", pair.publicKey);
   const jwk = {
@@ -62,10 +68,11 @@ export async function identityProof(method, url, token) {
   const target = new URL(url);
   const payload = {
     htm: method,
-    htu: target.origin + target.pathname,
+    htu: canonicalProofURI(target.origin + target.pathname),
     iat: Math.floor(Date.now() / 1000),
     jti: crypto.randomUUID(),
   };
+  if (nonce) payload.nonce = nonce;
   if (token)
     payload.ath = b64(
       new Uint8Array(
@@ -85,11 +92,14 @@ export async function identityProof(method, url, token) {
   );
   return input + "." + b64(new Uint8Array(signature));
 }
-async function result(response) {
-  const value = await response.json().catch(() => ({}));
+async function result(response, parsed) {
+  const value = parsed ?? (await response.json().catch(() => ({})));
   if (!response.ok) {
     const error = new Error(
-      value.error || `账户服务返回 ${response.status}，请检查连接配置。`,
+      value.message ||
+        value.error_description ||
+        value.error ||
+        `账户服务返回 ${response.status}，请检查连接配置。`,
     );
     error.code = value.code;
     throw error;
@@ -120,12 +130,77 @@ export async function beginLogin() {
   location.assign(value.url);
 }
 export async function endLogin() {
+  tokenNonce = undefined;
   return result(
     await fetch("/api/auth/logout", {
       method: "POST",
       credentials: "same-origin",
     }),
   );
+}
+let tokenNonce;
+export async function requestNASGrant(signal) {
+  const metadata = await result(
+    await fetch(AUTHORIZATION_METADATA_PATH, { cache: "no-store", signal }),
+  );
+  const endpoint = new URL(metadata.token_endpoint);
+  if (
+    metadata.issuer !== location.origin ||
+    metadata.lantern_dock?.protocol_version !== 1 ||
+    metadata.lantern_dock?.resource !== location.origin + "/nas" ||
+    endpoint.origin !== location.origin ||
+    endpoint.username ||
+    endpoint.password ||
+    endpoint.search ||
+    endpoint.hash ||
+    !metadata.grant_types_supported?.includes(SESSION_GRANT_TYPE) ||
+    !metadata.dpop_signing_alg_values_supported?.includes("ES256")
+  )
+    throw new Error("站点授权配置不匹配，请检查部署。");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      credentials: "same-origin",
+      signal,
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        DPoP: await identityProof("POST", endpoint.href, undefined, tokenNonce),
+      },
+      body: new URLSearchParams({
+        grant_type: SESSION_GRANT_TYPE,
+        client_id: location.origin + "/",
+        resource: location.origin + "/nas",
+        scope: ACCOUNT_SCOPE,
+      }),
+    });
+    const value = await response.json().catch(() => ({}));
+    const nonce = response.headers.get("DPoP-Nonce");
+    if (
+      nonce &&
+      nonce.length <= 2048 &&
+      /^[\x21\x23-\x5b\x5d-\x7e]+$/.test(nonce)
+    )
+      tokenNonce = nonce;
+    if (
+      attempt === 0 &&
+      response.status === 400 &&
+      value.error === "use_dpop_nonce" &&
+      nonce === tokenNonce
+    )
+      continue;
+    const grant = await result(response, value);
+    if (
+      grant.token_type !== "DPoP" ||
+      typeof grant.access_token !== "string" ||
+      !grant.access_token ||
+      grant.access_token.length > 8192 ||
+      !Number.isInteger(grant.expires_in) ||
+      grant.expires_in <= 0 ||
+      grant.expires_in > 60
+    )
+      throw new Error("站点返回了无效的 NAS 凭据。");
+    return grant;
+  }
 }
 export async function accountConnection(signal) {
   const config = await result(
@@ -137,29 +212,22 @@ export async function accountConnection(signal) {
     config.backend.transport === "demo"
   )
     throw new Error("NAS 尚未完成连接配置，身份已登录，可先复制 sub。 ");
-  const proof = await identityProof(
-    "POST",
-    location.origin + "/api/auth/token",
-  );
-  const grant = await result(
-    await fetch("/api/auth/token", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { DPoP: proof },
-      signal,
-    }),
-  );
+  const grant = await requestNASGrant(signal);
   const transport = new DirectTransport(config.backend);
   try {
     const path = "/api/account";
+    const resourceOrigin =
+      config.backend.transport === "http"
+        ? new URL(config.backend.endpoint).origin
+        : location.origin;
     const info = await result(
       await transport.request(path, {
         headers: {
-          Authorization: "DPoP " + grant.accessToken,
+          Authorization: "DPoP " + grant.access_token,
           DPoP: await identityProof(
             "GET",
-            location.origin + path,
-            grant.accessToken,
+            resourceOrigin + path,
+            grant.access_token,
           ),
         },
         signal,

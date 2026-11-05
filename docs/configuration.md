@@ -14,6 +14,8 @@ Credentials are entered in the connection dialog and kept in page memory. The pu
 
 Optional [OIDC/CIMD login](authentication.md) uses separate account endpoints and an HttpOnly cookie. Configure `SITE_ORIGIN` and `OIDC_ISSUER_URL` on both Worker and NAS; configure `ADMIN_SUBJECTS` on the NAS. These settings are independent of the backend connection wizard.
 
+NAS signing-key rotation can optionally use Worker `AUTH_SIGNING_KEY_VERSIONS`, defaulting to `["v1"]`. This changes signing versions without rotating `SECRET_KEY`, cookies or the certificate webhook; follow the [prepublish/switch/retire procedure](authentication.md#rotate-nas-signing-keys). Direct HTTPS identities on a separate backend origin additionally use NAS `NAS_RESOURCE_ORIGIN`; WebTransport defaults need no extra variable.
+
 ## Choose one connection URL
 
 Only one address variable is needed for direct WebDAV:

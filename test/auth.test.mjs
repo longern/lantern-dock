@@ -10,6 +10,12 @@ import {
   calculateJwkThumbprint,
 } from "jose";
 import worker from "../worker/index.js";
+import {
+  AUTHORIZATION_METADATA_PATH,
+  SESSION_GRANT_TYPE,
+  ACCOUNT_SCOPE,
+} from "../shared/identity-protocol.js";
+import { certificateWebhookTokens } from "../worker/secrets.js";
 
 const site = "https://portal.example";
 const issuer = "https://sso.example";
@@ -97,12 +103,13 @@ async function fixture() {
   };
   const pair = await generateKeyPair("ES256");
   const publicProof = await exportJWK(pair.publicKey);
-  async function proof(path, other = pair) {
+  async function proof(path, other = pair, patch = {}) {
     const jwk = other === pair ? publicProof : await exportJWK(other.publicKey);
     return new SignJWT({
       htm: "POST",
       htu: site + path,
       jti: crypto.randomUUID(),
+      ...patch,
     })
       .setProtectedHeader({ alg: "ES256", typ: "dpop+jwt", jwk })
       .setIssuedAt()
@@ -111,18 +118,33 @@ async function fixture() {
   const jar = new Map();
   async function request(
     path,
-    { method = "GET", headers = {}, cookie = true } = {},
+    { method = "GET", headers = {}, cookie = true, body } = {},
   ) {
     const response = await worker.fetch(
       new Request(site + path, {
         method,
         headers: {
           ...(method === "POST" ? { Origin: site } : {}),
+          ...(path === "/api/auth/token"
+            ? { "Content-Type": "application/x-www-form-urlencoded" }
+            : {}),
           ...(cookie
             ? { Cookie: [...jar].map(([k, v]) => `${k}=${v}`).join("; ") }
             : {}),
           ...headers,
         },
+        ...(method === "POST" && path === "/api/auth/token"
+          ? {
+              body:
+                body ??
+                new URLSearchParams({
+                  grant_type: SESSION_GRANT_TYPE,
+                  client_id: site + "/",
+                  scope: ACCOUNT_SCOPE,
+                  resource: site + "/nas",
+                }),
+            }
+          : {}),
       }),
       env,
     );
@@ -132,6 +154,24 @@ async function fixture() {
       else jar.delete(name);
     }
     return response;
+  }
+  let nonce;
+  async function grant() {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await request("/api/auth/token", {
+        method: "POST",
+        headers: {
+          DPoP: await proof("/api/auth/token", pair, nonce ? { nonce } : {}),
+        },
+      });
+      nonce = response.headers.get("DPoP-Nonce") || nonce;
+      if (
+        attempt === 0 &&
+        (await response.clone().json()).error === "use_dpop_nonce"
+      )
+        continue;
+      return response;
+    }
   }
   async function begin() {
     const response = await request("/api/auth/login", {
@@ -161,6 +201,8 @@ async function fixture() {
     begin,
     login,
     proof,
+    grant,
+    nonce: () => nonce,
     pair,
     publicProof,
     patch: (value) => {
@@ -195,21 +237,25 @@ test("CIMD describes the app, and site cookies are encrypted, HttpOnly and separ
   assert.equal(session.user.sub, "test-user");
   assert.equal(session.authenticated, true);
   assert.ok(!("accessToken" in session));
-  const token = await (
-    await f.request("/api/auth/token", {
-      method: "POST",
-      headers: { DPoP: await f.proof("/api/auth/token") },
-    })
-  ).json();
+  const token = await (await f.grant()).json();
+  assert.equal(token.token_type, "DPoP");
+  assert.equal(token.expires_in, 60);
+  assert.equal(token.scope, ACCOUNT_SCOPE);
   const jwks = await (await f.request("/api/auth/jwks.json")).json();
   assert.ok(!JSON.stringify(jwks).includes('"d"'));
-  const verified = await jwtVerify(token.accessToken, createLocalJWKSet(jwks), {
-    issuer: site,
-    audience: site + "/nas",
-    algorithms: ["EdDSA"],
-  });
+  const verified = await jwtVerify(
+    token.access_token,
+    createLocalJWKSet(jwks),
+    {
+      issuer: site,
+      audience: site + "/nas",
+      algorithms: ["EdDSA"],
+    },
+  );
   assert.equal(verified.payload.sub, "test-user");
   assert.equal(verified.payload.identity_issuer, issuer);
+  assert.equal(verified.payload.client_id, site + "/");
+  assert.equal(verified.payload.scope, ACCOUNT_SCOPE);
   assert.equal(
     verified.payload.cnf.jkt,
     await calculateJwkThumbprint(f.publicProof),
@@ -217,10 +263,7 @@ test("CIMD describes the app, and site cookies are encrypted, HttpOnly and separ
   assert.equal(verified.payload.exp - verified.payload.iat, 60);
   assert.ok(!JSON.stringify(token).includes("never-return-this-to-browser"));
   const calls = f.calls();
-  await f.request("/api/auth/token", {
-    method: "POST",
-    headers: { DPoP: await f.proof("/api/auth/token") },
-  });
+  assert.equal((await f.grant()).status, 200);
   assert.equal(f.calls(), calls, "grant renewal must not call SSO");
 });
 test("login binds state, nonce, PKCE and provider; a copied grant cannot renew a session", async () => {
@@ -252,13 +295,13 @@ test("login binds state, nonce, PKCE and provider; a copied grant cannot renew a
     method: "POST",
     headers: { DPoP: await good.proof("/api/auth/token", other) },
   });
-  assert.equal(response.status, 401);
+  assert.equal(response.status, 400);
   response = await good.request("/api/auth/token", {
     method: "POST",
     cookie: false,
     headers: { DPoP: await good.proof("/api/auth/token") },
   });
-  assert.equal(response.status, 401);
+  assert.equal(response.status, 400);
   response = await good.request("/api/auth/logout", {
     method: "POST",
     headers: { Origin: "https://attacker.example" },
@@ -347,4 +390,158 @@ test("portal responses prevent inline scripts and browser credential configurati
     f.env,
   );
   assert.equal(mismatch.status, 400);
+});
+
+test("authorization metadata and token errors expose the supported session-grant contract", async () => {
+  const f = await fixture();
+  const response = await f.request(AUTHORIZATION_METADATA_PATH);
+  const metadata = await response.json();
+  assert.equal(metadata.issuer, site);
+  assert.equal(metadata.jwks_uri, site + "/api/auth/jwks.json");
+  assert.equal(metadata.token_endpoint, site + "/api/auth/token");
+  assert.deepEqual(metadata.grant_types_supported, [SESSION_GRANT_TYPE]);
+  assert.deepEqual(metadata.response_types_supported, []);
+  assert.deepEqual(metadata.dpop_signing_alg_values_supported, ["ES256"]);
+  assert.deepEqual(metadata.scopes_supported, [ACCOUNT_SCOPE]);
+  assert.equal(metadata.lantern_dock.resource, site + "/nas");
+  assert.match(response.headers.get("Cache-Control"), /max-age=300/);
+  assert.ok(!JSON.stringify(metadata).includes(f.env.SECRET_KEY));
+  for (const [patch, expected] of [
+    [{ grant_type: "client_credentials" }, "unsupported_grant_type"],
+    [{ client_id: "other" }, "invalid_client"],
+    [{ resource: "https://other.example/nas" }, "invalid_target"],
+    [{ scope: "files:write" }, "invalid_scope"],
+  ]) {
+    const r = await f.request("/api/auth/token", {
+      method: "POST",
+      body: new URLSearchParams({
+        grant_type: SESSION_GRANT_TYPE,
+        client_id: site + "/",
+        ...patch,
+      }),
+    });
+    assert.equal(r.status, 400);
+    assert.equal((await r.json()).error, expected);
+    assert.equal(r.headers.get("Cache-Control"), "no-store");
+  }
+  const duplicate = await f.request("/api/auth/token", {
+    method: "POST",
+    body: `grant_type=${encodeURIComponent(SESSION_GRANT_TYPE)}&grant_type=other`,
+  });
+  assert.equal((await duplicate.json()).error, "invalid_request");
+  const oversized = await f.request("/api/auth/token", {
+    method: "POST",
+    body: "x".repeat(8193),
+  });
+  assert.equal((await oversized.json()).error, "invalid_request");
+  const noCookie = await f.request("/api/auth/token", {
+    method: "POST",
+    cookie: false,
+  });
+  assert.equal((await noCookie.json()).error, "invalid_grant");
+});
+
+test("token issuance requires a fresh server nonce and valid key, method, URL and proof type", async (t) => {
+  const f = await fixture();
+  await f.login();
+  const post = async (patch = {}, headers = {}) =>
+    f.request("/api/auth/token", {
+      method: "POST",
+      headers: {
+        DPoP: await f.proof("/api/auth/token", f.pair, patch),
+        ...headers,
+      },
+    });
+  const challenge = await post();
+  assert.equal(challenge.status, 400);
+  assert.equal((await challenge.json()).error, "use_dpop_nonce");
+  const nonce = challenge.headers.get("DPoP-Nonce");
+  assert.match(nonce, /^[A-Za-z0-9_-]+$/);
+  assert.ok(!nonce.includes(f.env.SECRET_KEY));
+  const wrongType = await new SignJWT({
+    nonce,
+    htm: "POST",
+    htu: site + "/api/auth/token",
+    jti: crypto.randomUUID(),
+  })
+    .setProtectedHeader({ alg: "ES256", typ: "at+jwt", jwk: f.publicProof })
+    .setIssuedAt()
+    .sign(f.pair.privateKey);
+  assert.equal(
+    (await (await post({}, { DPoP: wrongType })).json()).error,
+    "invalid_dpop_proof",
+  );
+  for (const patch of [
+    { htm: "GET" },
+    { htu: site + "/other" },
+    { htu: site + "/api/auth/token?x=1" },
+    { jti: "short" },
+  ]) {
+    const r = await post({ nonce, ...patch });
+    assert.equal(r.status, 400);
+    assert.equal((await r.json()).error, "invalid_dpop_proof");
+  }
+  const r = await post({ nonce });
+  assert.equal(r.status, 200);
+  assert.equal(r.headers.get("Pragma"), "no-cache");
+  assert.ok((await r.json()).access_token);
+  assert.equal(
+    (await (await post({ nonce: nonce + "x" })).json()).error,
+    "use_dpop_nonce",
+  );
+  // No downgrade after a challenge, even if the session itself is still valid.
+  assert.equal((await (await post()).json()).error, "use_dpop_nonce");
+  const timestamp = Date.now();
+  t.mock.method(Date, "now", () => timestamp + 61000);
+  assert.equal((await (await post({ nonce })).json()).error, "use_dpop_nonce");
+});
+
+test("signing versions allow prepublication, overlap and retirement without changing sessions or webhooks", async () => {
+  const f = await fixture();
+  await f.login();
+  const sessionCookie = f.jar.get("__Host-lantern-session");
+  const webhook = await certificateWebhookTokens(f.env);
+  const first = await (await f.grant()).json();
+  const initial = await (await f.request("/api/auth/jwks.json")).json();
+  f.env.AUTH_SIGNING_KEY_VERSIONS = '["v1","v2"]';
+  const prepared = await (await f.request("/api/auth/jwks.json")).json();
+  assert.equal(prepared.keys[0].kid, initial.keys[0].kid);
+  assert.equal(prepared.keys.length, 2);
+  assert.ok(prepared.keys.every((key) => !("d" in key)));
+  f.env.AUTH_SIGNING_KEY_VERSIONS = '["v2","v1"]';
+  const secondResponse = await f.grant();
+  assert.equal(secondResponse.status, 200);
+  const second = await secondResponse.json();
+  const overlap = await (await f.request("/api/auth/jwks.json")).json();
+  assert.notEqual(
+    decodeJwt(first.access_token).jti,
+    decodeJwt(second.access_token).jti,
+  );
+  for (const token of [first, second])
+    await jwtVerify(token.access_token, createLocalJWKSet(overlap), {
+      issuer: site,
+      audience: site + "/nas",
+      typ: "at+jwt",
+    });
+  // Prepublished keys already verify tokens minted after the switch.
+  await jwtVerify(second.access_token, createLocalJWKSet(prepared));
+  f.env.AUTH_SIGNING_KEY_VERSIONS = '["v2"]';
+  const retired = await (await f.request("/api/auth/jwks.json")).json();
+  await assert.rejects(
+    jwtVerify(first.access_token, createLocalJWKSet(retired)),
+  );
+  await jwtVerify(second.access_token, createLocalJWKSet(retired));
+  assert.equal(f.jar.get("__Host-lantern-session"), sessionCookie);
+  assert.equal(
+    (await (await f.request("/api/auth/session")).json()).authenticated,
+    true,
+  );
+  assert.deepEqual(await certificateWebhookTokens(f.env), webhook);
+  for (const invalid of ["[]", '["v2","v2"]', "null", '["bad:label"]', "[1]"]) {
+    f.env.AUTH_SIGNING_KEY_VERSIONS = invalid;
+    assert.equal((await f.request("/api/auth/jwks.json")).status, 503);
+    const failed = await f.grant();
+    assert.equal(failed.status, 503);
+    assert.equal((await failed.json()).error, "temporarily_unavailable");
+  }
 });

@@ -3,11 +3,14 @@ package nas
 import (
 	"context"
 	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -19,13 +22,15 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	jose "github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 )
 
 type IdentityConfig struct {
-	SiteOrigin    string
-	Issuer        string
-	AdminSubjects []string
-	HTTPClient    *http.Client
+	SiteOrigin     string
+	ResourceOrigin string
+	Issuer         string
+	AdminSubjects  []string
+	HTTPClient     *http.Client
 }
 type IdentityUser struct {
 	Issuer string `json:"issuer"`
@@ -35,9 +40,9 @@ type IdentityUser struct {
 	Role   string `json:"role"`
 }
 type identityAuth struct {
-	config   IdentityConfig
-	admins   map[string]bool
-	verifier *oidc.IDTokenVerifier
+	config IdentityConfig
+	admins map[string]bool
+	keys   *rotatingKeys
 }
 type rotatingKeys struct {
 	mu      sync.Mutex
@@ -45,20 +50,65 @@ type rotatingKeys struct {
 	keys    oidc.KeySet
 	ctx     context.Context
 	uri     string
+	client  *http.Client
 }
+
+var errIdentityDiscovery = errors.New("authorization server discovery failed")
 
 func (k *rotatingKeys) VerifySignature(ctx context.Context, raw string) ([]byte, error) {
 	k.mu.Lock()
 	if k.keys == nil || time.Now().After(k.expires) {
-		k.keys = oidc.NewRemoteKeySet(k.ctx, k.uri)
+		uri, err := k.discover(ctx)
+		if err != nil {
+			k.mu.Unlock()
+			return nil, fmt.Errorf("%w: %v", errIdentityDiscovery, err)
+		}
+		k.keys = oidc.NewRemoteKeySet(k.ctx, uri)
 		k.expires = time.Now().Add(5 * time.Minute)
 	}
 	keys := k.keys
 	k.mu.Unlock()
 	return keys.VerifySignature(ctx, raw)
 }
+func (k *rotatingKeys) discover(ctx context.Context) (string, error) {
+	request, err := http.NewRequestWithContext(ctx, "GET", k.uri+"/.well-known/oauth-authorization-server", nil)
+	if err != nil {
+		return "", err
+	}
+	request.Header.Set("Accept", "application/json")
+	response, err := k.client.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("metadata status %d", response.StatusCode)
+	}
+	var metadata struct {
+		Issuer      string `json:"issuer"`
+		JWKS        string `json:"jwks_uri"`
+		LanternDock struct {
+			ProtocolVersion int `json:"protocol_version"`
+		} `json:"lantern_dock"`
+	}
+	decoder := json.NewDecoder(io.LimitReader(response.Body, 128<<10))
+	if err = decoder.Decode(&metadata); err != nil {
+		return "", err
+	}
+	var extra any
+	if decoder.Decode(&extra) != io.EOF {
+		return "", fmt.Errorf("invalid metadata document")
+	}
+	keys, err := url.Parse(metadata.JWKS)
+	issuer, _ := url.Parse(k.uri)
+	// Discovery is trusted only under the explicitly configured portal origin.
+	if err != nil || metadata.Issuer != k.uri || metadata.LanternDock.ProtocolVersion != 1 || keys.Scheme != "https" || keys.Host != issuer.Host || keys.User != nil || keys.RawQuery != "" || keys.Fragment != "" {
+		return "", fmt.Errorf("untrusted issuer or jwks_uri")
+	}
+	return keys.String(), nil
+}
 func IdentityEnvironment(getenv func(string) string) (IdentityConfig, error) {
-	cfg := IdentityConfig{SiteOrigin: getenv("SITE_ORIGIN"), Issuer: getenv("OIDC_ISSUER_URL")}
+	cfg := IdentityConfig{SiteOrigin: getenv("SITE_ORIGIN"), ResourceOrigin: getenv("NAS_RESOURCE_ORIGIN"), Issuer: getenv("OIDC_ISSUER_URL")}
 	if raw := getenv("ADMIN_SUBJECTS"); raw != "" {
 		if err := json.Unmarshal([]byte(raw), &cfg.AdminSubjects); err != nil || cfg.AdminSubjects == nil {
 			return cfg, fmt.Errorf("ADMIN_SUBJECTS must be a JSON array of OIDC sub strings")
@@ -138,6 +188,13 @@ func (s *Server) ConfigureIdentity(cfg IdentityConfig) error {
 		return err
 	}
 	cfg.SiteOrigin = site
+	if cfg.ResourceOrigin == "" {
+		cfg.ResourceOrigin = site
+	}
+	cfg.ResourceOrigin, err = identityOrigin(cfg.ResourceOrigin)
+	if err != nil {
+		return fmt.Errorf("NAS_RESOURCE_ORIGIN must be an HTTPS origin")
+	}
 	issuer, err := url.Parse(cfg.Issuer)
 	if err != nil || issuer.Scheme != "https" || issuer.Host == "" || issuer.User != nil || issuer.RawQuery != "" || issuer.Fragment != "" {
 		return fmt.Errorf("OIDC_ISSUER_URL must be an HTTPS issuer URL")
@@ -157,12 +214,11 @@ func (s *Server) ConfigureIdentity(cfg IdentityConfig) error {
 		}
 	}
 	ctx := oidc.ClientContext(s.ctx, client)
-	keys := &rotatingKeys{ctx: ctx, uri: site + "/api/auth/jwks.json"}
-	verifier := oidc.NewVerifier(site, keys, &oidc.Config{ClientID: site + "/nas", SupportedSigningAlgs: []string{"EdDSA"}})
+	keys := &rotatingKeys{ctx: ctx, uri: site, client: client}
 	if _, err = s.Store.DB.Exec(`CREATE TABLE IF NOT EXISTS identity_proofs (id TEXT PRIMARY KEY, expires_at INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS identity_proofs_expiry ON identity_proofs(expires_at);`); err != nil {
 		return err
 	}
-	s.identity = &identityAuth{config: cfg, admins: admins, verifier: verifier}
+	s.identity = &identityAuth{config: cfg, admins: admins, keys: keys}
 	s.origins[site] = true
 	return nil
 }
@@ -176,14 +232,29 @@ func (s *Server) identityUser(r *http.Request) (IdentityUser, error) {
 		return user, fault(401, "LOGIN_REQUIRED", "请先登录。")
 	}
 	scheme, raw, ok := strings.Cut(values[0], " ")
-	if !ok || scheme != "DPoP" || len(raw) > 8192 {
+	if !ok || !strings.EqualFold(scheme, "DPoP") || len(raw) > 8192 {
 		return user, fault(401, "LOGIN_REQUIRED", "登录凭据无效。")
 	}
-	identity, err := s.identity.verifier.Verify(r.Context(), raw)
+	signed, err := jose.ParseSigned(raw, []jose.SignatureAlgorithm{jose.EdDSA})
+	if err != nil || len(signed.Signatures) != 1 {
+		return user, fault(401, "INVALID_IDENTITY", "身份凭据无效。")
+	}
+	header := signed.Signatures[0].Protected
+	typ, _ := header.ExtraHeaders["typ"].(string)
+	if (strings.ToLower(typ) != "at+jwt" && strings.ToLower(typ) != "application/at+jwt") || header.KeyID == "" || len(header.KeyID) > 128 {
+		return user, fault(401, "INVALID_IDENTITY", "身份凭据类型不正确。")
+	}
+	payload, err := s.identity.keys.VerifySignature(r.Context(), raw)
 	if err != nil {
+		if errors.Is(err, errIdentityDiscovery) {
+			return user, fault(503, "IDENTITY_DISCOVERY_UNAVAILABLE", "无法获取站点授权配置，请检查 NAS 到站点的 HTTPS 连接。")
+		}
 		return user, fault(401, "INVALID_IDENTITY", "身份凭据无效或已过期。")
 	}
 	var claims struct {
+		jwt.Claims
+		ClientID       string `json:"client_id"`
+		Scope          string `json:"scope"`
 		IdentityIssuer string `json:"identity_issuer"`
 		Name           string `json:"name"`
 		Email          string `json:"email"`
@@ -191,17 +262,33 @@ func (s *Server) identityUser(r *http.Request) (IdentityUser, error) {
 			JKT string `json:"jkt"`
 		} `json:"cnf"`
 	}
-	if err = identity.Claims(&claims); err != nil || claims.IdentityIssuer != s.identity.config.Issuer || !validSubject(identity.Subject) || claims.CNF.JKT == "" || identity.IssuedAt.After(time.Now().Add(5*time.Second)) || identity.Expiry.Sub(identity.IssuedAt) > time.Minute || time.Since(identity.IssuedAt) > 65*time.Second {
+	if err = json.Unmarshal(payload, &claims); err != nil || claims.Issuer != s.identity.config.SiteOrigin || !claims.Audience.Contains(s.identity.config.SiteOrigin+"/nas") || claims.IdentityIssuer != s.identity.config.Issuer || !validSubject(claims.Subject) || claims.ClientID == "" || len(claims.ClientID) > 2048 || claims.ID == "" || len(claims.ID) > 128 || claims.CNF.JKT == "" || claims.IssuedAt == nil || claims.Expiry == nil {
 		return user, fault(401, "INVALID_IDENTITY", "身份凭据不匹配。")
+	}
+	now := time.Now()
+	issued, expires := claims.IssuedAt.Time(), claims.Expiry.Time()
+	if issued.After(now.Add(5*time.Second)) || !expires.After(now) || !expires.After(issued) || expires.Sub(issued) > time.Minute || now.Sub(issued) > 65*time.Second || (claims.NotBefore != nil && claims.NotBefore.Time().After(now.Add(5*time.Second))) {
+		return user, fault(401, "INVALID_IDENTITY", "身份凭据无效或已过期。")
 	}
 	if err = s.verifyProof(r, raw, claims.CNF.JKT); err != nil {
 		return user, err
 	}
-	user = IdentityUser{Issuer: claims.IdentityIssuer, Sub: identity.Subject, Name: claims.Name, Email: claims.Email, Role: "member"}
+	if !containsScope(claims.Scope, "account:read") {
+		return user, fault(403, "INSUFFICIENT_SCOPE", "此凭据没有读取账户的权限。")
+	}
+	user = IdentityUser{Issuer: claims.IdentityIssuer, Sub: claims.Subject, Name: claims.Name, Email: claims.Email, Role: "member"}
 	if s.identity.admins[user.Sub] {
 		user.Role = "admin"
 	}
 	return user, nil
+}
+func containsScope(value, required string) bool {
+	for _, scope := range strings.Split(value, " ") {
+		if scope == required {
+			return true
+		}
+	}
+	return false
 }
 func (s *Server) verifyProof(r *http.Request, token, thumbprint string) error {
 	fail := func() error {
@@ -220,6 +307,10 @@ func (s *Server) verifyProof(r *http.Request, token, thumbprint string) error {
 	if header.ExtraHeaders["typ"] != "dpop+jwt" || jwk == nil || !jwk.IsPublic() || !jwk.Valid() {
 		return fail()
 	}
+	public, ok := jwk.Key.(*ecdsa.PublicKey)
+	if !ok || public.Curve != elliptic.P256() {
+		return fail()
+	}
 	hash, err := jwk.Thumbprint(crypto.SHA256)
 	if err != nil || base64.RawURLEncoding.EncodeToString(hash) != thumbprint {
 		return fail()
@@ -235,7 +326,7 @@ func (s *Server) verifyProof(r *http.Request, token, thumbprint string) error {
 		ID     string `json:"jti"`
 		Hash   string `json:"ath"`
 	}
-	if json.Unmarshal(payload, &proof) != nil || proof.Method != r.Method || proof.URI != s.identity.config.SiteOrigin+r.URL.EscapedPath() || proof.IAT < time.Now().Unix()-60 || proof.IAT > time.Now().Unix()+5 || len(proof.ID) < 16 || len(proof.ID) > 128 {
+	if json.Unmarshal(payload, &proof) != nil || proof.Method != r.Method || !sameProofURI(proof.URI, s.identity.config.ResourceOrigin+r.URL.EscapedPath()) || proof.IAT < time.Now().Unix()-60 || proof.IAT > time.Now().Unix()+5 || len(proof.ID) < 16 || len(proof.ID) > 128 {
 		return fail()
 	}
 	tokenHash := sha256.Sum256([]byte(token))
@@ -244,15 +335,85 @@ func (s *Server) verifyProof(r *http.Request, token, thumbprint string) error {
 	}
 	proofHash := sha256.Sum256([]byte(thumbprint + "\x00" + proof.ID))
 	key := base64.RawURLEncoding.EncodeToString(proofHash[:])
-	_, err = s.Store.DB.ExecContext(r.Context(), `INSERT INTO identity_proofs(id,expires_at) VALUES(?,?)`, key, time.Now().Unix()+120)
+	result, err := s.Store.DB.ExecContext(r.Context(), `INSERT INTO identity_proofs(id,expires_at) VALUES(?,?) ON CONFLICT(id) DO NOTHING`, key, time.Now().Unix()+120)
 	if err != nil {
+		return fault(503, "AUTH_STORAGE_UNAVAILABLE", "身份验证存储暂不可用，请稍后重试。")
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return fault(503, "AUTH_STORAGE_UNAVAILABLE", "身份验证存储暂不可用，请稍后重试。")
+	}
+	if count != 1 {
 		return fail()
 	}
 	_, _ = s.Store.DB.ExecContext(r.Context(), `DELETE FROM identity_proofs WHERE expires_at<?`, time.Now().Unix())
 	return nil
 }
+func sameProofURI(proof, target string) bool {
+	normalize := func(value string) string {
+		u, err := url.Parse(value)
+		if err != nil || !strings.EqualFold(u.Scheme, "https") || u.Host == "" || u.User != nil || strings.ContainsAny(value, "?#") {
+			return ""
+		}
+		host := strings.ToLower(u.Host)
+		if strings.HasSuffix(host, ":443") {
+			host = strings.TrimSuffix(host, ":443")
+		}
+		path := u.EscapedPath()
+		if path == "" {
+			path = "/"
+		}
+		var normalized strings.Builder
+		for i := 0; i < len(path); i++ {
+			if path[i] == '%' {
+				decoded, err := url.PathUnescape(path[i : i+3])
+				if err != nil {
+					return ""
+				}
+				c := decoded[0]
+				if c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.ContainsRune("-._~", rune(c)) {
+					normalized.WriteByte(c)
+				} else {
+					normalized.WriteString(strings.ToUpper(path[i : i+3]))
+				}
+				i += 2
+			} else {
+				normalized.WriteByte(path[i])
+			}
+		}
+		return "https://" + host + normalized.String()
+	}
+	a, b := normalize(proof), normalize(target)
+	return a != "" && a == b
+}
+func writeIdentityError(w http.ResponseWriter, err error) {
+	var f *Fault
+	if !errors.As(err, &f) {
+		f = &Fault{503, "AUTH_UNAVAILABLE", "身份验证暂不可用。"}
+	}
+	code, description := "invalid_token", "The access token is missing, invalid or expired."
+	switch f.Code {
+	case "INVALID_PROOF":
+		code, description = "invalid_dpop_proof", "The DPoP proof is invalid or has already been used."
+	case "INSUFFICIENT_SCOPE":
+		code, description = "insufficient_scope", "The account:read scope is required."
+	}
+	if f.Status == 503 {
+		code, description = "temporarily_unavailable", "Identity verification is temporarily unavailable."
+	}
+	if f.Status == 401 || f.Status == 403 {
+		challenge := `DPoP realm="lantern-dock", algs="ES256"`
+		if f.Code != "LOGIN_REQUIRED" {
+			challenge += `, error="` + code + `"`
+		}
+		if f.Code == "INSUFFICIENT_SCOPE" {
+			challenge += `, scope="account:read"`
+		}
+		w.Header().Set("WWW-Authenticate", challenge)
+	}
+	writeJSON(w, f.Status, map[string]string{"error": code, "error_description": description, "message": f.Message, "code": f.Code})
+}
 func (s *Server) serveAccount(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("WWW-Authenticate", `DPoP realm="lantern-dock"`)
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(204)
 		return
@@ -262,6 +423,7 @@ func (s *Server) serveAccount(w http.ResponseWriter, r *http.Request) {
 		if s.identity != nil {
 			value["issuer"] = s.identity.config.Issuer
 			value["siteOrigin"] = s.identity.config.SiteOrigin
+			value["resourceOrigin"] = s.identity.config.ResourceOrigin
 		}
 		writeJSON(w, 200, value)
 		return
@@ -272,7 +434,7 @@ func (s *Server) serveAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	user, err := s.identityUser(r)
 	if err != nil {
-		writeError(w, err)
+		writeIdentityError(w, err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"user": user, "administratorConfigured": len(s.identity.admins) > 0})

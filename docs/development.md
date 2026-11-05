@@ -89,7 +89,7 @@ Manually entered backend credentials and short NAS grants stay in page memory. O
 
 ## OIDC integration tests
 
-`test/auth.test.mjs` exercises PKCE, state/nonce validation, ID token/UserInfo matching, encrypted cookies, browser-key binding, short grants, logout and secret rotation. The Go identity tests verify signed credentials, proof replay rejection and local administrator decisions without per-request network lookups.
+`test/auth.test.mjs` exercises PKCE, state/nonce validation, ID token/UserInfo matching, encrypted cookies, browser-key binding, standard token responses/errors, DPoP nonce retry, logout, master-secret rotation and overlapping signing versions. Go identity tests cover trusted discovery, JWKS refresh/retirement, access-token claims and scopes, proof replay rejection and local administrator decisions without per-request network lookups. The [identity protocol](identity-protocol.md) and [bridge contract](bridge-protocol.md) describe the interoperable formats and project-specific mappings.
 
 `test/integration/identity.spec.mjs` runs the production frontend with the actual sibling workers-sso Worker in Miniflare, a disposable D1 database, the real bridge and the actual NAS binary. It seeds only a fixture SSO session and uses a minimal consent view around the real provider endpoints; no production identity is used. Build the sibling provider first:
 
@@ -103,7 +103,7 @@ npm run build
 GO_BIN=/path/to/go PLAYWRIGHT_CHANNEL=chrome npm run test:bridge
 ```
 
-Use `SSO_SOURCE` to override that source path. The test uses the sibling's Miniflare installation, forwards its public fixture hostname to local HTTPS, and grants local-network access to that test origin so Chromium can reach the loopback UDP bridge. The NAS trusts only the temporary fixture certificate for that connection, using a local CONNECT proxy. No system trust or production provider source is changed. Both desktop and mobile cases cover login, subject/config copying, reload, administrator changes and logout. These integration tests are local; CI currently runs unit checks and the NAS Docker smoke test.
+Use `SSO_SOURCE` to override that source path. The test uses the sibling's Miniflare installation, forwards its public fixture hostname to local HTTPS, and grants local-network access to that test origin so Chromium can reach the loopback UDP bridge. The NAS trusts only the temporary fixture certificate for that connection, using a local CONNECT proxy. No system trust or production provider source is changed. Both desktop and mobile cases cover login, subject/config copying, reload, administrator changes, signing-key rollover, DPoP nonce retry, direct HTTPS resource-origin binding and logout. These integration tests are local; CI currently runs unit checks and the NAS Docker smoke test.
 
 ## NAS backend
 

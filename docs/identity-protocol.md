@@ -1,0 +1,121 @@
+# NAS identity protocol, version 1
+
+This document defines the contract between the LanternDock Worker, browser and NAS. It uses OAuth authorization-server metadata ([RFC 8414](https://www.rfc-editor.org/rfc/rfc8414.html)), JWT access tokens ([RFC 9068](https://www.rfc-editor.org/rfc/rfc9068.html)), JWKS ([RFC 7517](https://www.rfc-editor.org/rfc/rfc7517.html)) and DPoP ([RFC 9449](https://www.rfc-editor.org/rfc/rfc9449.html)).
+
+LanternDock is an OIDC client of workers-sso and a separate issuer of NAS access tokens. Its token endpoint supports a **project-specific session extension grant**, following RFC 6749 section 4.5. It does not offer general client registration, its own OIDC authorization endpoint, refresh tokens or third-party application authorization. The existing site cookie authenticates the user; `client_id` identifies the built-in public browser client and is not a secret.
+
+## Discovery and trust
+
+For a portal at `https://nas.example.com`, retrieve:
+
+```http
+GET /.well-known/oauth-authorization-server HTTP/1.1
+Host: nas.example.com
+Accept: application/json
+```
+
+```json
+{
+  "issuer": "https://nas.example.com",
+  "jwks_uri": "https://nas.example.com/api/auth/jwks.json",
+  "token_endpoint": "https://nas.example.com/api/auth/token",
+  "grant_types_supported": ["urn:lantern-dock:params:oauth:grant-type:session"],
+  "response_types_supported": [],
+  "token_endpoint_auth_methods_supported": ["none"],
+  "scopes_supported": ["account:read"],
+  "dpop_signing_alg_values_supported": ["ES256"],
+  "lantern_dock": {
+    "protocol_version": 1,
+    "resource": "https://nas.example.com/nas"
+  }
+}
+```
+
+`lantern_dock` is a project extension. The empty response-type list is intentional: this issuer only supports the session extension grant. OIDC login Discovery belongs to the upstream SSO issuer and is a separate document.
+
+The NAS starts from its configured `SITE_ORIGIN`, validates an exact metadata issuer match, and fetches the advertised `jwks_uri`. In this profile the JWKS URL must be HTTPS on the same origin, without credentials, query or fragment. Redirects are rejected. The NAS never follows a token-supplied `jku`, `x5u` or issuer URL to decide whom to trust.
+
+Discovery is lazy, on the first authenticated request. Metadata and its remote key cache are renewed after five minutes on demand; unknown signing-key IDs can refresh JWKS sooner. There is no background polling and no per-file Worker call. Retrieval uses bounded bodies and a ten-second HTTP timeout. Discovery failures return `503`; an invalid token or proof returns `401`. A valid existing cache can continue working until its refresh boundary; expired discovery does not silently fall back to another issuer or anonymous access.
+
+## Session grant and nonce retry
+
+The browser calls the discovered token endpoint with its HttpOnly site cookie, the exact site `Origin`, and a signed DPoP proof:
+
+```http
+POST /api/auth/token HTTP/1.1
+Host: nas.example.com
+Origin: https://nas.example.com
+Content-Type: application/x-www-form-urlencoded
+DPoP: <proof JWT>
+
+grant_type=urn%3Alantern-dock%3Aparams%3Aoauth%3Agrant-type%3Asession&client_id=https%3A%2F%2Fnas.example.com%2F&resource=https%3A%2F%2Fnas.example.com%2Fnas&scope=account%3Aread
+```
+
+The grant type and client ID are required. `resource` defaults to `SITE_ORIGIN + "/nas"` and cannot select another resource. `scope` defaults to `account:read`; no additional scopes are currently issued. Recognized parameters may not occur twice. Bodies are limited to 8 KiB.
+
+A valid session and proof without a current server nonce receive:
+
+```http
+HTTP/1.1 400 Bad Request
+DPoP-Nonce: <opaque server nonce>
+Cache-Control: no-store
+Pragma: no-cache
+Content-Type: application/json
+
+{"error":"use_dpop_nonce","error_description":"Retry with the supplied DPoP nonce and a new proof."}
+```
+
+The client retries once with a **new proof and `jti`**, adding the nonce to the proof payload. Nonces are authenticated, expire after 60 seconds and are bound to the browser key and subject. They cannot be used with another user's session or substituted for a session cookie. Successful responses also provide a fresh `DPoP-Nonce`; the browser retains it only in memory.
+
+```json
+{
+  "access_token": "<signed JWT>",
+  "token_type": "DPoP",
+  "expires_in": 60,
+  "scope": "account:read"
+}
+```
+
+Token responses use `Cache-Control: no-store` and `Pragma: no-cache`. Invalid sessions use `invalid_grant`; invalid proofs use `invalid_dpop_proof`. Invalid request parameters use OAuth error names including `invalid_request`, `unsupported_grant_type`, `invalid_client`, `invalid_target` and `invalid_scope`. A `message` extension supplies localized UI text; `error_description` is diagnostic text. The old `accessToken` / `expiresAt` response fields are no longer used.
+
+The Worker is stateless across points of presence: it does not maintain a global, single-use `jti` database for token issuance. Its nonce, timestamp window, HttpOnly session, exact Origin check and session-bound browser key constrain token issuance. Nonces are not single-use. NAS resource requests additionally have strict, persistent proof replay rejection.
+
+## JWT access-token validation
+
+The protected header uses `typ: at+jwt`, `alg: EdDSA` and the signing key's `kid`. Keys are Ed25519, published as public OKP JWKs with `use: sig`; private key material is never included in JWKS. Access tokens contain:
+
+| Claim               | Value / validation                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `iss`               | Exact configured LanternDock site origin.                                                                                             |
+| `aud`               | Includes `SITE_ORIGIN + "/nas"`, the NAS resource identifier.                                                                         |
+| `sub`               | Upstream OIDC subject; nonempty, at most 255 ASCII characters.                                                                        |
+| `client_id`         | Built-in client identifier, `SITE_ORIGIN + "/"`. The NAS requires a nonempty identifier.                                              |
+| `iat`, `exp`, `jti` | Required issuance/expiry times and unique token identifier. Lifetime is positive and at most 60 seconds; expired tokens are rejected. |
+| `scope`             | `account:read` is required for the account endpoint.                                                                                  |
+| `cnf.jkt`           | SHA-256 JWK thumbprint of the browser proof key.                                                                                      |
+| `identity_issuer`   | Project claim identifying the upstream SSO; must match NAS `OIDC_ISSUER_URL`.                                                         |
+| `name`, `email`     | Optional display data; do not determine permissions.                                                                                  |
+
+The NAS accepts only signed access tokens of the expected type and algorithm, not OIDC ID tokens or DPoP proof JWTs. The account role is computed locally from `(identity_issuer, sub)` and the configured `ADMIN_SUBJECTS`, never from a token's claimed role. This version has no administrative write scopes or APIs.
+
+## NAS resource requests
+
+```http
+GET /api/account HTTP/1.1
+Authorization: DPoP <access_token>
+DPoP: <new proof JWT>
+```
+
+The proof uses `typ: dpop+jwt`, `alg: ES256`, a public P-256 JWK, and claims `jti`, `iat`, `htm`, `htu` and `ath`. `ath` is the base64url SHA-256 hash of the access token. The proof's public-key thumbprint must equal `cnf.jkt`. The NAS validates the method and URI, accepts only a short timestamp window, and records a hash of `(jkt, jti)` in SQLite to reject replay, including across restarts. Storage failures are service errors, not authentication failures.
+
+For direct HTTPS, `htu` is the actual NAS endpoint origin plus request path, without query or fragment. Set NAS `NAS_RESOURCE_ORIGIN` when that origin differs from the portal; it defaults to `SITE_ORIGIN`. Scheme/host/default-port and unreserved percent-encoding normalization are supported by the clients/verifier. A reverse proxy must preserve paths.
+
+For WebTransport, this project defines the logical HTTP request URI as `SITE_ORIGIN + request path`; the bridge forwards its origin-form HTTP request to the private NAS. This is a project-specific mapping of HTTP onto WebTransport, not a claim that unmodified OAuth HTTP clients can use the tunnel. See the [bridge contract](bridge-protocol.md).
+
+The NAS does not require its own DPoP nonce: its short-lived grants and persistent proof replay tracking apply at the resource endpoint. `401` responses use `WWW-Authenticate: DPoP` with `algs="ES256"` and, where applicable, `error="invalid_token"` or `error="invalid_dpop_proof"`. Missing scope returns `403` with `error="insufficient_scope"` and `scope="account:read"`. These headers are exposed by NAS CORS. Public WebDAV and file-drop bearer tokens are separate authorization paths.
+
+## Versioning
+
+`lantern_dock.protocol_version` identifies this identity contract; the browser and NAS reject unsupported/missing versions. Additions that old clients can ignore may remain version 1. Incompatible grants, claim meanings or URI mappings require a new protocol version. Discovery/JWKS paths and ordinary JSON property order are not part of the signature contract. Consumers use `kid`, not key-array order, for verification.
+
+Deploy the updated Worker before a NAS that requires discovery, and refresh existing account pages after upgrading the token format. Existing public DAV/file-drop APIs are unaffected. See [key rotation](authentication.md#rotate-nas-signing-keys) for maintaining overlapping verification keys.

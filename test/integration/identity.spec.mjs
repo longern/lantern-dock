@@ -134,3 +134,117 @@ test("administrator subjects are enforced on the NAS and apply to an existing lo
     ),
   ).toBe(false);
 });
+
+test("discovery, nonce retry and signing-key rollover work with an existing browser session", async ({
+  page,
+  context,
+}) => {
+  await fixture.nas.administrators([]);
+  const replies = [];
+  const pending = [];
+  page.on("response", (response) => {
+    if (new URL(response.url()).pathname === "/api/auth/token")
+      pending.push(
+        response
+          .json()
+          .then((body) => replies.push({ status: response.status(), body })),
+      );
+  });
+  fixture.env.AUTH_SIGNING_KEY_VERSIONS = '["v1","v2"]';
+  try {
+    await login(page);
+    await expect(
+      page.getByRole("heading", { name: "尚未配置管理员", exact: true }),
+    ).toBeVisible();
+    await Promise.all(pending);
+    expect(
+      replies.some(
+        (r) => r.status === 400 && r.body.error === "use_dpop_nonce",
+      ),
+    ).toBe(true);
+    const first = replies.find((r) => r.status === 200).body;
+    expect(first).toMatchObject({
+      token_type: "DPoP",
+      expires_in: 60,
+      scope: "account:read",
+    });
+    expect(first.accessToken).toBeUndefined();
+    const cookie = (await context.cookies(fixture.origin)).find(
+      (c) => c.name === "__Host-lantern-session",
+    ).value;
+    fixture.env.AUTH_SIGNING_KEY_VERSIONS = '["v2","v1"]';
+    const nextToken = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/auth/token" &&
+        response.status() === 200,
+    );
+    await page.getByRole("button", { name: "重新检测", exact: true }).click();
+    await nextToken;
+    await expect(
+      page.getByRole("button", { name: "重新检测", exact: true }),
+    ).toBeEnabled();
+    await expect(
+      page.getByRole("heading", { name: "尚未配置管理员", exact: true }),
+    ).toBeVisible();
+    await Promise.all(pending);
+    const last = replies.filter((r) => r.status === 200).at(-1).body;
+    const header = (token) =>
+      JSON.parse(Buffer.from(token.split(".")[0], "base64url").toString());
+    expect(header(last.access_token).kid).not.toBe(
+      header(first.access_token).kid,
+    );
+    expect(
+      (await context.cookies(fixture.origin)).find(
+        (c) => c.name === "__Host-lantern-session",
+      ).value,
+    ).toBe(cookie);
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "尚未配置管理员", exact: true }),
+    ).toBeVisible();
+  } finally {
+    delete fixture.env.AUTH_SIGNING_KEY_VERSIONS;
+  }
+});
+
+test("direct HTTPS identities bind the proof to the NAS public origin", async ({
+  page,
+}) => {
+  const previous = { ...fixture.env };
+  const resourceOrigin = "https://nas-api.example";
+  const proofs = [];
+  await fixture.nas.administrators([], { resourceOrigin });
+  fixture.env.BACKEND_TRANSPORT = "http";
+  fixture.env.BACKEND_ENDPOINT = resourceOrigin;
+  try {
+    await page.route(resourceOrigin + "/**", async (route) => {
+      const request = route.request();
+      if (
+        request.method() === "GET" &&
+        new URL(request.url()).pathname === "/api/account"
+      )
+        proofs.push((await request.allHeaders()).dpop);
+      const response = await route.fetch({
+        url: fixture.nas.endpoint + new URL(request.url()).pathname,
+      });
+      await route.fulfill({ response });
+    });
+    await login(page);
+    await expect(
+      page.getByRole("heading", { name: "尚未配置管理员", exact: true }),
+    ).toBeVisible();
+    expect(
+      JSON.parse(Buffer.from(proofs[0].split(".")[1], "base64url").toString())
+        .htu,
+    ).toBe(resourceOrigin + "/api/account");
+    // An incorrect NAS resource-origin setting must fail proof verification.
+    await fixture.nas.administrators([]);
+    await page.getByRole("button", { name: "重新检测", exact: true }).click();
+    await expect(page.getByRole("alert")).toContainText("无法验证请求");
+    await expect(page.getByLabel("用户标识（sub）")).toHaveValue(
+      identitySubject,
+    );
+  } finally {
+    Object.assign(fixture.env, previous);
+  }
+});

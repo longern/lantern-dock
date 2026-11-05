@@ -7,6 +7,7 @@ services:
       SITE_ORIGIN: ${SITE_ORIGIN}
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
       ADMIN_SUBJECTS: ${ADMIN_SUBJECTS:-[]}
+      NAS_RESOURCE_ORIGIN: ${NAS_RESOURCE_ORIGIN:-}
     volumes:
       - type: bind
         source: ${PUBLIC_DIR:?Set PUBLIC_DIR to the folder you want to publish}

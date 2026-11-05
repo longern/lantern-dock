@@ -78,7 +78,7 @@ Use [`compose.nas.yaml`](compose.nas.yaml) for the NAS backend plus WebTransport
 
 ### Sign in with workers-sso
 
-Set `SITE_ORIGIN` and `OIDC_ISSUER_URL` on the Worker and NAS. Open **我的账户**, sign in, and copy your `sub` into the NAS `ADMIN_SUBJECTS` JSON array. The Worker signs short-lived, browser-bound credentials; the NAS verifies them locally and determines the role. See [authentication setup](docs/authentication.md) for deployment, cookies, key ownership and security boundaries. workers-sso requires no changes.
+Set `SITE_ORIGIN` and `OIDC_ISSUER_URL` on the Worker and NAS. Open **我的账户**, sign in, and copy your `sub` into the NAS `ADMIN_SUBJECTS` JSON array. The Worker signs short-lived, browser-bound credentials; the NAS discovers its public keys automatically, verifies tokens locally and determines the role. See [authentication setup](docs/authentication.md) for deployment and key rotation, or the [identity protocol](docs/identity-protocol.md) for Discovery, JWT and DPoP details. workers-sso requires no changes.
 
 ## How it works
 
