@@ -100,11 +100,11 @@ For a publicly trusted gateway certificate, set `CERTIFICATE_MODE="webpki"` to u
 
 ### Certificate updates
 
-The pinned-certificate setup wizard includes a **Certificate update Webhook** panel. On a deployed HTTPS site, it uses the current origin; from local development, enter the HTTPS origin of the LanternDock Worker. A key generated in the wizard automatically derives the URL. For an already configured key, paste the saved `SECRET_KEY` into the password field to compute the URL locally. The key is not sent to the server or saved in browser storage, and the public configuration API never returns the private URL.
+The pinned-certificate setup wizard generates the **site key and certificate Webhook URL together**, in the same section. On a deployed HTTPS site, the URL uses the current origin; from local development, enter the HTTPS origin of the LanternDock Worker. No key needs to be pasted back into the page. The key stays in page memory, and the public configuration API never returns the private URL.
 
-Click **Copy Webhook URL** and paste the value into the bridge's `CERT_WEBHOOK_URL`. Deploy the same `SECRET_KEY` as a Worker Secret, bind `PINS` KV, and run the bridge with `--auto-cert`. The bridge can then publish certificate pins and renew them automatically. Return to the wizard and recheck after publication. This panel is unnecessary for direct WebDAV or publicly trusted WebTransport certificates.
+Save both configuration files before deploying: **Download configuration** saves the site settings, including `SECRET_KEY`, as `lantern-dock.env`; **Download bridge.env** saves `CERT_WEBHOOK_URL` for the bridge. Merge the bridge settings into its existing `.env`. You can also click **Copy Webhook URL** and paste the value into the bridge's `CERT_WEBHOOK_URL`. Deploy the same `SECRET_KEY` as a Worker Secret, bind `PINS` KV, and run the bridge with `--auto-cert`. The bridge can then publish certificate pins and renew them automatically. Return to the wizard and recheck after publication. This panel is unnecessary for direct WebDAV or publicly trusted WebTransport certificates.
 
-The CLI below produces the same URL and remains available as an alternative.
+For an already configured site, reuse the URL saved during initialization. If it was not saved, the CLI below recomputes the same URL from the existing local key; the wizard does not ask for the deployed key or rotate it.
 
 Use the same site key for the Worker and local webhook generation. If the wizard generated your deployment key, save that exported `SECRET_KEY` in the local `.env` before running these commands. Otherwise initialize a key with `npm run init` and deploy it as a Worker Secret. An unrelated local key produces a different webhook URL.
 

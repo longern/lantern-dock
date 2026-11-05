@@ -422,7 +422,8 @@
   justify-content: space-between;
   gap: 12px;
 }
-.setup-secret-heading h3 {
+.setup-secret-heading h3,
+.setup-secret-heading h4 {
   font-size: 13px;
   font-weight: 500;
   margin: 0;
@@ -459,6 +460,23 @@
   align-items: center;
   gap: 12px;
   margin-top: 12px;
+}
+.setup-webhook {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+  margin-top: 18px;
+}
+.setup-webhook-existing summary {
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.setup-webhook-existing > code {
+  display: block;
+  font-size: 11px;
+  line-height: 1.8;
+  color: #656577;
 }
 .setup-webhook-actions button:disabled {
   opacity: 0.5;

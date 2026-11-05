@@ -4,7 +4,6 @@ import { setupVariables, setupSnippet } from "../lib/setup.js";
 import { backendDefaults } from "../../shared/backend-defaults.js";
 import { generateSecretKey } from "../../shared/site-secret.js";
 import { DeploymentSecret } from "./DeploymentSecret.jsx";
-import { CertificateWebhook } from "./CertificateWebhook.jsx";
 
 const steps = ["选择连接方式", "填写后端信息", "应用配置"];
 const reasons = {
@@ -369,6 +368,11 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
               onReveal={() => setSecretRevealed((value) => !value)}
               onGenerate={generateKey}
               target={target}
+              certificateWebhook={
+                form.transport === "webtransport" &&
+                form.certificateMode === "pinned"
+              }
+              notify={notify}
             />
             <div class="setup-code-heading">
               <span>
@@ -401,13 +405,6 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
                 密钥已隐藏；请使用「复制配置」或「下载配置」获取完整内容。
               </p>
             )}
-            {form.transport === "webtransport" &&
-              form.certificateMode === "pinned" && (
-                <CertificateWebhook
-                  secretKey={exportSecretKey}
-                  notify={notify}
-                />
-              )}
             <div class="setup-checklist">
               <strong>连接前再确认</strong>
               <ul>

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
   certificateWebhookUrl,
-  validateSecretKey,
   webhookOrigin,
 } from "../../shared/site-secret.js";
 
@@ -9,27 +8,21 @@ export function CertificateWebhook({ secretKey, notify }) {
   const [address, setAddress] = useState(
     location.protocol === "https:" ? location.origin : "",
   );
-  const [existingKey, setExistingKey] = useState("");
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [revealed, setRevealed] = useState(false);
   const output = useRef(null);
-  const key = secretKey || existingKey;
-  let origin = "",
-    validKey = false;
+  const key = secretKey;
+  let origin = "";
   try {
     origin = webhookOrigin(address);
-  } catch {}
-  try {
-    validateSecretKey(key);
-    validKey = true;
   } catch {}
 
   useEffect(() => {
     let active = true;
     setError("");
     setResult(null);
-    if (origin && validKey) {
+    if (origin && key) {
       certificateWebhookUrl(key, origin)
         .then((url) => {
           if (active) setResult({ key, origin, url });
@@ -44,7 +37,7 @@ export function CertificateWebhook({ secretKey, notify }) {
     return () => {
       active = false;
     };
-  }, [key, origin, validKey]);
+  }, [key, origin]);
   // Never copy a result derived from a previous key or deployment address.
   const url =
     result?.key === key && result?.origin === origin ? result.url : "";
@@ -62,10 +55,51 @@ export function CertificateWebhook({ secretKey, notify }) {
       notify("请复制已选中的 Webhook URL。");
     }
   };
+  const download = () => {
+    if (!url) return;
+    const objectUrl = URL.createObjectURL(
+      new Blob([`CERT_WEBHOOK_URL=${JSON.stringify(url)}\n`], {
+        type: "application/octet-stream",
+      }),
+    );
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.download = "bridge.env";
+    document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  };
+  if (!key)
+    return (
+      <section class="setup-webhook" aria-label="证书更新 Webhook">
+        <div class="setup-secret-heading">
+          <h4>证书更新 Webhook</h4>
+          <span>Bridge</span>
+        </div>
+        <p>
+          将首次生成密钥时一并保存的 Webhook URL 填入 bridge 的{" "}
+          <code>CERT_WEBHOOK_URL</code>。
+        </p>
+        <details class="setup-webhook-existing">
+          <summary>使用已有密钥重新计算 URL</summary>
+          <p>
+            在本地项目的 <code>.env</code> 中保留已部署的同一个{" "}
+            <code>SECRET_KEY</code>，运行以下命令：
+          </p>
+          <code>
+            npm run webhook --{" "}
+            {location.protocol === "https:"
+              ? location.origin
+              : "https://lantern-dock.example.workers.dev"}
+          </code>
+        </details>
+      </section>
+    );
   return (
-    <section class="setup-secret setup-webhook" aria-label="证书更新 Webhook">
+    <section class="setup-webhook" aria-label="证书更新 Webhook">
       <div class="setup-secret-heading">
-        <h3>证书更新 Webhook</h3>
+        <h4>证书更新 Webhook</h4>
         <span>Bridge</span>
       </div>
       <p>
@@ -91,32 +125,10 @@ export function CertificateWebhook({ secretKey, notify }) {
           ? "请填写 HTTPS 站点地址，不包含路径、参数或账号。"
           : "填写运行 LanternDock 的 Worker 地址，网关地址无需填在这里。"}
       </p>
-      {!secretKey && (
-        <>
-          <label class="form-label" for="webhook-existing-key">
-            已部署的 SECRET_KEY
-          </label>
-          <input
-            id="webhook-existing-key"
-            type="password"
-            value={existingKey}
-            onInput={(event) => setExistingKey(event.currentTarget.value)}
-            autoComplete="off"
-            spellCheck={false}
-            aria-describedby="webhook-key-help"
-          />
-          <p id="webhook-key-help">
-            {existingKey && !validKey
-              ? "SECRET_KEY 至少需要 32 个字符，且不能包含首尾空格或换行。"
-              : "粘贴已有密钥，在当前浏览器中计算 URL。此输入不会上传或保存，也不会替换站点密钥。"}
-          </p>
-        </>
-      )}
-      {secretKey && (
-        <p>
-          已使用本次向导生成的密钥自动派生 URL；请部署上方配置中的同一个密钥。
-        </p>
-      )}
+      <p>
+        已使用上方新密钥同步生成 URL。请一并保存站点 .env 和
+        bridge.env，分别部署到 Worker 和 bridge。
+      </p>
       <label class="form-label" for="certificate-webhook-url">
         证书更新 Webhook URL
       </label>
@@ -140,6 +152,9 @@ export function CertificateWebhook({ secretKey, notify }) {
         </button>
         <button class="secondary-button" disabled={!url} onClick={copy}>
           复制 Webhook URL
+        </button>
+        <button class="text-button" disabled={!url} onClick={download}>
+          下载 bridge.env
         </button>
       </div>
       {error && <p role="status">{error}</p>}

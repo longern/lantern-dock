@@ -91,6 +91,27 @@ test("new deployment webhook URLs are derived locally and copy the complete URL"
   const expected = await certificateWebhookUrl(key, "https://dock.example.com");
   await expect(output).toHaveValue(expected);
   await expect(output).toHaveAttribute("type", "password");
+  await expect(
+    page
+      .getByRole("region", { name: "站点密钥", exact: true })
+      .getByRole("region", { name: "证书更新 Webhook", exact: true }),
+  ).toBeVisible();
+  const downloadedSite = page.waitForEvent("download");
+  await page.getByRole("button", { name: "下载配置", exact: true }).click();
+  expect(
+    parseLocalVariables(
+      await readFile(await (await downloadedSite).path(), "utf8"),
+    ).SECRET_KEY,
+  ).toBe(key);
+  const downloadedBridge = page.waitForEvent("download");
+  await page
+    .getByRole("button", { name: "下载 bridge.env", exact: true })
+    .click();
+  const bridgeFile = await downloadedBridge;
+  expect(bridgeFile.suggestedFilename()).toBe("bridge.env");
+  expect(
+    parseLocalVariables(await readFile(await bridgeFile.path(), "utf8")),
+  ).toEqual({ CERT_WEBHOOK_URL: expected });
   await page.evaluate(() =>
     Object.defineProperty(navigator, "clipboard", {
       configurable: true,
@@ -147,7 +168,7 @@ test("new deployment webhook URLs are derived locally and copy the complete URL"
   ).not.toContain(key);
 });
 
-test("an existing deployment key can derive a webhook without replacing it or sending it to the server", async ({
+test("an existing deployment keeps its key and offers saved URL recovery without a secret input", async ({
   page,
 }) => {
   const existing = "saved-existing-site-key-".repeat(4);
@@ -160,34 +181,26 @@ test("an existing deployment key can derive a webhook without replacing it or se
     SECRET_KEY: existing,
   });
   await page.goto("/");
-  const key = page.getByLabel("已部署的 SECRET_KEY", { exact: true });
-  const output = page.getByLabel("证书更新 Webhook URL", { exact: true });
-  await expect(key).toHaveAttribute("type", "password");
-  await expect(key).toHaveValue("");
-  await page
-    .getByLabel("LanternDock 部署地址", { exact: true })
-    .fill("https://dock.example.com");
-  await key.fill(existing);
-  await expect(output).toHaveValue(
-    await certificateWebhookUrl(existing, "https://dock.example.com"),
-  );
+  await expect(
+    page.getByLabel("已部署的 SECRET_KEY", { exact: true }),
+  ).toHaveCount(0);
+  const webhook = page.getByRole("region", {
+    name: "证书更新 Webhook",
+    exact: true,
+  });
+  await expect(webhook).toContainText("首次生成密钥时一并保存的 Webhook URL");
+  await webhook.getByText("使用已有密钥重新计算 URL", { exact: true }).click();
+  await expect(webhook).toContainText("npm run webhook --");
   expect(
     await page
       .getByRole("textbox", { name: "生成的配置", exact: true })
       .inputValue(),
   ).not.toContain("SECRET_KEY");
-  await key.fill("short");
-  await expect(output).toHaveValue("");
-  await expect(
-    page.getByRole("button", { name: "复制 Webhook URL", exact: true }),
-  ).toBeDisabled();
+  expect(await page.content()).not.toContain(existing);
   expect(requests.join("\n")).not.toContain(existing);
   expect(
     await page.evaluate(() => JSON.stringify({ localStorage, sessionStorage })),
   ).not.toContain(existing);
-  await page.reload();
-  await expect(key).toHaveValue("");
-  await expect(output).toHaveValue("");
 });
 
 test("choosing one URL clears the other configured URL explicitly", async ({

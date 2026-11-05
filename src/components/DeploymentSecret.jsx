@@ -1,3 +1,5 @@
+import { CertificateWebhook } from "./CertificateWebhook.jsx";
+
 export function DeploymentSecret({
   secretKey,
   hasSecretKey,
@@ -5,6 +7,8 @@ export function DeploymentSecret({
   onReveal,
   onGenerate,
   target,
+  certificateWebhook,
+  notify,
 }) {
   return (
     <section class="setup-secret" aria-label="站点密钥">
@@ -43,6 +47,9 @@ export function DeploymentSecret({
             {hasSecretKey ? "为新部署生成密钥" : "生成部署密钥"}
           </button>
         </>
+      )}
+      {certificateWebhook && (
+        <CertificateWebhook secretKey={secretKey} notify={notify} />
       )}
     </section>
   );
