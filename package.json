@@ -26,6 +26,7 @@
     "vite": "^8.3.5"
   },
   "dependencies": {
+    "lucide-preact": "^1.69.0",
     "preact": "^11.1.1"
   }
 }
