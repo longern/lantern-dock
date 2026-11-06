@@ -233,6 +233,9 @@ export async function startFixture({ nas = false, identity = false } = {}) {
               ![
                 "transport.js",
                 "dav.js",
+                "cache.js",
+                "images.js",
+                "content.js",
                 "http-wire.js",
                 "uploads.js",
               ].includes(name)
@@ -342,6 +345,10 @@ export async function startFixture({ nas = false, identity = false } = {}) {
       await mkdir(resolve(publicDir, "照片"), { recursive: true });
       await writeFile(resolve(publicDir, "hello.txt"), textFile);
       await writeFile(resolve(publicDir, "coast.svg"), picture);
+      await writeFile(
+        resolve(publicDir, "照片", "photo.png"),
+        await readFile(resolve("test/fixtures/photo.png")),
+      );
       for (const path of ["#recycle", "@Recycle", "照片/@rEcYcLe"]) {
         await mkdir(resolve(publicDir, path), { recursive: true });
         await writeFile(
@@ -391,6 +398,7 @@ export async function startFixture({ nas = false, identity = false } = {}) {
       nasFixture = {
         endpoint: backendEndpoint,
         dataDir,
+        publicDir,
         async administrators(subjects, { resourceOrigin = origin } = {}) {
           const exited = new Promise((resolve) =>
             processNAS.once("exit", resolve),

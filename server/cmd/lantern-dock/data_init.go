@@ -122,7 +122,7 @@ func prepareData(directory string, uid, gid int) error {
 	device := base.Sys().(*syscall.Stat_t).Dev
 	allowed := func(name string) bool {
 		top := strings.SplitN(name, "/", 2)[0]
-		return name == "." || top == "inbox" || top == "lantern-dock.sqlite" || top == "lantern-dock.sqlite-wal" || top == "lantern-dock.sqlite-shm" || top == "server.lock"
+		return name == "." || top == "inbox" || top == "cache" || top == "lantern-dock.sqlite" || top == "lantern-dock.sqlite-wal" || top == "lantern-dock.sqlite-shm" || top == "server.lock"
 	}
 	return fs.WalkDir(root.FS(), ".", func(name string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {

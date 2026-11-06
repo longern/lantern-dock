@@ -4,7 +4,9 @@ go 1.26.0
 
 require (
 	github.com/coreos/go-oidc/v3 v3.21.0
+	github.com/disintegration/imaging v1.6.2
 	github.com/go-jose/go-jose/v4 v4.1.4
+	golang.org/x/image v0.47.0
 	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
 	modernc.org/sqlite v1.61.1

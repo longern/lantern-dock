@@ -53,6 +53,12 @@ test("default NAS routes and capabilities work through the shared bridge namespa
     readOnly: true,
   });
   expect(result.document.services.inbox.href).toBe(backendPaths.inbox);
+  expect(result.document.services.images).toMatchObject({
+    href: backendPaths.images,
+    version: 3,
+    protocol: "http://iiif.io/api/image",
+    enabled: true,
+  });
   expect(result.document.services.account).toMatchObject({
     href: backendPaths.account,
     version: 2,
@@ -297,4 +303,89 @@ test("cancelling a streaming upload through the bridge cleans partial files and 
     buffer: Buffer.from("retry succeeds"),
   });
   await expect(page.getByRole("status")).toHaveText("已接收");
+});
+
+test("IIIF thumbnails, preview and conditional cache work over real WebTransport", async ({
+  page,
+}, testInfo) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto(fixture.origin);
+  await page
+    .getByRole("button", { name: "打开文件夹 照片", exact: true })
+    .click();
+  await expect(page.locator(".file-card")).toHaveCount(1);
+  const thumbnail = page.locator(".thumbnail-slot img");
+  await expect(thumbnail).toBeVisible();
+  await expect
+    .poll(() => thumbnail.evaluate((img) => img.naturalWidth))
+    .toBe(128);
+  await page.getByRole("button", { name: "网格视图", exact: true }).click();
+  await expect
+    .poll(() => thumbnail.evaluate((img) => img.naturalWidth))
+    .toBe(384);
+  await page
+    .getByRole("button", { name: "预览 photo.png", exact: true })
+    .click();
+  const preview = page.locator(".preview-content img");
+  await expect(preview).toBeVisible();
+  await expect
+    .poll(() => preview.evaluate((img) => img.naturalWidth))
+    .toBe(1600);
+  await expect(page.locator(".file-details")).toContainText("2400 × 1600");
+  await page.screenshot({ path: testInfo.outputPath("iiif-preview.png") });
+  await page.getByRole("button", { name: "关闭预览", exact: true }).click();
+  await expect(page.locator("#preview-dialog")).toHaveCount(0);
+  const oldThumbnail = await thumbnail.getAttribute("src");
+  await page.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await expect(thumbnail).toBeVisible();
+  await expect(thumbnail).not.toHaveAttribute("src", oldThumbnail);
+  await expect
+    .poll(() => thumbnail.evaluate((img) => img.naturalWidth))
+    .toBe(384);
+  const result = await page.evaluate(async () => {
+    const { DirectTransport } = await import("/__test/lib/transport.js");
+    const { DAVClient } = await import("/__test/lib/dav.js");
+    const { backend } = await (await fetch("/api/config")).json();
+    const transport = new DirectTransport(backend);
+    const log = [];
+    const request = transport.request.bind(transport);
+    transport.request = async (path, opts) => {
+      const response = await request(path, opts);
+      log.push({ path, status: response.status, method: opts?.method });
+      return response;
+    };
+    const client = new DAVClient(transport, backend);
+    try {
+      const path = backend.rootPath + encodeURIComponent("照片") + "/";
+      const items = await client.list(path);
+      await client.list(path);
+      const listingsBeforeRefresh = log.filter(
+        (r) => r.method === "PROPFIND",
+      ).length;
+      await client.images.image(items[0], 128);
+      await client.images.image(items[0], 128);
+      await client.list(path, undefined, { force: true });
+      return {
+        listingsBeforeRefresh,
+        listingsAfterRefresh: log.filter((r) => r.method === "PROPFIND").length,
+        imageStatuses: log
+          .filter((r) => r.path.includes("/iiif/"))
+          .map((r) => r.status),
+      };
+    } finally {
+      client.dispose();
+      transport.close();
+    }
+  });
+  expect(result).toEqual({
+    listingsBeforeRefresh: 1,
+    listingsAfterRefresh: 2,
+    imageStatuses: [200, 200, 304, 304],
+  });
+  const cached = await readdir(resolve(fixture.nas.dataDir, "cache/images"));
+  expect(
+    cached.filter((name) => name.endsWith(".jpg")).length,
+  ).toBeGreaterThanOrEqual(3);
+  expect(errors).toEqual([]);
 });

@@ -2,6 +2,7 @@
 set -euo pipefail
 
 image=${1:?Usage: smoke-nas-image.sh IMAGE}
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 helper=busybox:1.37.0
 prefix="lantern-dock-smoke-${RANDOM}"
 test_dir=$(mktemp -d)
@@ -37,7 +38,16 @@ start() {
   done
   curl --fail --silent --show-error --max-time 5 "http://$address/healthz"
   curl --fail --silent --show-error --max-time 5 "http://$address/api/capabilities" \
-    | jq -e '.version == 1 and .services.files.href == "/dav/" and .services.files.readOnly == true and .services.inbox.href == "/api/uploads" and .services.account.href == "/api/account"' >/dev/null
+    | jq -e '.version == 1 and .services.files.href == "/dav/" and .services.files.readOnly == true and .services.inbox.href == "/api/uploads" and .services.account.href == "/api/account" and .services.images.protocol == "http://iiif.io/api/image" and .services.images.version == 3 and .services.images.href == "/api/iiif/3"' >/dev/null
+  curl --fail --silent --show-error --max-time 5 "http://$address/api/iiif/3/cGhvdG8ucG5n/info.json" \
+    | jq -e '.type == "ImageService3" and .profile == "level0" and .width == 2400 and .height == 1600' >/dev/null
+  curl --fail --silent --show-error --max-time 10 --dump-header "$test_dir/image-headers" \
+    "http://$address/api/iiif/3/cGhvdG8ucG5n/full/384,256/0/default.jpg" --output "$test_dir/preview.jpg"
+  local image_etag
+  image_etag=$(awk 'tolower($1) == "etag:" {gsub("\r", "", $2); print $2}' "$test_dir/image-headers")
+  test -n "$image_etag"
+  test "$(curl --silent --max-time 5 --output /dev/null --write-out '%{http_code}' -H "If-None-Match: $image_etag" \
+    "http://$address/api/iiif/3/cGhvdG8ucG5n/full/384,256/0/default.jpg")" = 304
   docker top "$container" -eo pid,uid,gid,args | awk -v uid="$uid" -v gid="$gid" \
     'NR > 1 { count++; if ($2 != uid || $3 != gid) exit 1 } END { if (count != 1) exit 1 }'
   docker run --rm --pid="container:$container" --cap-drop ALL "$helper" \
@@ -91,6 +101,7 @@ expect_failure() {
 # Root-owned bind mounts reproduce NAS GUI-created folders. The service must
 # initialize private state, then run entirely as the default unprivileged user.
 fixture 'mkdir -p /fixture/data /fixture/public; chmod 700 /fixture/data; chmod 755 /fixture/public; printf "public fixture" > /fixture/public/hello.txt; chmod 644 /fixture/public/hello.txt'
+cp "$script_dir/../test/fixtures/photo.png" "$test_dir/public/photo.png"
 fixture 'mkdir -p "/fixture/public/#recycle" "/fixture/public/@Recycle"; printf "deleted fixture" > "/fixture/public/#recycle/deleted.txt"; printf "deleted fixture" > "/fixture/public/@Recycle/deleted.txt"; ln -s "#recycle" /fixture/public/recycle-alias'
 start default 1000 1000 --security-opt no-new-privileges:true
 docker exec "$container" /lantern-dock link create --data-dir=/data \
@@ -107,6 +118,7 @@ fixture 'mkdir -p /fixture/data/inbox/legacy; printf "private fixture" > /fixtur
 start nas-user 1001 100 -e PUID=01001 -e PGID=00100
 list_link
 test "$(fixture 'stat -c %u:%g:%a /fixture/data/inbox/legacy/photo.txt')" = 1001:100:600
+test "$(fixture 'find /fixture/data/cache/images -type f -exec stat -c %u:%g:%a {} \;' | sort -u)" = 1001:100:600
 test "$(fixture 'stat -c %u:%g:%a /fixture/data/notes.txt')" = 0:0:400
 test "$(fixture 'stat -c %u:%g:%a /fixture/public/hello.txt')" = 1001:100:600
 stop

@@ -51,7 +51,10 @@ func TestDataMigrationOnlyTouchesPrivateApplicationFiles(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(data, "inbox", "collection"), 0700); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"lantern-dock.sqlite", "lantern-dock.sqlite-wal", "lantern-dock.sqlite-shm", "server.lock", "inbox/collection/photo.jpg", "unrelated.txt"} {
+	if err := os.MkdirAll(filepath.Join(data, "cache", "images"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"lantern-dock.sqlite", "lantern-dock.sqlite-wal", "lantern-dock.sqlite-shm", "server.lock", "inbox/collection/photo.jpg", "cache/images/preview.jpg", "unrelated.txt"} {
 		if err := os.WriteFile(filepath.Join(data, name), []byte("preserved content"), 0400); err != nil {
 			t.Fatal(err)
 		}
@@ -59,7 +62,7 @@ func TestDataMigrationOnlyTouchesPrivateApplicationFiles(t *testing.T) {
 	if err := prepareData(data, os.Getuid(), os.Getgid()); err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"lantern-dock.sqlite", "lantern-dock.sqlite-wal", "lantern-dock.sqlite-shm", "server.lock", "inbox/collection/photo.jpg"} {
+	for _, name := range []string{"lantern-dock.sqlite", "lantern-dock.sqlite-wal", "lantern-dock.sqlite-shm", "server.lock", "inbox/collection/photo.jpg", "cache/images/preview.jpg"} {
 		info, err := os.Stat(filepath.Join(data, name))
 		if err != nil {
 			t.Fatal(err)

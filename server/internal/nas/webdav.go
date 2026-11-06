@@ -125,6 +125,27 @@ func (f *publicFile) Readdir(count int) ([]os.FileInfo, error) {
 		}
 	}
 }
+
+// Cache only successful reads. Error responses must never become a cached
+// directory or file representation after permissions or a path have changed.
+type davCacheWriter struct {
+	http.ResponseWriter
+	policy string
+}
+
+func (w davCacheWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w davCacheWriter) WriteHeader(status int) {
+	policy := w.policy
+	if status >= 400 {
+		policy = "no-store"
+	}
+	w.Header().Set("Cache-Control", policy)
+	w.ResponseWriter.WriteHeader(status)
+}
+func (w davCacheWriter) Write(data []byte) (int, error) {
+	return w.ResponseWriter.Write(data)
+}
+
 func (s *Server) serveDAV(w http.ResponseWriter, r *http.Request) {
 	if !publicPathAllowed(r.URL.Path) {
 		writeError(w, fault(404, "NOT_FOUND", "找不到这个地址。"))
@@ -150,5 +171,10 @@ func (s *Server) serveDAV(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 16<<10)
 	}
 	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
-	s.dav.ServeHTTP(w, r)
+	policy := "private, no-cache"
+	if r.Method == "PROPFIND" {
+		policy = "private, max-age=15"
+	}
+	w.Header().Set("Cache-Control", policy)
+	s.dav.ServeHTTP(davCacheWriter{w, policy}, r)
 }

@@ -25,6 +25,7 @@ type Server struct {
 	public, private *os.Root
 	lock            *os.File
 	dav             *webdav.Handler
+	images          *imageCache
 	origins         map[string]bool
 	ctx             context.Context
 	cancel          context.CancelFunc
@@ -99,6 +100,9 @@ func New(publicDir, dataDir string, origins []string) (*Server, error) {
 	if err = s.private.MkdirAll("inbox/.staging", 0700); err != nil {
 		return nil, err
 	}
+	if s.images, err = newImageCache(s.private); err != nil {
+		return nil, err
+	}
 	s.dav = &webdav.Handler{Prefix: filesPath, FileSystem: publicFS{s.public}, LockSystem: webdav.NewMemLS()}
 	if err = s.recover(); err != nil {
 		return nil, err
@@ -122,6 +126,9 @@ func (s *Server) Close() error {
 	}
 	s.mu.Unlock()
 	s.jobs.Wait()
+	if s.images != nil {
+		s.images.root.Close()
+	}
 	if s.public != nil {
 		s.public.Close()
 	}
@@ -179,9 +186,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PROPFIND, POST, PUT, DELETE")
 		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Depth, DPoP, If-None-Match")
-		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, ETag, WWW-Authenticate, DPoP-Nonce")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, ETag, Link, WWW-Authenticate, DPoP-Nonce")
 	}
 	switch {
+	case r.URL.Path == imagesPath || strings.HasPrefix(r.URL.Path, imagesPath+"/"):
+		s.serveImage(w, r)
 	case r.URL.Path == capabilitiesPath:
 		s.serveCapabilities(w, r)
 	case r.URL.Path == accountPath || strings.HasPrefix(r.URL.Path, accountPath+"/"):

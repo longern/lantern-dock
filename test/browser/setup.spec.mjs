@@ -141,9 +141,11 @@ test("new deployment webhook URLs are derived locally and copy the complete URL"
     page.getByText("请复制已选中的 Webhook URL。", { exact: true }),
   ).toBeVisible();
   await expect(output).toHaveAttribute("type", "text");
-  expect(
-    await output.evaluate((node) => node.selectionEnd - node.selectionStart),
-  ).toBe((await output.inputValue()).length);
+  await expect
+    .poll(() =>
+      output.evaluate((node) => node.selectionEnd - node.selectionStart),
+    )
+    .toBe((await output.inputValue()).length);
   await page
     .getByRole("button", { name: "隐藏 Webhook URL", exact: true })
     .click();
@@ -337,9 +339,11 @@ test("wizard exports real configuration, keeps form values on retry, and detects
   );
   await page.getByRole("button", { name: "复制配置", exact: true }).click();
   await expect(page.getByText("请复制已选中的配置文本。")).toBeVisible();
-  expect(
-    await code.evaluate((node) => node.selectionEnd - node.selectionStart),
-  ).toBe(local.length);
+  await expect
+    .poll(() =>
+      code.evaluate((node) => node.selectionEnd - node.selectionStart),
+    )
+    .toBe(local.length);
   await page
     .getByRole("button", { name: "Cloudflare Workers", exact: true })
     .click();

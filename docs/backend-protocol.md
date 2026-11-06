@@ -5,6 +5,7 @@ The included NAS service exposes one HTTP origin behind a WebTransport bridge or
 | Service              | Default path        | Protocol                                                |
 | -------------------- | ------------------- | ------------------------------------------------------- |
 | Public files         | `/dav/`             | Anonymous, read-only WebDAV                             |
+| Images               | `/api/iiif/3`       | IIIF Image API 3, Level 0; public generated JPGs        |
 | Temporary file drops | `/api/uploads`      | LanternDock inbox v1; Bearer collection-link permission |
 | Account              | `/api/account`      | LanternDock identity v2; DPoP-bound site credential     |
 | Capabilities         | `/api/capabilities` | Public LanternDock capability document v1               |
@@ -36,6 +37,12 @@ Public WebDAV reserves `#recycle` and `@Recycle` as excluded entry names at ever
       "href": "/api/uploads",
       "enabled": true
     },
+    "images": {
+      "protocol": "http://iiif.io/api/image",
+      "version": 3,
+      "href": "/api/iiif/3",
+      "enabled": true
+    },
     "account": {
       "protocol": "lantern-dock-identity",
       "version": 2,
@@ -50,7 +57,7 @@ Public WebDAV reserves `#recycle` and `@Recycle` as excluded entry names at ever
 
 `HEAD` returns the same headers without a body, `OPTIONS` returns `204`, and other methods return `405`. Responses have `Cache-Control: public, max-age=300` and a content-derived ETag; conditional GET supports `304`. Origin restrictions apply to this route too. Clients may cache deployment metadata; credentials and authorization decisions must not be cached as capabilities.
 
-The capability document is a LanternDock contract, not a universal WebDAV discovery standard. The current frontend uses the shared fixed paths directly, so directory navigation and uploads do not wait for an extra discovery request. The endpoint supports diagnostics and future capability negotiation. Third-party WebDAV services are not required to provide it.
+The capability document is a LanternDock contract, not a universal WebDAV discovery standard. Directory navigation and uploads use the shared fixed paths directly. When an image becomes visible, the frontend discovers the optional IIIF service once per connection; directory browsing does not wait for this request. Third-party WebDAV services are not required to provide it. See [images and caching](images.md) for the standard IIIF routes and the custom identifier/transport mapping.
 
 ## Bridge and reverse proxy
 

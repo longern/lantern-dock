@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { DirectTransport } from "../lib/transport.js";
 import { DAVClient } from "../lib/dav.js";
 import { DemoClient } from "../lib/demo.js";
@@ -21,10 +21,11 @@ export function useLibrary() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("name");
   const [view, setView] = useState("list");
+  const forceListing = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
-    let transport;
+    let transport, client;
     setConnecting(true);
     setConfigError(null);
     setListingError(null);
@@ -35,9 +36,7 @@ export function useLibrary() {
         backend.transport === "demo"
           ? null
           : new DirectTransport(backend, credentials);
-      const client = transport
-        ? new DAVClient(transport, backend)
-        : new DemoClient();
+      client = transport ? new DAVClient(transport, backend) : new DemoClient();
       setPath(client.root);
       setMode("all");
       setKind("");
@@ -79,6 +78,7 @@ export function useLibrary() {
     })();
     return () => {
       controller.abort();
+      client?.dispose?.();
       transport?.close();
     };
   }, [credentials, revision, demoPreview]);
@@ -86,17 +86,23 @@ export function useLibrary() {
   useEffect(() => {
     if (!connection) return;
     const controller = new AbortController();
-    setLoading(true);
+    const cached = connection.client.cached?.(path);
+    const force = forceListing.current;
+    setLoading(!cached || force);
     setListingError(null);
-    setEntries([]);
+    setEntries(cached || []);
+    forceListing.current = false;
     connection.client
-      .list(path, controller.signal)
+      .list(path, controller.signal, { force })
       .then(
         (result) => {
           if (!controller.signal.aborted) setEntries(result);
         },
         (error) => {
-          if (!controller.signal.aborted) setListingError(error);
+          if (!controller.signal.aborted) {
+            setEntries([]);
+            setListingError(error);
+          }
         },
       )
       .finally(() => {
@@ -107,8 +113,9 @@ export function useLibrary() {
 
   const navigate = (next) => {
     // Clear the old directory before the listing effect starts for the new path.
-    setEntries([]);
-    setLoading(true);
+    const cached = connection?.client.cached?.(next);
+    setEntries(cached || []);
+    setLoading(!cached);
     setListingError(null);
     setPath(next);
     setMode("all");
@@ -154,6 +161,9 @@ export function useLibrary() {
     startDemo: () => setDemoPreview(true),
     endDemo: () => setDemoPreview(false),
     reconnect: () => setRevision((value) => value + 1),
-    refresh: () => setDirectoryRevision((value) => value + 1),
+    refresh: () => {
+      forceListing.current = true;
+      setDirectoryRevision((value) => value + 1);
+    },
   };
 }

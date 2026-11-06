@@ -15,6 +15,7 @@ const (
 	inboxPath        = "/api/uploads"
 	accountPath      = "/api/account"
 	capabilitiesPath = "/api/capabilities"
+	imagesPath       = "/api/iiif/3"
 )
 
 type serviceCapability struct {
@@ -44,6 +45,7 @@ func (s *Server) serveCapabilities(w http.ResponseWriter, r *http.Request) {
 		"files":   {Protocol: "webdav", Version: 1, Href: filesPath + "/", Enabled: true, ReadOnly: true},
 		"inbox":   {Protocol: "lantern-dock-inbox", Version: 1, Href: inboxPath, Enabled: true},
 		"account": {Protocol: "lantern-dock-identity", Version: 2, Href: accountPath, Enabled: s.identity != nil},
+		"images":  {Protocol: "http://iiif.io/api/image", Version: 3, Href: imagesPath, Enabled: true},
 	}}
 	body, _ := json.Marshal(document)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

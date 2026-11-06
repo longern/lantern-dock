@@ -1,3 +1,8 @@
+import { limitedBytes } from "./content.js";
+export { limitedBytes } from "./content.js";
+import { MemoryCache, cachePolicy } from "./cache.js";
+import { ImageClient } from "./images.js";
+
 export function normalizePath(value) {
   if (!value.startsWith("/") || /[?#\\\x00-\x1f]/.test(value))
     throw new Error("无效文件路径");
@@ -118,40 +123,6 @@ export function parseDAV(xml, currentPath, rootPath) {
   }
   return items;
 }
-export async function limitedBytes(response, limit, signal) {
-  const declared = Number(response.headers.get("Content-Length"));
-  if (declared > limit) {
-    await response.body?.cancel();
-    throw new Error("文件超过此浏览器的预览 / 内存下载限制。");
-  }
-  if (!response.body) return new Uint8Array();
-  const reader = response.body.getReader();
-  let total = 0;
-  const chunks = [];
-  try {
-    while (true) {
-      signal?.throwIfAborted();
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.length;
-      if (total > limit)
-        throw new Error("文件超过此浏览器的预览 / 内存下载限制。");
-      chunks.push(value);
-    }
-  } catch (error) {
-    await reader.cancel().catch(() => {});
-    throw error;
-  } finally {
-    reader.releaseLock();
-  }
-  const result = new Uint8Array(total);
-  let offset = 0;
-  for (const value of chunks) {
-    result.set(value, offset);
-    offset += value.length;
-  }
-  return result;
-}
 export function checkResponse(response) {
   if (!response.ok) void response.body?.cancel().catch(() => {});
   if (response.status === 401)
@@ -168,25 +139,54 @@ export class DAVClient {
   constructor(transport, config) {
     this.transport = transport;
     this.root = normalizePath(config.rootPath);
+    this.directories = new MemoryCache(16 * 1024 * 1024, 64);
+    this.images = new ImageClient(transport);
   }
-  async list(path, signal) {
+  dispose() {
+    this.images.dispose();
+    this.directories.clear();
+  }
+  cached(path) {
+    return this.directories.get(normalizePath(path).replace(/\/?$/, "/"))?.value
+      .entries;
+  }
+  async list(path, signal, { force = false } = {}) {
+    signal?.throwIfAborted();
     path = normalizePath(path);
     if (!withinRoot(path, this.root)) throw new Error("不能离开配置的根目录");
     if (!path.endsWith("/")) path += "/";
-    const response = checkResponse(
-      await this.transport.request(path, {
-        method: "PROPFIND",
-        headers: {
-          Depth: "1",
-          "Content-Type": "application/xml; charset=utf-8",
-          Accept: "application/xml",
-        },
-        body: '<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getcontenttype/><d:getetag/></d:prop></d:propfind>',
-        signal,
-      }),
-    );
-    const bytes = await limitedBytes(response, 8 * 1024 * 1024, signal);
-    return parseDAV(new TextDecoder().decode(bytes), path, this.root);
+    const cached = this.directories.get(path);
+    if (!force && cached && Date.now() - cached.time < cached.value.freshFor)
+      return cached.value.entries;
+    if (force) this.images.expire();
+    try {
+      const response = checkResponse(
+        await this.transport.request(path, {
+          method: "PROPFIND",
+          headers: {
+            Depth: "1",
+            "Content-Type": "application/xml; charset=utf-8",
+            Accept: "application/xml",
+          },
+          body: '<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getcontenttype/><d:getetag/></d:prop></d:propfind>',
+          signal,
+        }),
+      );
+      const bytes = await limitedBytes(response, 8 * 1024 * 1024, signal);
+      const result = parseDAV(new TextDecoder().decode(bytes), path, this.root);
+      const policy = cachePolicy(response.headers);
+      if (policy.storable)
+        this.directories.set(
+          path,
+          { entries: result, freshFor: policy.freshFor },
+          JSON.stringify(result).length * 2,
+        );
+      else this.directories.delete(path);
+      return result;
+    } catch (error) {
+      if (!signal?.aborted) this.directories.delete(path);
+      throw error;
+    }
   }
   async get(path, signal) {
     path = normalizePath(path);

@@ -2,8 +2,18 @@ import { useMemo } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { artwork } from "../lib/demo.js";
 import { bytes, date } from "../lib/format.js";
+import { Thumbnail } from "./Thumbnail.jsx";
 
-function FileCard({ item, demo, selected, favorite, onOpen, onFavorite }) {
+function FileCard({
+  item,
+  demo,
+  client,
+  side,
+  selected,
+  favorite,
+  onOpen,
+  onFavorite,
+}) {
   return (
     <article
       class={`file-card${item.isDirectory ? " folder-card" : ""}${selected ? " selected" : ""}`}
@@ -24,6 +34,9 @@ function FileCard({ item, demo, selected, favorite, onOpen, onFavorite }) {
           ) : (
             <>
               <Icon name={item.kind} />
+              {item.kind === "image" && (
+                <Thumbnail item={item} client={client} side={side} />
+              )}
               {!item.isDirectory && (
                 <span class="extension">
                   {item.name.split(".").pop().slice(0, 6).toUpperCase()}
@@ -146,6 +159,15 @@ export function FileBrowser({
           )}
         </div>
         <div class="view-tools">
+          <button
+            class="icon-button mobile-refresh"
+            aria-label="刷新目录"
+            disabled={library.loading}
+            aria-busy={library.loading}
+            onClick={library.refresh}
+          >
+            <Icon name="refresh" />
+          </button>
           <select
             aria-label="排序"
             value={library.sort}
@@ -212,7 +234,7 @@ export function FileBrowser({
         aria-busy={busy}
         aria-label="文件列表"
       >
-        {busy
+        {busy && !entries.length
           ? Array.from({ length: 8 }, (_, index) => (
               <div class="skeleton" key={index} />
             ))
@@ -220,6 +242,8 @@ export function FileBrowser({
               <FileCard
                 key={item.path}
                 item={item}
+                client={library.connection?.client}
+                side={library.view === "list" ? 128 : 384}
                 demo={library.backend?.transport === "demo"}
                 selected={selected?.path === item.path}
                 favorite={records.isFavorite(item)}

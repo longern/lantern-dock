@@ -34,6 +34,25 @@ export function FilePreview({
           setError("下载后查看此文件");
           return;
         }
+        if (item.kind === "image" && client.images) {
+          const show = (image) => {
+            if (!image || controller.signal.aborted) return;
+            if (url) URL.revokeObjectURL(url);
+            url = URL.createObjectURL(image.blob);
+            setContent({ url, width: image.width, height: image.height });
+            setDimensions(`${image.width} × ${image.height}`);
+          };
+          show(client.images.peek(item, 1600));
+          const image = await client.images.image(
+            item,
+            1600,
+            controller.signal,
+          );
+          if (image) {
+            show(image);
+            return;
+          }
+        }
         const limit = (item.kind === "image" ? 25 : 1) * 1024 * 1024;
         if (item.size > limit)
           throw new Error("文件超过预览大小限制，请下载原文件查看。");
@@ -47,6 +66,7 @@ export function FilePreview({
         const mime = response.headers.get("Content-Type")?.split(";")[0];
         if (mime && !mime.startsWith("image/"))
           throw new Error("后端没有返回图片，可能需要重新登录。");
+        if (url) URL.revokeObjectURL(url);
         url = URL.createObjectURL(
           new Blob([data], { type: mime || "image/*" }),
         );
@@ -62,7 +82,7 @@ export function FilePreview({
       controller.abort();
       if (url) URL.revokeObjectURL(url);
     };
-  }, [item, client]);
+  }, [item, client, client.images?.revision]);
 
   return (
     <Dialog
@@ -104,7 +124,7 @@ export function FilePreview({
               alt={item.name}
               onLoad={(event) =>
                 setDimensions(
-                  `${event.currentTarget.naturalWidth} × ${event.currentTarget.naturalHeight}`,
+                  `${content.width || event.currentTarget.naturalWidth} × ${content.height || event.currentTarget.naturalHeight}`,
                 )
               }
               onError={() => {
