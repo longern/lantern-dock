@@ -37,8 +37,8 @@ start() {
     sleep 1
   done
   curl --fail --silent --show-error --max-time 5 "http://$address/healthz"
-  docker top "$container" -eo uid,gid,args | awk -v uid="$uid" -v gid="$gid" \
-    'NR > 1 { count++; if ($1 != uid || $2 != gid) exit 1 } END { if (count != 1) exit 1 }'
+  docker top "$container" -eo pid,uid,gid,args | awk -v uid="$uid" -v gid="$gid" \
+    'NR > 1 { count++; if ($2 != uid || $3 != gid) exit 1 } END { if (count != 1) exit 1 }'
   docker run --rm --pid="container:$container" --cap-drop ALL "$helper" \
     cat /proc/1/status > "$test_dir/process-status"
   grep -Eq '^NoNewPrivs:[[:space:]]+1$' "$test_dir/process-status"
