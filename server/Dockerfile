@@ -6,14 +6,14 @@ RUN go mod download
 COPY . .
 ARG TARGETOS
 ARG TARGETARCH
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /lantern-dock ./cmd/lantern-dock \
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w -X main.containerIdentity=65532" -o /lantern-dock ./cmd/lantern-dock \
     && mkdir -p /empty/data /empty/public
 
 FROM scratch
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /lantern-dock /lantern-dock
 COPY --from=build --chown=65532:65532 /empty/ /
-USER 65532:65532
+USER 0:0
 EXPOSE 8080
 ENTRYPOINT ["/lantern-dock"]
 CMD ["serve", "--public-dir=/public", "--data-dir=/data"]

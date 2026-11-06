@@ -20,6 +20,9 @@ import (
 	"github.com/longern/lantern-dock/server/internal/nas"
 )
 
+// Set only in the container build. Standalone binaries keep the caller's identity.
+var containerIdentity string
+
 func main() {
 	if err := run(os.Args[1:], os.Stdout); err != nil {
 		fmt.Fprintln(os.Stderr, "lantern-dock:", err)
@@ -74,6 +77,9 @@ func run(args []string, out io.Writer) error {
 		}
 		if flags.NArg() != 0 {
 			return fmt.Errorf("unexpected serve arguments")
+		}
+		if err := setupRuntime(*public, *data, true); err != nil {
+			return err
 		}
 		service, err := nas.New(*public, *data, strings.Split(*origins, ","))
 		if err != nil {
@@ -151,6 +157,9 @@ func run(args []string, out io.Writer) error {
 		if *expiry <= 0 || *expiry > 365*24*time.Hour {
 			return fmt.Errorf("expires must be positive and no more than 8760h")
 		}
+	}
+	if err := setupRuntime("/public", *data, false); err != nil {
+		return err
 	}
 	store, err := nas.OpenStore(*data)
 	if err != nil {

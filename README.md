@@ -77,6 +77,8 @@ The optional [`server/`](server/) backend combines public read-only WebDAV with 
 
 Use [`compose.nas.yaml`](compose.nas.yaml) for the NAS backend plus WebTransport bridge. It pulls `ghcr.io/longern/lantern-dock:latest` for amd64 or arm64; no NAS-side build is needed. See the [NAS deployment guide](docs/nas-server.md) for folder mounts, image updates, frontend configuration, and CLI commands to create and revoke collection links.
 
+NAS containers support optional `PUID/PGID` to match a local NAS account. Startup prepares private database/inbox permissions, then runs the service and CLI as that non-root user. Public-folder ownership and permissions stay under NAS administration; give the selected account read access and keep the mount read-only. Docker's native `user:` is also supported.
+
 ### Sign in with workers-sso
 
 Set `SITE_ORIGIN` on the NAS and `OIDC_ISSUER_URL` **only on the Worker**; the Worker detects its HTTPS origin automatically. Open **我的账户**, sign in, and copy your **site** `sub` into the NAS `ADMIN_SUBJECTS` JSON array. The Worker maps third-party logins to stable site identities and signs short-lived, browser-bound credentials. The NAS discovers the Worker's public keys, verifies tokens locally and determines the role; it has no SSO configuration. See [authentication setup](docs/authentication.md) for deployment and key rotation, or the [identity protocol](docs/identity-protocol.md) for Discovery, JWT and DPoP details. workers-sso requires no changes.

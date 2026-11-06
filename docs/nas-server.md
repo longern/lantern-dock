@@ -43,7 +43,24 @@ docker compose -f compose.nas.yaml -f compose.nas.build.yaml up -d --build
 
 This override builds `server/` as `lantern-dock-server:local`; ordinary deployments use the GHCR image.
 
-The NAS container runs as UID/GID `65532:65532`. Give that user or a suitable group read/search permission on the chosen public folder; use a Compose `user:` override if your NAS requires a particular UID/GID. The `nas-data` volume must remain writable by the chosen user. The public folder is mounted read-only, and the NAS process also rejects WebDAV write methods.
+The NAS image supports optional `PUID` and `PGID`, matching the account you want to use for NAS folder access. Without them, the service uses `65532:65532`. These are **NAS container** settings, not Worker variables. For example, if your NAS account actually has UID/GID `1000:1000`, add these to the NAS `.env` or the container's environment-variable page:
+
+```dotenv
+PUID="1000"
+PGID="1000"
+```
+
+Use the account's actual numeric IDs; `1000` is an example, not a universal UGREEN/Synology/QNAP default. In the NAS file manager, grant that account read/search permission on the public folder and read/write permission on the private data folder. Existing group-based access can use Docker's `group_add:`. The image retains explicitly supplied nonzero supplementary groups when dropping root.
+
+On startup, the image briefly runs as root to prepare the private data directory, the SQLite database/sidecars, lock file and private inbox for the selected UID/GID. It updates ownership only when needed and adds missing owner access, preserving existing data and collection links. It skips unrelated files and refuses linked state files, nested mounts and overlapping public/private paths. It never changes the public folder's ownership or permissions. This requires a dedicated private data directory, disjoint from the folder being published. Changing `PUID/PGID` recreates the container and migrates its existing private state on the next start.
+
+Before opening the HTTP listener, the process drops its root identity, clears runtime capabilities, enables no-new-privileges, and re-executes as the selected non-root user. The image metadata therefore starts with `User: 0:0`, while the running NAS service is non-root. The existing `/lantern-dock link …` CLI also applies this initialization/drop, including when invoked through `docker exec`, so CLI operations do not create root-owned database files. The root filesystem can remain read-only; only the private data mount must be writable.
+
+The supplied Compose file drops all capabilities, then grants only `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETUID` and `SETGID` for initialization. Update that capability configuration when upgrading an older Compose deployment that used only `cap_drop: [ALL]`. Manually created containers with Docker's default capabilities need no privileged mode. Invalid/zero IDs, insufficient initialization capabilities and inaccessible directories fail before serving requests; logs identify the actual UID/GID and affected path.
+
+Docker's native `user: "UID:GID"` (or `--user`) is also supported. In that mode, the image keeps the explicitly selected non-root identity, skips privileged ownership migration and preserves Docker-supplied groups; provision the private directory's permissions beforehand. Leave `PUID/PGID` empty, or set them to the same identity. Conflicting values produce a configuration error. Standalone binaries without these variables retain the caller's identity; automatic identity initialization is Linux-only.
+
+On UGREEN UGOS, you can add `PUID/PGID` in the Docker container's environment-variable page, or edit its Compose project. The public folder stays mounted read-only, and the NAS process also rejects WebDAV write methods. Assigning a numeric identity does not bypass UGOS folder ACLs: the selected NAS account must have access. See the official [Compose guide](https://support.ugnas.com/knowledgecenter/detail/article/zh-CN/411) and [folder permission guide](https://support.ugnas.com/detail/article/zh-CN/918).
 
 The bridge listens on **4433/udp** (`BRIDGE_PORT` optionally changes the host port). Keep the existing UDP tunnel forwarding to this port. Its backend becomes `http://nas:8080`, allowed paths are `/dav,/api/uploads,/api/account`, and methods are `GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS`. The bridge uses public mode; the NAS service checks every upload's own permission and verifies identity proofs on the account API.
 
