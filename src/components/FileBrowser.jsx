@@ -34,7 +34,7 @@ function FileCard({
           ) : (
             <>
               <Icon name={item.kind} />
-              {item.kind === "image" && (
+              {["image", "video"].includes(item.kind) && (
                 <Thumbnail item={item} client={client} side={side} />
               )}
               {!item.isDirectory && (

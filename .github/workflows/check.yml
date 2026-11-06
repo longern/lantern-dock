@@ -34,6 +34,8 @@ jobs:
           go-version-file: server/go.mod
           cache-dependency-path: server/go.sum
       - run: test -z "$(gofmt -l .)"
+      - name: Install video test dependencies
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - run: go vet ./...
       - run: go test -race ./...
       - name: Cross-compile NAS binaries

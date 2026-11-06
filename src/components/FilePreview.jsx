@@ -4,6 +4,7 @@ import { limitedBytes } from "../lib/dav.js";
 import { bytes, date } from "../lib/format.js";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { Dialog } from "./Dialog.jsx";
+import { VideoPreview } from "./VideoPreview.jsx";
 
 export function FilePreview({
   item,
@@ -30,6 +31,10 @@ export function FilePreview({
     setDimensions("");
     (async () => {
       try {
+        if (item.kind === "video") {
+          setContent({ video: true });
+          return;
+        }
         if (!["image", "text"].includes(item.kind)) {
           setError("下载后查看此文件");
           return;
@@ -116,6 +121,16 @@ export function FilePreview({
               <Icon name={item.kind} />
               <p role="status">{error || "正在加载预览…"}</p>
             </div>
+          ) : content.video ? (
+            <VideoPreview
+              item={item}
+              client={client}
+              open={open}
+              onError={onError}
+              onDimensions={(width, height) =>
+                setDimensions(`${width} × ${height}`)
+              }
+            />
           ) : content.text !== undefined ? (
             <pre>{content.text}</pre>
           ) : (

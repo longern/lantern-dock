@@ -32,7 +32,7 @@ The optional capability lookup happens once per frontend connection, when an ima
 - Source formats: JPEG, PNG, GIF, WebP, BMP and TIFF. GIF/TIFF previews use the first frame/page. JPEG/TIFF EXIF orientation is applied. Generated images do not retain EXIF/GPS metadata; transparency is flattened on white.
 - Advertised sizes fit the source into a longest side of 128, 384 or 1600 pixels, preserving aspect ratio without enlarging a smaller source. The browser uses 128 for list thumbnails, 384 for grids and up to 1600 for previews; file details still show oriented source dimensions.
 - Input ceiling: 128 MiB and 64 million pixels. One rendition is generated at a time, with at most eight image requests admitted and a 15-second request deadline. Pixel decoding itself is synchronous and may finish after cancellation; its concurrency and input limits still apply.
-- HEIC, AVIF, RAW and SVG are not decoded by this generator. Unsupported images fall back to the browser's original-file preview when possible, limited to 25 MiB. Text preview remains limited to 1 MiB. Downloads always use the original file. Live Photo/video playback is not included.
+- HEIC, AVIF, RAW and SVG are not decoded by this generator. Unsupported images fall back to the browser's original-file preview when possible, limited to 25 MiB. Text preview remains limited to 1 MiB. Downloads always use the original file. Live Photo playback is not included. Supported videos have separate [poster and playback support](video.md).
 
 ## Cache behavior
 

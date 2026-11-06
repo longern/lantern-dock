@@ -34,9 +34,12 @@ type imageSize struct {
 	Height int `json:"height"`
 }
 type imageMetadata struct {
-	Width       int `json:"width"`
-	Height      int `json:"height"`
-	Orientation int `json:"orientation"`
+	Width       int     `json:"width"`
+	Height      int     `json:"height"`
+	Orientation int     `json:"orientation"`
+	Video       bool    `json:"video,omitempty"`
+	Stream      int     `json:"stream,omitempty"`
+	Seek        float64 `json:"seek,omitempty"`
 }
 
 func (m imageMetadata) sizes() []imageSize {
@@ -60,7 +63,7 @@ func (m imageMetadata) sizes() []imageSize {
 	return result
 }
 func (m imageMetadata) valid() bool {
-	return m.Width > 0 && m.Height > 0 && m.Width <= 65535 && m.Height <= 65535 && int64(m.Width)*int64(m.Height) <= maxImagePixels && m.Orientation >= 1 && m.Orientation <= 8
+	return m.Width > 0 && m.Height > 0 && m.Width <= 65535 && m.Height <= 65535 && int64(m.Width)*int64(m.Height) <= maxImagePixels && m.Orientation >= 1 && m.Orientation <= 8 && m.Stream >= 0 && m.Stream <= 65535 && m.Seek >= 0 && m.Seek <= 1
 }
 func sourceImageMetadata(file *os.File) (imageMetadata, error) {
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
@@ -70,7 +73,7 @@ func sourceImageMetadata(file *os.File) (imageMetadata, error) {
 	if err != nil {
 		return imageMetadata{}, fault(415, "IMAGE_UNSUPPORTED", "此图片格式暂不支持生成预览。")
 	}
-	m := imageMetadata{config.Width, config.Height, 1}
+	m := imageMetadata{Width: config.Width, Height: config.Height, Orientation: 1}
 	if !m.valid() {
 		return m, fault(413, "IMAGE_TOO_LARGE", "图片尺寸超过预览处理限制。")
 	}
@@ -113,13 +116,24 @@ func (s *Server) currentImage(name, version string) bool {
 	info, err := file.Stat()
 	return err == nil && imageVersion(name, info) == version
 }
-func (s *Server) imageMetadata(file *os.File, name, version string) (imageMetadata, error) {
+func (s *Server) imageMetadata(ctx context.Context, file *os.File, name, version string) (imageMetadata, error) {
 	key := imageHash([]byte(version+":info")) + ".json"
 	var m imageMetadata
 	if data := s.images.get(key); len(data) < 8192 && json.Unmarshal(data, &m) == nil && m.valid() {
 		return m, nil
 	}
-	m, err := sourceImageMetadata(file)
+	var err error
+	if videoSource(name) {
+		select {
+		case s.images.renderer <- struct{}{}:
+		case <-ctx.Done():
+			return m, ctx.Err()
+		}
+		m, err = sourceVideoMetadata(ctx, file)
+		<-s.images.renderer
+	} else {
+		m, err = sourceImageMetadata(file)
+	}
 	if err != nil {
 		return m, err
 	}
@@ -146,6 +160,17 @@ func (s *Server) imageRendition(ctx context.Context, file *os.File, name, versio
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	if m.Video {
+		data, err := videoRendition(ctx, file, m, size)
+		if err != nil {
+			return nil, err
+		}
+		if !s.currentImage(name, version) {
+			return nil, fault(409, "IMAGE_CHANGED", "文件已更新，请刷新后重试。")
+		}
+		s.images.put(key, data)
+		return data, nil
 	}
 	if _, err := file.Seek(0, io.SeekStart); err != nil {
 		return nil, err
@@ -226,7 +251,7 @@ func (s *Server) serveImage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fault(404, "NOT_FOUND", "找不到这个地址。"))
 		return
 	}
-	if info.Size() > maxImageBytes {
+	if !videoSource(name) && info.Size() > maxImageBytes {
 		writeError(w, fault(413, "IMAGE_TOO_LARGE", "图片大小超过预览处理限制。"))
 		return
 	}
@@ -241,8 +266,12 @@ func (s *Server) serveImage(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 	version := imageVersion(name, info)
-	m, err := s.imageMetadata(file.File, name, version)
+	m, err := s.imageMetadata(ctx, file.File, name, version)
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			w.Header().Set("Retry-After", "1")
+			err = fault(503, "IMAGE_BUSY", "视频封面处理超时，请稍后重试。")
+		}
 		writeError(w, err)
 		return
 	}

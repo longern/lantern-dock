@@ -9,7 +9,7 @@ ARG TARGETARCH
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /lantern-dock ./cmd/lantern-dock
 
 FROM alpine:3.24
-RUN apk add --no-cache ca-certificates setpriv \
+RUN apk add --no-cache ca-certificates setpriv ffmpeg \
     && addgroup -g 1000 lantern \
     && adduser -D -H -u 1000 -G lantern lantern \
     && mkdir -p /data /public /usr/local/libexec \

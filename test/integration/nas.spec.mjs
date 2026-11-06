@@ -314,8 +314,13 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
   await page
     .getByRole("button", { name: "打开文件夹 照片", exact: true })
     .click();
-  await expect(page.locator(".file-card")).toHaveCount(1);
-  const thumbnail = page.locator(".thumbnail-slot img");
+  await expect(page.locator(".file-card")).toHaveCount(2);
+  const thumbnail = page
+    .locator(".file-card")
+    .filter({
+      has: page.getByRole("button", { name: "预览 photo.png", exact: true }),
+    })
+    .locator(".thumbnail-slot img");
   await expect(thumbnail).toBeVisible();
   await expect
     .poll(() => thumbnail.evaluate((img) => img.naturalWidth))
@@ -388,4 +393,279 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
     cached.filter((name) => name.endsWith(".jpg")).length,
   ).toBeGreaterThanOrEqual(3);
   expect(errors).toEqual([]);
+});
+
+test("video posters and MP4Box MediaSource playback seek over the real bridge", async ({
+  page,
+}, testInfo) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto(fixture.origin);
+  await page
+    .getByRole("button", { name: "打开文件夹 照片", exact: true })
+    .click();
+  const card = page.locator(".file-card").filter({
+    has: page.getByRole("button", { name: "预览 video.mp4", exact: true }),
+  });
+  const poster = card.locator(".thumbnail-slot img");
+  await expect(poster).toBeVisible();
+  await expect.poll(() => poster.evaluate((img) => img.naturalWidth)).toBe(128);
+  await page
+    .getByRole("button", { name: "预览 video.mp4", exact: true })
+    .click();
+  const video = page.locator(".preview-content video");
+  await expect(video).toBeVisible();
+  await expect
+    .poll(() => video.evaluate((v) => v.readyState))
+    .toBeGreaterThanOrEqual(1);
+  expect(await video.evaluate((v) => v.duration)).toBeCloseTo(8, 0);
+  await expect(page.locator(".file-details")).toContainText("640 × 360");
+  expect(await video.getAttribute("src")).toMatch(/^blob:/);
+  await video.evaluate((v) => {
+    v.muted = true;
+    return v.play();
+  });
+  await expect
+    .poll(() => video.evaluate((v) => v.currentTime))
+    .toBeGreaterThan(0.2);
+  await video.evaluate((v) => {
+    v.currentTime = 6;
+  });
+  await expect
+    .poll(() => video.evaluate((v) => !v.seeking && v.currentTime > 6))
+    .toBe(true);
+  await video.evaluate((v) => v.pause());
+  await page.screenshot({ path: testInfo.outputPath("video-preview.png") });
+  expect(
+    await page.evaluate(
+      async () => (await navigator.serviceWorker.getRegistrations()).length,
+    ),
+  ).toBe(0);
+  await page.getByRole("button", { name: "关闭预览", exact: true }).click();
+  await expect(page.locator("#preview-dialog")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test("long moov-at-end videos load by Range, seek outside the buffer and seek back", async ({
+  page,
+}, testInfo) => {
+  const { stat, rm } = await import("node:fs/promises");
+  const path = await fixture.nas.longVideo();
+  const size = (await stat(path)).size;
+  try {
+    await page.addInitScript(() => {
+      window.videoReads = [];
+      const create = WebTransport.prototype.createBidirectionalStream;
+      WebTransport.prototype.createBidirectionalStream = async function (
+        ...args
+      ) {
+        const stream = await create.apply(this, args);
+        const writer = stream.writable.getWriter();
+        let first = true;
+        return {
+          readable: stream.readable,
+          writable: new WritableStream({
+            write(chunk) {
+              if (first) {
+                first = false;
+                const head = new TextDecoder().decode(chunk);
+                const [method, path] = head.split(" ");
+                const range = /\r\nrange:\s*([^\r\n]+)/i.exec(head)?.[1];
+                if (path?.endsWith("long.mp4"))
+                  window.videoReads.push({ method, path, range });
+              }
+              return writer.write(chunk);
+            },
+            close: () => writer.close(),
+            abort: (reason) => writer.abort(reason),
+          }),
+        };
+      };
+    });
+    await page.goto(fixture.origin);
+    await page
+      .getByRole("button", { name: "打开文件夹 照片", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "预览 long.mp4", exact: true })
+      .click();
+    const video = page.locator(".preview-content video");
+    await expect(video).toBeVisible();
+    await expect
+      .poll(() => video.evaluate((v) => v.readyState))
+      .toBeGreaterThanOrEqual(1);
+    expect(await video.evaluate((v) => v.duration)).toBeCloseTo(120, 0);
+    await expect
+      .poll(() =>
+        video.evaluate(
+          (v) => v.buffered.length && v.buffered.end(v.buffered.length - 1),
+        ),
+      )
+      .toBeGreaterThan(30);
+    const before = await page.evaluate(() => window.videoReads);
+    expect(before.length).toBeGreaterThan(1);
+    expect(before.every((r) => /^bytes=\d+-\d+$/.test(r.range))).toBe(true);
+    const requested = before.reduce((total, read) => {
+      const [a, b] = read.range.slice(6).split("-").map(Number);
+      return total + Math.min(size, b + 1) - a;
+    }, 0);
+    expect(requested).toBeLessThan(size);
+    await video.evaluate((v) => {
+      v.muted = true;
+      v.currentTime = 100;
+      return v.play();
+    });
+    await expect
+      .poll(() => video.evaluate((v) => !v.seeking && v.currentTime > 100), {
+        timeout: 15000,
+      })
+      .toBe(true);
+    await video.evaluate((v) => {
+      v.currentTime = 1;
+    });
+    await expect
+      .poll(
+        () =>
+          video.evaluate(
+            (v) => !v.seeking && v.currentTime > 1 && v.currentTime < 10,
+          ),
+        { timeout: 15000 },
+      )
+      .toBe(true);
+    await expect
+      .poll(() => page.evaluate(() => window.videoReads.length))
+      .toBeGreaterThan(before.length + 1);
+    await video.evaluate((v) => v.pause());
+    await page.screenshot({ path: testInfo.outputPath("long-video.png") });
+    await page.getByRole("button", { name: "关闭预览", exact: true }).click();
+    await expect(page.locator("#preview-dialog")).toHaveCount(0);
+    const reads = await page.evaluate(() => window.videoReads.length);
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.videoReads.length)).toBe(reads);
+  } finally {
+    await rm(path, { force: true });
+  }
+});
+
+test("public HTTPS videos use the original URL and native playback", async ({
+  page,
+}, testInfo) => {
+  const previous = { ...fixture.env };
+  const requests = [];
+  try {
+    fixture.env.BACKEND_TRANSPORT = "http";
+    fixture.env.BACKEND_ENDPOINT = "https://media.example";
+    await page.route("https://media.example/**", async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.endsWith("video.mp4")) requests.push(route.request().headers());
+      const response = await route.fetch({ url: fixture.nas.endpoint + path });
+      await route.fulfill({ response });
+    });
+    await page.goto(fixture.origin);
+    await page
+      .getByRole("button", { name: "打开文件夹 照片", exact: true })
+      .click();
+    await page
+      .getByRole("button", { name: "预览 video.mp4", exact: true })
+      .click();
+    const video = page.locator(".preview-content video");
+    await expect(video).toBeVisible();
+    await expect(video).toHaveAttribute(
+      "src",
+      /^https:\/\/media\.example\/dav\//,
+    );
+    await expect
+      .poll(() => video.evaluate((v) => v.readyState))
+      .toBeGreaterThanOrEqual(1);
+    await video.evaluate((v) => {
+      v.muted = true;
+      return v.play();
+    });
+    await expect
+      .poll(() => video.evaluate((v) => v.currentTime))
+      .toBeGreaterThan(0.2);
+    expect(requests.length).toBeGreaterThan(0);
+    expect(requests.some((r) => r.range?.startsWith("bytes="))).toBe(true);
+    expect(
+      await page.evaluate(() =>
+        performance
+          .getEntriesByType("resource")
+          .some((r) => r.name.includes("video-mp4-")),
+      ),
+    ).toBe(false);
+    expect(
+      await page.evaluate(
+        async () => (await navigator.serviceWorker.getRegistrations()).length,
+      ),
+    ).toBe(0);
+    await page.screenshot({ path: testInfo.outputPath("https-video.png") });
+  } finally {
+    Object.assign(fixture.env, previous);
+  }
+});
+
+test("rotated MOV playback preserves portrait orientation and releases each MediaSource", async ({
+  page,
+}) => {
+  const { rm } = await import("node:fs/promises");
+  const path = await fixture.nas.portraitVideo();
+  try {
+    await page.addInitScript(() => {
+      window.previewSources = [];
+      const create = URL.createObjectURL,
+        revoke = URL.revokeObjectURL;
+      URL.createObjectURL = function (value) {
+        const url = create.call(URL, value);
+        if (value instanceof MediaSource)
+          window.previewSources.push({ source: value, url, revoked: false });
+        return url;
+      };
+      URL.revokeObjectURL = function (url) {
+        const entry = window.previewSources.find((v) => v.url === url);
+        if (entry) entry.revoked = true;
+        return revoke.call(URL, url);
+      };
+    });
+    await page.goto(fixture.origin);
+    await page
+      .getByRole("button", { name: "打开文件夹 照片", exact: true })
+      .click();
+    for (const name of ["portrait.mov", "video.mp4", "portrait.mov"]) {
+      await page
+        .getByRole("button", { name: `预览 ${name}`, exact: true })
+        .click();
+      const video = page.locator(".preview-content video");
+      await expect(video).toBeVisible();
+      await expect
+        .poll(() => video.evaluate((v) => v.readyState))
+        .toBeGreaterThanOrEqual(1);
+      const dimensions = await video.evaluate((v) => [
+        v.videoWidth,
+        v.videoHeight,
+      ]);
+      expect(dimensions).toEqual(
+        name.endsWith(".mov") ? [360, 640] : [640, 360],
+      );
+      await video.evaluate((v) => {
+        v.muted = true;
+        return v.play();
+      });
+      await expect
+        .poll(() => video.evaluate((v) => v.currentTime))
+        .toBeGreaterThan(0.1);
+      await page.getByRole("button", { name: "关闭预览", exact: true }).click();
+      await expect(page.locator("#preview-dialog")).toHaveCount(0);
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            window.previewSources.every(
+              (v) => v.revoked && v.source.readyState === "closed",
+            ),
+          ),
+        )
+        .toBe(true);
+    }
+  } finally {
+    await rm(path, { force: true });
+  }
 });

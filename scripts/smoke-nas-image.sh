@@ -48,6 +48,10 @@ start() {
   test -n "$image_etag"
   test "$(curl --silent --max-time 5 --output /dev/null --write-out '%{http_code}' -H "If-None-Match: $image_etag" \
     "http://$address/api/iiif/3/cGhvdG8ucG5n/full/384,256/0/default.jpg")" = 304
+  curl --fail --silent --show-error --max-time 15 "http://$address/api/iiif/3/dmlkZW8ubXA0/info.json" \
+    | jq -e '.type == "ImageService3" and .width == 640 and .height == 360' >/dev/null
+  curl --fail --silent --show-error --max-time 15 \
+    "http://$address/api/iiif/3/dmlkZW8ubXA0/full/128,72/0/default.jpg" --output "$test_dir/video-poster.jpg"
   docker top "$container" -eo pid,uid,gid,args | awk -v uid="$uid" -v gid="$gid" \
     'NR > 1 { count++; if ($2 != uid || $3 != gid) exit 1 } END { if (count != 1) exit 1 }'
   docker run --rm --pid="container:$container" --cap-drop ALL "$helper" \
@@ -102,7 +106,9 @@ expect_failure() {
 # initialize private state, then run entirely as the default unprivileged user.
 fixture 'mkdir -p /fixture/data /fixture/public; chmod 700 /fixture/data; chmod 755 /fixture/public; printf "public fixture" > /fixture/public/hello.txt; chmod 644 /fixture/public/hello.txt'
 cp "$script_dir/../test/fixtures/photo.png" "$test_dir/photo.png"
+cp "$script_dir/../test/fixtures/video.mp4" "$test_dir/video.mp4"
 fixture 'cp /fixture/photo.png /fixture/public/photo.png; chmod 644 /fixture/public/photo.png'
+fixture 'cp /fixture/video.mp4 /fixture/public/video.mp4; chmod 644 /fixture/public/video.mp4'
 fixture 'mkdir -p "/fixture/public/#recycle" "/fixture/public/@Recycle"; printf "deleted fixture" > "/fixture/public/#recycle/deleted.txt"; printf "deleted fixture" > "/fixture/public/@Recycle/deleted.txt"; ln -s "#recycle" /fixture/public/recycle-alias'
 start default 1000 1000 --security-opt no-new-privileges:true
 docker exec "$container" /lantern-dock link create --data-dir=/data \

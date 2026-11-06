@@ -269,7 +269,8 @@
   .preview-content {
     min-height: 240px;
   }
-  .preview-content img {
+  .preview-content img,
+  .preview-content video {
     max-height: 48dvh;
   }
   .file-details {

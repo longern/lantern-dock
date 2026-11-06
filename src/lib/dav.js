@@ -34,7 +34,8 @@ export function kindFor(name, isDirectory) {
     ["jpg", "jpeg", "png", "gif", "webp", "avif", "svg", "heic"].includes(ext)
   )
     return "image";
-  if (["mp4", "mkv", "mov", "webm", "avi"].includes(ext)) return "video";
+  if (["mp4", "m4v", "mkv", "mov", "webm", "avi", "ogv"].includes(ext))
+    return "video";
   if (["mp3", "flac", "m4a", "wav", "ogg"].includes(ext)) return "audio";
   if (
     [
@@ -188,9 +189,14 @@ export class DAVClient {
       throw error;
     }
   }
-  async get(path, signal) {
+  async read(path, signal, headers = {}, method = "GET") {
     path = normalizePath(path);
     if (!withinRoot(path, this.root)) throw new Error("不能离开配置的根目录");
-    return checkResponse(await this.transport.request(path, { signal }));
+    if (!["GET", "HEAD"].includes(method))
+      throw new Error("文件预览仅支持读取");
+    return this.transport.request(path, { signal, headers, method });
+  }
+  async get(path, signal) {
+    return checkResponse(await this.read(path, signal));
   }
 }

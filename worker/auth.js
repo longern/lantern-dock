@@ -817,7 +817,7 @@ export function secureResponse(response) {
   headers.set("Referrer-Policy", "no-referrer");
   headers.set(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; connect-src 'self' https: http://localhost:* http://127.0.0.1:* wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; media-src 'self' blob: https: http://localhost:* http://127.0.0.1:*; connect-src 'self' https: http://localhost:* http://127.0.0.1:* wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
   );
   return new Response(response.body, {
     status: response.status,

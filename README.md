@@ -33,7 +33,7 @@ Give visitors a simple interface to files you already host. LanternDock provides
 ## Features
 
 - **Browse your files.** Directory navigation, search within the current directory, sorting, and list or grid views.
-- **Preview before downloading.** Open images and text in a desktop side panel or a full-screen mobile preview.
+- **Preview before downloading.** Open images, text and supported videos in a desktop side panel or a full-screen mobile preview.
 - **Load smaller images.** The NAS service provides IIIF 3 thumbnails and resized previews, with bounded caches and ETag validation.
 - **Download with control.** Progress, cancellation, and streaming to disk when the browser supports a file picker.
 - **Pick up where you left off.** Favorites and recent files stored in the visitor's browser.
@@ -118,15 +118,15 @@ The deploy command builds the Preact frontend into `dist/` and uploads it with t
 
 LanternDock is in early development. Public browsing is **read-only WebDAV**. The optional NAS backend adds **private uploads through scoped collection links** and **OIDC identity/administrator recognition**. Collection management currently uses the NAS CLI. General file editing, public share management, resumable uploads, and task execution remain future work.
 
-| Area           | Current behavior                                                                                                                                                                                |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Previews       | NAS JPG previews up to 1600 px; original-image fallback up to 25 MiB; text up to 1 MiB. Video, audio, PDF, and archive previews are not available yet.                                          |
-| Downloads      | Stream to disk when supported; otherwise buffer in memory with a 256 MiB limit.                                                                                                                 |
-| Directories    | Directory responses are limited to 8 MiB, with a bounded 15-second NAS listing cache. Search and type filters apply to the current directory.                                                   |
-| Image listings | NAS images use lazy IIIF thumbnails; third-party DAV backends retain file-type icons. See [images and caching](docs/images.md).                                                                 |
-| Local records  | Favorites and recent paths use local storage. Backend credentials and NAS grants stay in memory; login uses an HttpOnly cookie and a non-extractable browser key in IndexedDB.                  |
-| File drops     | NAS-issued links with expiry, revocation, per-file and total byte limits, and file-count quotas. Files upload sequentially with progress and cancellation; incomplete files must be sent again. |
-| Validation     | Chromium desktop and mobile viewports, plus local real-bridge integration tests. Physical devices and individual backends need further testing.                                                 |
+| Area           | Current behavior                                                                                                                                                                                                                          |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Previews       | NAS JPG previews up to 1600 px; original-image fallback up to 25 MiB; text up to 1 MiB. Supported videos play through native HTTPS or MP4Box + MediaSource over WebTransport. Audio-only, PDF and archive previews are not available yet. |
+| Downloads      | Stream to disk when supported; otherwise buffer in memory with a 256 MiB limit.                                                                                                                                                           |
+| Directories    | Directory responses are limited to 8 MiB, with a bounded 15-second NAS listing cache. Search and type filters apply to the current directory.                                                                                             |
+| Image listings | NAS images and videos use lazy IIIF thumbnails; third-party DAV backends retain file-type icons. See [images and caching](docs/images.md) and [video playback](docs/video.md).                                                            |
+| Local records  | Favorites and recent paths use local storage. Backend credentials and NAS grants stay in memory; login uses an HttpOnly cookie and a non-extractable browser key in IndexedDB.                                                            |
+| File drops     | NAS-issued links with expiry, revocation, per-file and total byte limits, and file-count quotas. Files upload sequentially with progress and cancellation; incomplete files must be sent again.                                           |
+| Validation     | Chromium desktop and mobile viewports, plus local real-bridge integration tests. Physical devices and individual backends need further testing.                                                                                           |
 
 `BACKEND_ROOT` controls navigation. Enforce permissions and path restrictions on the backend or bridge.
 
@@ -138,6 +138,7 @@ LanternDock is in early development. Public browsing is **read-only WebDAV**. Th
 - [ ] Support resumable uploads and a web interface for managing collections.
 - [ ] Expose predefined, authorized tasks such as media conversion.
 - [x] Add IIIF image thumbnails, resized previews and bounded caches.
+- [x] Add video posters, native HTTPS playback and page-local WebTransport MP4 playback.
 - [ ] Expand preview formats and support Live Photos.
 
 These features require backend enforcement as well as interface work. Track proposals and discuss priorities in [Issues](https://github.com/longern/lantern-dock/issues).

@@ -175,3 +175,5 @@ This first version transfers each file in one request. Cancelling or losing an i
 ## Image previews and caching
 
 The NAS service includes IIIF Image API 3 Level 0 for public images, a bounded cache in `/data/cache/images`, and lazy thumbnails/resized previews in the frontend. Existing `/dav,/api` bridge namespaces cover it. There are no additional required variables or mounts. Update both the NAS image and the frontend to enable the complete feature. See [images and caching](images.md) for formats, limits, HTTP validation and compatibility with third-party DAV servers.
+
+The image also includes FFmpeg/ffprobe for video posters. Video playback stays on the client: public HTTPS uses the original URL, while WebTransport uses page-local MP4Box + MediaSource for supported MP4/MOV files. See [video playback](video.md) for compatibility and resource limits.

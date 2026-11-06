@@ -349,6 +349,10 @@ export async function startFixture({ nas = false, identity = false } = {}) {
         resolve(publicDir, "照片", "photo.png"),
         await readFile(resolve("test/fixtures/photo.png")),
       );
+      await writeFile(
+        resolve(publicDir, "照片", "video.mp4"),
+        await readFile(resolve("test/fixtures/video.mp4")),
+      );
       for (const path of ["#recycle", "@Recycle", "照片/@rEcYcLe"]) {
         await mkdir(resolve(publicDir, path), { recursive: true });
         await writeFile(
@@ -399,6 +403,40 @@ export async function startFixture({ nas = false, identity = false } = {}) {
         endpoint: backendEndpoint,
         dataDir,
         publicDir,
+        async longVideo() {
+          const path = resolve(publicDir, "照片", "long.mp4");
+          await exec("ffmpeg", [
+            "-v",
+            "error",
+            "-stream_loop",
+            "-1",
+            "-i",
+            resolve("test/fixtures/video.mp4"),
+            "-t",
+            "120",
+            "-c",
+            "copy",
+            "-y",
+            path,
+          ]);
+          return path;
+        },
+        async portraitVideo() {
+          const path = resolve(publicDir, "照片", "portrait.mov");
+          await exec("ffmpeg", [
+            "-v",
+            "error",
+            "-display_rotation:v:0",
+            "90",
+            "-i",
+            resolve("test/fixtures/video.mp4"),
+            "-c",
+            "copy",
+            "-y",
+            path,
+          ]);
+          return path;
+        },
         async administrators(subjects, { resourceOrigin = origin } = {}) {
           const exited = new Promise((resolve) =>
             processNAS.once("exit", resolve),
