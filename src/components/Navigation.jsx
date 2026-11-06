@@ -12,6 +12,7 @@ const kinds = [
   ["image", "图片"],
   ["text", "文档"],
   ["video", "视频"],
+  ["book", "图书"],
   ["audio", "音乐"],
 ];
 

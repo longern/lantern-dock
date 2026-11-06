@@ -3,6 +3,7 @@ import { Icon } from "./Icon.jsx";
 import { artwork } from "../lib/demo.js";
 import { bytes, date } from "../lib/format.js";
 import { Thumbnail } from "./Thumbnail.jsx";
+import { fileCategories, matchesCategory } from "../lib/categories.js";
 
 function FileCard({
   item,
@@ -89,10 +90,7 @@ export function FileBrowser({
     return source
       .filter(
         (item) =>
-          (!library.kind ||
-            (library.kind === "text"
-              ? ["text", "pdf"].includes(item.kind)
-              : item.kind === library.kind)) &&
+          matchesCategory(item, library.kind) &&
           item.name
             .toLocaleLowerCase()
             .includes(library.query.toLocaleLowerCase()),
@@ -149,11 +147,7 @@ export function FileBrowser({
               onClick={() => library.selectMode("all")}
               aria-label="清除类型筛选"
             >
-              {
-                { image: "图片", text: "文档", video: "视频", audio: "音乐" }[
-                  library.kind
-                ]
-              }
+              {fileCategories.find(({ kind }) => kind === library.kind)?.label}
               <Icon name="x" />
             </button>
           )}

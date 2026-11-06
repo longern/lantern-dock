@@ -7,6 +7,7 @@ import {
 } from "preact/hooks";
 import { Sidebar, Topbar, MobileTabs } from "./components/Navigation.jsx";
 import { FileBrowser } from "./components/FileBrowser.jsx";
+import { CategoryCards } from "./components/CategoryCards.jsx";
 import { FilePreview } from "./components/FilePreview.jsx";
 import { ConnectionDialog } from "./components/ConnectionDialog.jsx";
 import { DownloadPanel } from "./components/DownloadPanel.jsx";
@@ -158,6 +159,10 @@ function LibraryApp() {
           onMenu={() => setMenu((value) => !value)}
           onSettings={showSettings}
         />
+        {library.mode === "all" &&
+          library.path === (library.connection?.client.root || "/") && (
+            <CategoryCards library={library} />
+          )}
         {library.demoPreview && (
           <div class="demo-preview-note">
             <span>正在体验演示文件</span>
