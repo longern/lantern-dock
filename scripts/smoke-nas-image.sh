@@ -101,7 +101,8 @@ expect_failure() {
 # Root-owned bind mounts reproduce NAS GUI-created folders. The service must
 # initialize private state, then run entirely as the default unprivileged user.
 fixture 'mkdir -p /fixture/data /fixture/public; chmod 700 /fixture/data; chmod 755 /fixture/public; printf "public fixture" > /fixture/public/hello.txt; chmod 644 /fixture/public/hello.txt'
-cp "$script_dir/../test/fixtures/photo.png" "$test_dir/public/photo.png"
+cp "$script_dir/../test/fixtures/photo.png" "$test_dir/photo.png"
+fixture 'cp /fixture/photo.png /fixture/public/photo.png; chmod 644 /fixture/public/photo.png'
 fixture 'mkdir -p "/fixture/public/#recycle" "/fixture/public/@Recycle"; printf "deleted fixture" > "/fixture/public/#recycle/deleted.txt"; printf "deleted fixture" > "/fixture/public/@Recycle/deleted.txt"; ln -s "#recycle" /fixture/public/recycle-alias'
 start default 1000 1000 --security-opt no-new-privileges:true
 docker exec "$container" /lantern-dock link create --data-dir=/data \
