@@ -1,54 +1,44 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
+	"runtime"
 	"strings"
 	"syscall"
 )
 
-type runtimeIdentity struct {
-	Enabled  bool
-	UID, GID int
-}
-
-func runtimeIdentityFor(imageDefault string, getenv func(string) string, uid, gid int) (runtimeIdentity, error) {
-	puid, pgid := getenv("PUID"), getenv("PGID")
-	if imageDefault == "" && puid == "" && pgid == "" {
-		return runtimeIdentity{}, nil
+// A filesystem-only helper for the image entrypoint. Process identity belongs
+// to the container launcher; ordinary serve/link commands never switch users.
+func initializeData(args []string) error {
+	flags := flag.NewFlagSet("init-data", flag.ContinueOnError)
+	public := flags.String("public-dir", "/public", "public directory to keep separate")
+	data := flags.String("data-dir", "/data", "private application data directory")
+	uid := flags.Int("uid", 1000, "private state owner UID")
+	gid := flags.Int("gid", 1000, "private state owner GID")
+	if err := flags.Parse(args); err != nil {
+		return err
 	}
-	defaultID := imageDefault
-	if defaultID == "" {
-		defaultID = "65532"
+	if flags.NArg() != 0 || *uid <= 0 || *gid <= 0 || *uid > 2147483647 || *gid > 2147483647 {
+		return fmt.Errorf("init-data requires positive numeric UID/GID and directory flags only")
 	}
-	if uid == 0 {
-		uid, _ = strconv.Atoi(defaultID)
-		gid = uid
+	directory, err := separateDataDirectories(*public, *data)
+	if err != nil {
+		return err
 	}
-	parse := func(name, value string, fallback int) (int, error) {
-		if value == "" {
-			if fallback > 0 {
-				return fallback, nil
-			}
-			return 0, fmt.Errorf("%s must be nonzero; specify both UID and GID in Docker user:", name)
+	if runtime.GOOS == "linux" {
+		mounts, err := os.ReadFile("/proc/self/mountinfo")
+		if err != nil {
+			return err
 		}
-		id, err := strconv.ParseUint(value, 10, 31)
-		if err != nil || id == 0 {
-			return 0, fmt.Errorf("%s must be a decimal ID between 1 and 2147483647", name)
+		if err := rejectNestedDataMounts(directory, string(mounts)); err != nil {
+			return err
 		}
-		return int(id), nil
 	}
-	var err error
-	if uid, err = parse("PUID", puid, uid); err != nil {
-		return runtimeIdentity{}, err
-	}
-	if gid, err = parse("PGID", pgid, gid); err != nil {
-		return runtimeIdentity{}, err
-	}
-	return runtimeIdentity{Enabled: true, UID: uid, GID: gid}, nil
+	return prepareData(directory, *uid, *gid)
 }
 
 // Resolve even a not-yet-created directory through its existing parents, so an
@@ -79,7 +69,7 @@ func prospectivePath(name string) (string, error) {
 	}
 }
 
-func separateRuntimeDirectories(public, data string) (string, error) {
+func separateDataDirectories(public, data string) (string, error) {
 	pub, err := prospectivePath(public)
 	if err != nil {
 		return "", err
@@ -116,7 +106,7 @@ func rejectNestedDataMounts(directory string, mountinfo string) error {
 
 // Initialize only LanternDock's state and inbox. Keep unrelated files, public
 // folders, symlink targets and hard-linked files out of privileged migration.
-func prepareRuntimeData(directory string, uid, gid int) error {
+func prepareData(directory string, uid, gid int) error {
 	if err := os.MkdirAll(directory, 0700); err != nil {
 		return err
 	}

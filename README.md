@@ -77,7 +77,7 @@ The optional [`server/`](server/) backend combines public read-only WebDAV with 
 
 Use [`compose.nas.yaml`](compose.nas.yaml) for the NAS backend plus WebTransport bridge. It pulls `ghcr.io/longern/lantern-dock:latest` for amd64 or arm64; no NAS-side build is needed. See the [NAS deployment guide](docs/nas-server.md) for folder mounts, image updates, frontend configuration, and CLI commands to create and revoke collection links.
 
-NAS containers support optional `PUID/PGID` to match a local NAS account. Startup prepares private database/inbox permissions, then runs the service and CLI as that non-root user. Public-folder ownership and permissions stay under NAS administration; give the selected account read access and keep the mount read-only. Docker's native `user:` is also supported.
+NAS containers support optional `PUID/PGID` (default `1000:1000`) to match a local NAS account. Startup prepares private database/inbox permissions, then runs the service and CLI as that non-root user. Public-folder ownership and permissions stay under NAS administration; give the selected account read access and keep the mount read-only. Docker's native non-root `user:` takes precedence over the environment defaults.
 
 ### Sign in with workers-sso
 

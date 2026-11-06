@@ -3,8 +3,8 @@ services:
     image: ${NAS_IMAGE:-ghcr.io/longern/lantern-dock:latest}
     restart: unless-stopped
     environment:
-      PUID: ${PUID:-}
-      PGID: ${PGID:-}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
       SITE_ORIGIN: ${SITE_ORIGIN}
       ADMIN_SUBJECTS: ${ADMIN_SUBJECTS:-[]}
       NAS_RESOURCE_ORIGIN: ${NAS_RESOURCE_ORIGIN:-}
@@ -17,8 +17,6 @@ services:
     read_only: true
     security_opt:
       - no-new-privileges:true
-    cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
 
   bridge:
     image: ghcr.io/longern/webtransport-bridge:latest

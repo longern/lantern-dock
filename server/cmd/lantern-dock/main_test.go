@@ -9,6 +9,9 @@ import (
 )
 
 func TestLinkCLI(t *testing.T) {
+	// Container identity variables belong to the image launcher, not the CLI.
+	t.Setenv("PUID", "not-a-user")
+	t.Setenv("PGID", "0")
 	data := t.TempDir()
 	var output bytes.Buffer
 	if err := run([]string{"link", "create", "--data-dir", data, "--site", "https://portal.example", "--max-file", "1MiB", "--max-total", "2MiB", "--max-files", "2"}, &output); err != nil {
