@@ -13,6 +13,8 @@ npm test
 
 ## Browser tests
 
+See [interface conventions](ui.md) for the interaction audit, shared modal lifecycle, visual tokens and motion behavior.
+
 The browser suite covers desktop, tablet, and 390/320 px mobile layouts in Chromium, including previews across breakpoints, navigation, local records, downloads, first-run setup, configuration export, rechecks, and configuration errors. The suite uses a separate demo server on port 8788 so it does not depend on the running development server:
 
 ```sh

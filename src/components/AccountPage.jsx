@@ -118,11 +118,7 @@ export function AccountPage() {
           <h1 id="account-title">
             {session ? session.user.name || "已登录" : "登录你的账户"}
           </h1>
-          <p>
-            {session
-              ? "这是你的站点身份，访问权限由 NAS 管理。"
-              : "使用站点配置的统一登录服务继续。公开文件和收件链接无需登录。"}
-          </p>
+          {!session && <p>公开文件可直接浏览，登录后可查看账户信息。</p>}
         </div>
         {loading && (
           <p class="upload-message" role="status">
@@ -137,10 +133,6 @@ export function AccountPage() {
         {session && (
           <>
             <dl class="account-details">
-              <div>
-                <dt>身份签发方</dt>
-                <dd>{session.user.issuer}</dd>
-              </div>
               {session.user.email && (
                 <div>
                   <dt>邮箱</dt>
@@ -154,23 +146,37 @@ export function AccountPage() {
                     ? account.user.role === "admin"
                       ? "管理员"
                       : "普通用户"
-                    : "正在等待 NAS 验证"}
+                    : accountError
+                      ? "暂时无法验证"
+                      : "验证中…"}
                 </dd>
               </div>
             </dl>
-            <label class="form-label" for="account-sub">
-              用户标识（sub）
-            </label>
-            <div class="account-copy">
-              <input id="account-sub" readOnly value={session.user.sub} />
-              <button
-                class="secondary-button"
-                onClick={() => copy(session.user.sub, " sub")}
-              >
-                <Icon name="copy" />
-                复制 sub
-              </button>
-            </div>
+            <details
+              class="account-advanced"
+              open={!account?.administratorConfigured}
+            >
+              <summary>账户详情</summary>
+              <dl class="account-details">
+                <div>
+                  <dt>身份签发方</dt>
+                  <dd>{session.user.issuer}</dd>
+                </div>
+              </dl>
+              <label class="form-label" for="account-sub">
+                用户标识（sub）
+              </label>
+              <div class="account-copy">
+                <input id="account-sub" readOnly value={session.user.sub} />
+                <button
+                  class="secondary-button"
+                  onClick={() => copy(session.user.sub, " sub")}
+                >
+                  <Icon name="copy" />
+                  复制 sub
+                </button>
+              </div>
+            </details>
             {account && !account.administratorConfigured && (
               <div class="account-notice">
                 <h2>尚未配置管理员</h2>
@@ -199,9 +205,7 @@ export function AccountPage() {
               </div>
             )}
             {account?.user.role === "admin" && (
-              <p class="account-notice">
-                管理员身份已生效。收件链接目前通过 NAS 本地 CLI 管理。
-              </p>
+              <p class="account-notice">管理员权限已启用。</p>
             )}
             {accountError && (
               <p class="account-notice error" role="alert">

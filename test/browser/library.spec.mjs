@@ -132,13 +132,19 @@ test("settings reconnect and credential clearing clean up preview", async ({
     .getByRole("button", { name: "预览 项目笔记.md", exact: true })
     .click();
   await page.getByRole("button", { name: "关闭预览" }).click();
-  await page.getByRole("button", { name: "登录与连接设置" }).click();
-  await page.getByLabel("后端认证", { exact: true }).selectOption("basic");
+  await page
+    .locator(".topbar")
+    .getByRole("button", { name: "连接设置", exact: true })
+    .click();
+  await page.getByLabel("访问方式", { exact: true }).selectOption("basic");
   await page.getByLabel("用户名", { exact: true }).fill("local-user");
   await page.getByLabel("密码", { exact: true }).fill("memory-only-secret");
   await page.getByRole("button", { name: "连接", exact: true }).click();
   await expect(page.locator(".file-card")).toHaveCount(12);
-  await page.getByRole("button", { name: "登录与连接设置" }).click();
+  await page
+    .locator(".topbar")
+    .getByRole("button", { name: "连接设置", exact: true })
+    .click();
   await expect(page.getByLabel("用户名", { exact: true })).toHaveValue(
     "local-user",
   );
@@ -146,14 +152,17 @@ test("settings reconnect and credential clearing clean up preview", async ({
     "memory-only-secret",
   );
   await page.getByRole("button", { name: "清除登录信息" }).click();
-  await expect(page.getByLabel("后端认证", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("访问方式", { exact: true })).toHaveValue(
     "none",
   );
   await page.getByRole("button", { name: "关闭设置" }).click();
   await page.reload();
   await expect(page.locator(".file-card")).toHaveCount(12);
-  await page.getByRole("button", { name: "登录与连接设置" }).click();
-  await expect(page.getByLabel("后端认证", { exact: true })).toHaveValue(
+  await page
+    .locator(".topbar")
+    .getByRole("button", { name: "连接设置", exact: true })
+    .click();
+  await expect(page.getByLabel("访问方式", { exact: true })).toHaveValue(
     "none",
   );
 });
@@ -185,7 +194,10 @@ test("config failures stay visible and reconnect can recover", async ({
   await expect(page.locator(".file-card")).toHaveCount(0);
   await expect(page.locator(".list-head")).toBeHidden();
   await page.unroute("**/api/config");
-  await page.getByRole("button", { name: "登录与连接设置" }).click();
+  await page
+    .locator(".topbar")
+    .getByRole("button", { name: "连接设置", exact: true })
+    .click();
   await page.getByRole("button", { name: "连接", exact: true }).click();
   await expect(page.locator(".file-card")).toHaveCount(12);
   await expect(page.locator(".list-head")).not.toHaveAttribute("hidden");

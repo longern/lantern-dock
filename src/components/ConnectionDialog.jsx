@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
+import { Dialog } from "./Dialog.jsx";
 
 export function ConnectionDialog({
   backend,
@@ -7,9 +8,10 @@ export function ConnectionDialog({
   onConnect,
   onForget,
   onClose,
+  onExited,
+  open,
   feedback,
 }) {
-  const dialog = useRef(null);
   const [form, setForm] = useState({
     ...credentials,
     mode:
@@ -17,11 +19,6 @@ export function ConnectionDialog({
   });
   const field = (name, value) =>
     setForm((current) => ({ ...current, [name]: value }));
-  useEffect(() => {
-    const node = dialog.current;
-    node.showModal();
-    return () => node.close();
-  }, []);
   const input = (name, label, type = "password", autocomplete = "off") => (
     <>
       <label class="form-label" for={name}>
@@ -37,14 +34,13 @@ export function ConnectionDialog({
     </>
   );
   return (
-    <dialog
-      ref={dialog}
+    <Dialog
+      open={open}
+      onClose={onClose}
+      onExited={onExited}
+      fallbackFocus='.topbar button[aria-label="连接设置"]'
       class="settings-dialog"
       aria-labelledby="settings-title"
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
     >
       <form
         onSubmit={(event) => {
@@ -67,7 +63,6 @@ export function ConnectionDialog({
             <Icon name="x" />
           </button>
         </div>
-        <p class="dialog-intro">登录信息仅保存在当前页面。</p>
         <div class="endpoint-box">
           <span class="mini-chip">
             {backend?.transport === "demo"
@@ -76,13 +71,11 @@ export function ConnectionDialog({
                 ? "WebTransport"
                 : "HTTP / HTTPS"}
           </span>
-          <strong>
-            {backend?.endpoint || "请配置 WEBDAV_URL 或 WEBTRANSPORT_URL"}
-          </strong>
+          <strong>{backend?.endpoint || "演示文件空间"}</strong>
           <span>{backend && `根目录 ${backend.rootPath}`}</span>
         </div>
         <label class="form-label" for="auth-mode">
-          后端认证
+          访问方式
         </label>
         <select
           id="auth-mode"
@@ -99,15 +92,19 @@ export function ConnectionDialog({
             {input("password", "密码", "password", "current-password")}
           </>
         )}
-        {form.mode === "bearer" && input("bearer", "后端访问令牌")}
-        {backend?.gatewayAuth && input("gatewayToken", "Bridge 网关令牌")}
-        <p class="field-note">
-          {backend?.transport === "webtransport"
-            ? "证书哈希由 Worker 提供，文件通过 WebTransport 直连网关。"
-            : backend?.transport === "demo"
-              ? "当前为演示模式。部署时请配置后端地址和 WebDAV 根路径。"
-              : "HTTP 后端需允许此网页的 CORS 请求，包括 PROPFIND、Depth 和 Authorization。"}
-        </p>
+        {form.mode === "bearer" && input("bearer", "访问令牌")}
+        {backend?.gatewayAuth && input("gatewayToken", "网关令牌")}
+        <p class="field-note">凭据仅用于当前页面，刷新后清除。</p>
+        <details class="connection-help">
+          <summary>连接帮助</summary>
+          <p class="field-note">
+            {backend?.transport === "webtransport"
+              ? "请确认 UDP 隧道可用、网关允许当前站点来源，且证书已更新。"
+              : backend?.transport === "demo"
+                ? "连接真实文件服务后，即可浏览和下载你的文件。"
+                : "WebDAV 服务需允许当前站点的 CORS 请求，以及 PROPFIND、Depth 和 Authorization。"}
+          </p>
+        </details>
         <div class="dialog-actions">
           <button
             type="button"
@@ -126,6 +123,6 @@ export function ConnectionDialog({
         </div>
       </form>
       {feedback}
-    </dialog>
+    </Dialog>
   );
 }

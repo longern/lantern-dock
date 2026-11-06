@@ -104,7 +104,7 @@ export function FileBrowser({
   const status = library.error
     ? "连接异常"
     : library.loading
-      ? "正在连接"
+      ? "连接中"
       : library.backend?.transport === "demo"
         ? "演示空间"
         : "已连接";
@@ -113,15 +113,37 @@ export function FileBrowser({
       <div class="file-toolbar">
         <div class="file-stats">
           <strong id="item-count">
-            {busy ? "正在读取文件" : `${entries.length} 个项目`}
+            {busy
+              ? "加载中…"
+              : library.error
+                ? "文件"
+                : `${entries.length} 个项目`}
           </strong>
-          <span
-            class={`status-pill${library.error ? " error" : library.loading ? " loading" : ""}`}
-            role="status"
-          >
-            <i />
-            <span>{status}</span>
-          </span>
+          {(library.error ||
+            library.loading ||
+            library.backend?.transport === "demo") && (
+            <span
+              class={`status-pill${library.error ? " error" : library.loading ? " loading" : ""}`}
+              role="status"
+            >
+              <i />
+              <span>{status}</span>
+            </span>
+          )}
+          {library.kind && (
+            <button
+              class="filter-chip"
+              onClick={() => library.selectMode("all")}
+              aria-label="清除类型筛选"
+            >
+              {
+                { image: "图片", text: "文档", video: "视频", audio: "音乐" }[
+                  library.kind
+                ]
+              }
+              <Icon name="x" />
+            </button>
+          )}
         </div>
         <div class="view-tools">
           <select
@@ -150,11 +172,24 @@ export function FileBrowser({
       </div>
       {library.error && (
         <div class="empty-state">
-          <Icon name="folder-search" />
+          <span class="empty-symbol">
+            <Icon name="cloud-off" />
+          </span>
           <h2>无法读取文件</h2>
-          <button class="secondary-button" onClick={onSettings}>
-            连接设置
-          </button>
+          <p>请重试，或检查连接设置。</p>
+          <div class="empty-actions">
+            <button
+              class="primary-button"
+              onClick={library.reconnect}
+              disabled={library.loading}
+            >
+              <Icon name="refresh" />
+              重试
+            </button>
+            <button class="secondary-button" onClick={onSettings}>
+              连接设置
+            </button>
+          </div>
         </div>
       )}
       <div
@@ -199,7 +234,19 @@ export function FileBrowser({
       </div>
       {!busy && !entries.length && !library.error && (
         <div class="empty-state">
-          <Icon name="folder-search" />
+          <span class="empty-symbol">
+            <Icon
+              name={
+                library.query
+                  ? "search"
+                  : library.mode === "favorites"
+                    ? "star"
+                    : library.mode === "recent"
+                      ? "clock"
+                      : "folder"
+              }
+            />
+          </span>
           <h2>
             {library.query
               ? "没有找到匹配的文件"
@@ -209,7 +256,36 @@ export function FileBrowser({
                   ? "暂无访问记录"
                   : "暂无文件"}
           </h2>
-          {library.mode !== "all" && <p>记录仅保存在此浏览器。</p>}
+          <p>
+            {library.query
+              ? "试试其他关键词。"
+              : library.mode === "favorites"
+                ? "点击文件旁的星标，收藏常用文件。"
+                : library.mode === "recent"
+                  ? "打开过的文件会显示在这里。"
+                  : library.kind
+                    ? "当前文件夹没有此类文件。"
+                    : "此文件夹还没有内容。"}
+          </p>
+          {library.query && (
+            <button
+              class="secondary-button"
+              onClick={() => library.setQuery("")}
+            >
+              清除搜索
+            </button>
+          )}
+          {!library.query && library.kind && (
+            <button
+              class="secondary-button"
+              onClick={() => library.selectMode("all")}
+            >
+              查看全部文件
+            </button>
+          )}
+          {!library.query && library.mode !== "all" && (
+            <span class="empty-footnote">记录保存在此浏览器</span>
+          )}
         </div>
       )}
     </section>

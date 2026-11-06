@@ -1,4 +1,6 @@
 .download-panel {
+  inset: auto 24px 24px auto;
+  margin: 0;
   position: fixed;
   bottom: 24px;
   right: 24px;
@@ -12,6 +14,9 @@
   border-radius: 10px;
   box-shadow: 0 10px 40px #24243b15;
   width: min(370px, calc(100% - 32px));
+}
+.download-panel::backdrop {
+  display: none;
 }
 .download-panel > div {
   flex: 1;
@@ -37,7 +42,7 @@ progress {
   position: fixed;
   z-index: 50;
   font-size: 12px;
-  inset: 74dvh auto auto 50%;
+  inset: 74dvh auto auto 50vw;
   transform: translate(-50%, -50%);
   margin: 0;
   border: 0;

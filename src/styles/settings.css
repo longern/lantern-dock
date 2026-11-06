@@ -4,9 +4,9 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 38px;
-  padding: 8px 16px;
-  border-radius: 7px;
+  min-height: 44px;
+  padding: 9px 18px;
+  border-radius: var(--radius-control);
   font-weight: 500;
 }
 .primary-button {
@@ -14,29 +14,31 @@
   background: var(--accent);
   border: 1px solid var(--accent);
 }
-.primary-button:hover {
-  background: #4541aa;
+@media (hover: hover) {
+  .primary-button:hover {
+    background: var(--accent-hover);
+  }
 }
 .secondary-button {
   background: #fff;
   border: 1px solid #dcdde7;
-  color: #626371;
+  color: #545b70;
 }
 .text-button {
-  color: #8d8c9b;
-  font-size: 12px;
-  padding: 8px 0;
+  color: var(--accent);
+  font-size: 13px;
+  padding: 8px 6px;
+  border-radius: var(--radius-control);
 }
 .settings-dialog {
   border: 1px solid #e5e5ee;
-  border-radius: 12px;
+  border-radius: var(--radius-panel);
   width: min(460px, calc(100% - 32px));
   padding: 24px;
-  box-shadow: 0 20px 90px #24243b22;
-}
-.settings-dialog::backdrop {
-  background: #1c1c3533;
-  backdrop-filter: blur(2px);
+  box-shadow: var(--shadow-dialog);
+  max-height: calc(100dvh - 48px);
+  overflow: auto;
+  overscroll-behavior: contain;
 }
 .dialog-heading {
   display: flex;
@@ -50,7 +52,7 @@
 .dialog-intro,
 .field-note {
   font-size: 12px;
-  color: #8d8d9b;
+  color: var(--muted);
   line-height: 1.7;
 }
 .endpoint-box {
@@ -59,7 +61,7 @@
   padding: 14px;
   border: 1px solid var(--line);
   background: #fafafd;
-  border-radius: 7px;
+  border-radius: var(--radius-control);
   margin: 18px 0;
   font-size: 12px;
   overflow-wrap: anywhere;
@@ -73,16 +75,16 @@
 .form-label {
   display: block;
   margin: 16px 0 8px;
-  color: #777784;
+  color: #545b70;
   font-size: 12px;
 }
 .settings-dialog input,
 .settings-dialog select {
   width: 100%;
-  height: 40px;
+  height: 44px;
   border: 1px solid #dedee7;
   background: #fff;
-  border-radius: 6px;
+  border-radius: var(--radius-control);
   padding: 8px 10px;
   color: #444454;
 }
@@ -93,4 +95,28 @@
   border-top: 1px solid var(--line);
   padding-top: 18px;
   margin-top: 24px;
+}
+
+.primary-button:active {
+  background: #3f3b9b;
+}
+@media (hover: hover) {
+  .secondary-button:hover {
+    background: var(--surface-subtle);
+    border-color: #c9cbd8;
+  }
+}
+@media (hover: hover) {
+  .text-button:hover {
+    background: var(--accent-soft);
+  }
+}
+.connection-help {
+  margin-top: 18px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.connection-help summary {
+  cursor: pointer;
+  padding: 4px 0;
 }

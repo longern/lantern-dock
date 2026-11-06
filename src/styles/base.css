@@ -7,15 +7,28 @@
     "PingFang SC",
     "Microsoft YaHei",
     sans-serif;
-  color: #20232e;
+  color: #252938;
   background: #fff;
   font-synthesis: none;
   font-size: 14px;
+  line-height: 1.5;
   --accent: #514dbb;
-  --line: #ececf1;
-  --muted: #81838e;
-  --sidebar: 224px;
-  --inspector: 340px;
+  --accent-hover: #4541aa;
+  --accent-soft: #efedfc;
+  --line: #e9eaf0;
+  --muted: #6d7285;
+  --surface: #fff;
+  --surface-subtle: #f7f8fb;
+  --scrim: rgba(18, 22, 37, 0.32);
+  --radius-control: 10px;
+  --radius-panel: 16px;
+  --shadow-dialog: 0 24px 80px #1d24412b, 0 4px 16px #1d244110;
+  --motion-fast: 120ms;
+  --motion-enter: 220ms;
+  --motion-exit: 180ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --sidebar: 240px;
+  --inspector: 360px;
 }
 * {
   box-sizing: border-box;
@@ -23,9 +36,15 @@
 body {
   margin: 0;
 }
+html {
+  scrollbar-gutter: stable;
+}
 button,
 input,
 select {
+  font: inherit;
+}
+textarea {
   font: inherit;
 }
 button,
@@ -42,7 +61,7 @@ button {
 }
 button:disabled {
   cursor: default;
-  color: var(--muted);
+  opacity: 0.5;
 }
 button:focus-visible,
 a:focus-visible,
@@ -51,9 +70,18 @@ select:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
 }
+summary:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
 button {
   border: 0;
   background: none;
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast),
+    box-shadow var(--motion-fast);
 }
 a {
   color: inherit;

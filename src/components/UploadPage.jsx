@@ -130,9 +130,7 @@ export function UploadPage({ token }) {
         <div class="setup-intro">
           <span class="setup-eyebrow">临时收件箱</span>
           <h1 id="upload-title">{link?.title || "接收文件"}</h1>
-          <p>
-            文件直接发送给收件人。上传内容不会自动公开，也不会显示其他人的文件。
-          </p>
+          <p>文件仅对收件人可见。</p>
         </div>
         {!link && !error && (
           <p class="upload-message" role="status">
@@ -188,11 +186,7 @@ export function UploadPage({ token }) {
                   ? "选择文件或拖放到这里"
                   : "收件箱已达到限额或已过期"}
             </strong>
-            <span>
-              {working
-                ? "可以取消当前文件的上传"
-                : "支持一次选择多个文件，按顺序上传"}
-            </span>
+            <span>{working ? "请保持页面打开" : "支持选择多个文件"}</span>
             <input
               type="file"
               multiple

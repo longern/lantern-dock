@@ -33,9 +33,12 @@ test.afterAll(async () => {
 });
 
 async function login(page, gateway = gatewayToken, backend = backendToken) {
-  await page.getByRole("button", { name: "登录与连接设置" }).click();
-  await page.getByLabel("后端访问令牌").fill(backend);
-  await page.getByLabel("Bridge 网关令牌").fill(gateway);
+  await page
+    .locator(".topbar")
+    .getByRole("button", { name: "连接设置", exact: true })
+    .click();
+  await page.getByLabel("访问令牌", { exact: true }).fill(backend);
+  await page.getByLabel("网关令牌", { exact: true }).fill(gateway);
   await page.getByRole("button", { name: "连接", exact: true }).click();
 }
 

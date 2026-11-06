@@ -80,13 +80,21 @@
   font-size: 12px;
   margin-top: 16px;
 }
+.account-advanced {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  padding: 14px 16px;
+  margin: 20px 0;
+}
+.account-advanced summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+}
+.account-advanced .account-details {
+  margin: 12px 0;
+}
 @media (max-width: 700px) {
-  .topbar {
-    grid-template-columns: 28px minmax(0, 1fr) 36px 36px;
-  }
-  .topbar-right > .account-entry {
-    grid-column: 4;
-  }
   .account-page .setup-card {
     padding: 24px 20px;
   }

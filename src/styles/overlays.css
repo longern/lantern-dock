@@ -1,0 +1,121 @@
+/* Keep each native modal and its backdrop in the top layer through the exit. */
+.sidebar-drawer,
+.settings-dialog {
+  color: inherit;
+}
+.sidebar-drawer:not([open]),
+.settings-dialog:not([open]),
+.preview-dialog:not([open]) {
+  display: none;
+}
+.sidebar-drawer::backdrop,
+.settings-dialog::backdrop,
+.preview-dialog::backdrop {
+  background: var(--scrim);
+  animation: backdrop-in var(--motion-enter) var(--ease-standard) both;
+}
+.sidebar-drawer[data-state="closed"]::backdrop,
+.settings-dialog[data-state="closed"]::backdrop,
+.preview-dialog[data-state="closed"]::backdrop {
+  animation: backdrop-out var(--motion-exit) ease-in both;
+}
+.sidebar-drawer[open] {
+  animation: drawer-in var(--motion-enter) var(--ease-standard) both;
+}
+.sidebar-drawer[open][data-state="closed"] {
+  animation: drawer-out var(--motion-exit) ease-in both;
+}
+.settings-dialog[open] {
+  animation: dialog-in var(--motion-enter) var(--ease-standard) both;
+}
+.settings-dialog[open][data-state="closed"] {
+  animation: dialog-out var(--motion-exit) ease-in both;
+}
+.preview-dialog[open] {
+  animation: preview-in var(--motion-enter) var(--ease-standard) both;
+}
+.preview-dialog[open][data-state="closed"] {
+  animation: preview-out var(--motion-exit) ease-in both;
+}
+@keyframes backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes drawer-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes dialog-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+@keyframes preview-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes preview-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after,
+  dialog::backdrop {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}

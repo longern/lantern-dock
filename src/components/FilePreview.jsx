@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { limitedBytes } from "../lib/dav.js";
 import { bytes, date } from "../lib/format.js";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
+import { Dialog } from "./Dialog.jsx";
 
 export function FilePreview({
   item,
@@ -12,21 +13,14 @@ export function FilePreview({
   onDownload,
   onError,
   onClose,
+  onExited,
+  open,
   feedback,
 }) {
-  const dialog = useRef(null);
   const modal = useMediaQuery("(max-width: 1000px)");
   const [content, setContent] = useState(null);
   const [error, setError] = useState("");
   const [dimensions, setDimensions] = useState("");
-
-  useLayoutEffect(() => {
-    const node = dialog.current;
-    if (node.open) node.close();
-    if (modal) node.showModal();
-    else node.show();
-    return () => node.close();
-  }, [modal]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -37,7 +31,7 @@ export function FilePreview({
     (async () => {
       try {
         if (!["image", "text"].includes(item.kind)) {
-          setError("暂不支持预览，可以下载后打开。");
+          setError("下载后查看此文件");
           return;
         }
         const limit = (item.kind === "image" ? 25 : 1) * 1024 * 1024;
@@ -71,19 +65,18 @@ export function FilePreview({
   }, [item, client]);
 
   return (
-    <dialog
-      ref={dialog}
+    <Dialog
+      open={open}
+      modal={modal}
+      onClose={onClose}
+      onExited={onExited}
       id="preview-dialog"
       class="preview-dialog"
       aria-labelledby="preview-name"
-      onCancel={(event) => {
-        event.preventDefault();
-        onClose();
-      }}
     >
       <div class="preview-header">
         <button class="icon-button" aria-label="关闭预览" onClick={onClose}>
-          <Icon name="x" />
+          <Icon name={modal ? "chevron-left" : "x"} />
         </button>
         <strong id="preview-name">{item.name}</strong>
         <button
@@ -149,6 +142,6 @@ export function FilePreview({
         </button>
       </div>
       {feedback}
-    </dialog>
+    </Dialog>
   );
 }

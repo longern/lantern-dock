@@ -41,11 +41,12 @@ function LibraryApp() {
   const records = useRecords(library.key, toast);
   const transfer = useDownload(library.connection, records.remember, toast);
   const [selected, setSelected] = useState(null);
-  const [settings, setSettings] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [settings, setSettings] = useState(null);
   const [menu, setMenu] = useState(false);
   useEffect(() => {
     if (library.setup) {
-      setSettings(false);
+      setSettings(null);
       setMenu(false);
       setMessage(null);
     }
@@ -53,8 +54,10 @@ function LibraryApp() {
 
   useEffect(() => {
     setSelected(null);
+    setPreviewOpen(false);
   }, [library.connection]);
-  const closePreview = () => {
+  const closePreview = () => setPreviewOpen(false);
+  const finishPreview = () => {
     const path = selected?.path;
     setSelected(null);
     requestAnimationFrame(() =>
@@ -74,11 +77,16 @@ function LibraryApp() {
       }
       if (
         event.key === "/" &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        !document.activeElement?.isContentEditable &&
         !["INPUT", "TEXTAREA", "SELECT"].includes(
           document.activeElement?.tagName,
         ) &&
         !settings &&
-        !selected
+        !selected &&
+        !menu
       ) {
         event.preventDefault();
         document.getElementById("search")?.focus();
@@ -98,14 +106,15 @@ function LibraryApp() {
 
   const showSettings = () => {
     setMenu(false);
-    setSettings(true);
+    setSettings("open");
   };
   const preview = (item) => {
     records.remember(item);
     setSelected(item);
+    setPreviewOpen(true);
   };
   const connect = (credentials) => {
-    setSettings(false);
+    setSettings("closing");
     setSelected(null);
     setMessage(null);
     transfer.cancel();
@@ -134,7 +143,7 @@ function LibraryApp() {
       </>
     );
   return (
-    <div class={`app-shell${selected ? " preview-open" : ""}`}>
+    <div class={`app-shell${previewOpen ? " preview-open" : ""}`}>
       <Sidebar
         library={library}
         records={records}
@@ -145,6 +154,7 @@ function LibraryApp() {
       <main class="main-area">
         <Topbar
           library={library}
+          menuOpen={menu}
           onMenu={() => setMenu((value) => !value)}
           onSettings={showSettings}
         />
@@ -175,11 +185,15 @@ function LibraryApp() {
           onDownload={transfer.download}
           onError={(text) => toast(text, true)}
           onClose={closePreview}
+          open={previewOpen}
+          onExited={finishPreview}
           feedback={settings ? null : feedback}
         />
       )}
       {settings && (
         <ConnectionDialog
+          open={settings === "open"}
+          onExited={() => setSettings(null)}
           backend={library.backend}
           credentials={library.credentials}
           onConnect={connect}
@@ -189,7 +203,7 @@ function LibraryApp() {
             library.setCredentials({ mode: "none" });
             toast("已清除页面内的登录信息。");
           }}
-          onClose={() => setSettings(false)}
+          onClose={() => setSettings("closing")}
           feedback={feedback}
         />
       )}

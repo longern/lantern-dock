@@ -1,6 +1,8 @@
 import {
   ArrowUpRight,
   ChevronRight,
+  ChevronLeft,
+  CloudOff,
   Clock,
   CloudDownload,
   Download,
@@ -39,6 +41,8 @@ const icons = {
   cloud: CloudDownload,
   settings: Settings,
   "chevron-right": ChevronRight,
+  "chevron-left": ChevronLeft,
+  "cloud-off": CloudOff,
   refresh: RefreshCw,
   search: Search,
   shield: ShieldCheck,

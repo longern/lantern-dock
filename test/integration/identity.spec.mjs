@@ -32,7 +32,9 @@ async function login(page) {
   });
   await Promise.race([
     consent.waitFor({ timeout: 10000 }),
-    page.getByLabel("用户标识（sub）").waitFor({ timeout: 10000 }),
+    page
+      .getByRole("button", { name: "退出登录", exact: true })
+      .waitFor({ timeout: 10000 }),
   ]);
   if (await consent.isVisible()) await consent.click();
   await expect(page.getByLabel("用户标识（sub）")).toHaveValue(identitySubject);
@@ -118,7 +120,7 @@ test("administrator subjects are enforced on the NAS and apply to an existing lo
   await fixture.nas.administrators([identitySubject]);
   await page.getByRole("button", { name: "重新检测", exact: true }).click();
   await expect(
-    page.getByText("管理员身份已生效", { exact: false }),
+    page.getByText("管理员权限已启用", { exact: false }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "尚未配置管理员", exact: true }),
@@ -258,10 +260,11 @@ test("NAS sees only site identity and an existing session works without an upstr
   await fixture.nas.administrators([upstreamSubject]);
   await login(page);
   await expect(page.getByText("普通用户", { exact: true })).toBeVisible();
+  await expect(page.locator(".account-advanced")).not.toHaveAttribute("open");
   await fixture.nas.administrators([identitySubject]);
   await page.getByRole("button", { name: "重新检测", exact: true }).click();
   await expect(
-    page.getByText("管理员身份已生效", { exact: false }),
+    page.getByText("管理员权限已启用", { exact: false }),
   ).toBeVisible();
   const previous = { ...fixture.env };
   delete fixture.env.OIDC_ISSUER_URL;
@@ -273,7 +276,7 @@ test("NAS sees only site identity and an existing session works without an upstr
   try {
     await page.reload();
     await expect(
-      page.getByText("管理员身份已生效", { exact: false }),
+      page.getByText("管理员权限已启用", { exact: false }),
     ).toBeVisible();
     const session = await page.evaluate(async () =>
       (await fetch("/api/auth/session")).json(),

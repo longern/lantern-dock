@@ -49,7 +49,7 @@ export function useRecords(key, toast) {
           ? favorites.filter((entry) => entry.path !== item.path)
           : [item, ...favorites],
       );
-      toast(exists ? "已取消收藏" : "已加入本机收藏");
+      toast(exists ? "已取消收藏" : "已收藏");
     },
     remember(item) {
       save(
