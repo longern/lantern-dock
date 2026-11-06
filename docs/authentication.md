@@ -18,6 +18,8 @@ Use the exact issuer advertised by the login service's Discovery document. The W
 
 Worker `SITE_ORIGIN` is optional: set it to an exact HTTPS origin, with no path or trailing slash, if you want to require one canonical login domain. Requests to other domains are then rejected by the account endpoints. Without that override, each served origin has separate session encryption and signing keys. The NAS still needs its trusted portal address in `SITE_ORIGIN`; it never selects a trusted issuer from an incoming token or request.
 
+The included `wrangler.jsonc` enables `global_fetch_strictly_public` so public OIDC requests can reach another Cloudflare Worker, including workers-sso. Keep this flag in custom deployment configurations; see Cloudflare's [Worker-to-Worker fetch documentation](https://developers.cloudflare.com/workers/runtime-apis/fetch/).
+
 With a CIMD-capable provider, no client registration or client secret is needed. The client ID is the public metadata URL `https://nas.example.com/api/auth/oidc/client.json`, with the fixed callback `https://nas.example.com/auth/callback`. The login service must be able to fetch that document. The provider must support Authorization Code flow and PKCE S256. workers-sso does not need source changes, additional private keys, or knowledge of NAS roles.
 
 For an already registered OIDC client, optional `OIDC_CLIENT_ID` overrides CIMD. A confidential client can additionally use `OIDC_CLIENT_SECRET` as a Worker Secret if the provider supports `client_secret_post`; otherwise leave it unset. Configure the same callback in that registration. Browser login requires HTTPS; the default HTTP Vite server is for UI and connection development.

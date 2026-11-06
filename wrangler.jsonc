@@ -3,6 +3,7 @@
   "name": "lantern-dock",
   "main": "worker/index.js",
   "compatibility_date": "2026-11-04",
+  "compatibility_flags": ["global_fetch_strictly_public"],
   "keep_vars": true,
   "assets": {
     "directory": "./dist",
