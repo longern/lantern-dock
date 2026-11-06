@@ -610,3 +610,61 @@ test("a site session and NAS grant no longer depend on external login configurat
     false,
   );
 });
+
+test("Worker infers its HTTPS origin, isolates domains, and ignores forwarded host headers", async () => {
+  const f = await fixture();
+  delete f.env.SITE_ORIGIN;
+  const metadata = await (await f.request("/api/auth/oidc/client.json")).json();
+  assert.equal(metadata.client_id, site + "/api/auth/oidc/client.json");
+  assert.deepEqual(metadata.redirect_uris, [site + "/auth/callback"]);
+  await f.login();
+  const response = await f.request("/api/auth/session", {
+    headers: {
+      Host: "attacker.example",
+      "X-Forwarded-Host": "attacker.example",
+      "X-Forwarded-Proto": "http",
+    },
+  });
+  assert.equal((await response.json()).user.issuer, site);
+  const grant = decodeJwt((await (await f.grant()).json()).access_token);
+  assert.equal(grant.iss, site);
+  const keys = await (await f.request("/api/auth/jwks.json")).json();
+  const alternate = "https://alternate.example";
+  const alternateMetadata = await (
+    await worker.fetch(
+      new Request(alternate + AUTHORIZATION_METADATA_PATH),
+      f.env,
+    )
+  ).json();
+  assert.equal(alternateMetadata.issuer, alternate);
+  const alternateKeys = await (
+    await worker.fetch(new Request(alternate + "/api/auth/jwks.json"), f.env)
+  ).json();
+  assert.notEqual(alternateKeys.keys[0].kid, keys.keys[0].kid);
+  const copiedCookie = [...f.jar]
+    .map(([key, value]) => `${key}=${value}`)
+    .join("; ");
+  const alternateSession = await worker.fetch(
+    new Request(alternate + "/api/auth/session", {
+      headers: { Cookie: copiedCookie },
+    }),
+    f.env,
+  );
+  assert.equal((await alternateSession.json()).authenticated, false);
+  const forbidden = await f.request("/api/auth/logout", {
+    method: "POST",
+    headers: { Origin: alternate },
+  });
+  assert.equal(forbidden.status, 403);
+  assert.equal(
+    (await (await f.request("/api/auth/session")).json()).authenticated,
+    true,
+  );
+  const insecure = await worker.fetch(
+    new Request("http://portal.example/api/auth/session"),
+    f.env,
+  );
+  assert.equal(insecure.status, 400);
+  assert.equal((await insecure.json()).code, "INVALID_SITE_ORIGIN");
+  assert.equal(f.env.SITE_ORIGIN, undefined);
+});

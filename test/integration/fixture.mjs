@@ -234,16 +234,13 @@ export async function startFixture({ nas = false, identity = false } = {}) {
             return;
           }
           const method = req.method || "GET";
-          const request = new Request(
-            `${env.SITE_ORIGIN || `https://localhost:${frontend.address().port}`}${req.url}`,
-            {
-              method,
-              headers: req.headers,
-              ...(!["GET", "HEAD"].includes(method)
-                ? { body: Readable.toWeb(req), duplex: "half" }
-                : {}),
-            },
-          );
+          const request = new Request(`${origin}${req.url}`, {
+            method,
+            headers: req.headers,
+            ...(!["GET", "HEAD"].includes(method)
+              ? { body: Readable.toWeb(req), duplex: "half" }
+              : {}),
+          });
           env.ASSETS = {
             async fetch(request) {
               const pathname = decodeURIComponent(
@@ -288,8 +285,9 @@ export async function startFixture({ nas = false, identity = false } = {}) {
     const nativeOrigin = `https://localhost:${frontend.address().port}`;
     const origin = identity ? "https://portal.example" : nativeOrigin;
     if (identity) {
-      env.SITE_ORIGIN = origin;
-      sso = await startSSO(origin, () => clientMetadata(env));
+      sso = await startSSO(origin, () =>
+        clientMetadata({ ...env, SITE_ORIGIN: origin }),
+      );
       env.OIDC_ISSUER_URL = sso.issuer;
       env.SSO_SERVICE = sso;
       proxy = http.createServer();

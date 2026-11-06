@@ -25,6 +25,7 @@ const STATE_COOKIE = "__Host-lantern-oidc";
 const SESSION_COOKIE = "__Host-lantern-session";
 const encoder = new TextEncoder();
 const cache = new WeakMap();
+const automaticSites = new WeakMap();
 const json = (value, status = 200) =>
   Response.json(value, {
     status,
@@ -77,6 +78,22 @@ function settings(env, oidc = false) {
     clientId: env.OIDC_CLIENT_ID || site + "/api/auth/oidc/client.json",
     redirectUri: site + "/auth/callback",
   };
+}
+function requestEnvironment(request, env) {
+  // Workers supplies the public request URL. Do not trust forwarded/Host headers.
+  const site = origin(env.SITE_ORIGIN || new URL(request.url).origin);
+  if (env.SITE_ORIGIN) return env;
+  let sites = automaticSites.get(env);
+  if (!sites) {
+    sites = new Map();
+    automaticSites.set(env, sites);
+  }
+  if (!sites.has(site)) {
+    // Keep bindings live without mutating the shared environment across origins.
+    sites.set(site, Object.create(env, { SITE_ORIGIN: { value: site } }));
+    if (sites.size > 8) sites.delete(sites.keys().next().value);
+  }
+  return sites.get(site);
 }
 function cookie(request, name) {
   const values = (request.headers.get("Cookie") || "")
@@ -477,6 +494,17 @@ export async function authentication(request, env) {
     !path.startsWith("/api/auth/")
   )
     return null;
+  try {
+    env = requestEnvironment(request, env);
+  } catch {
+    return json(
+      {
+        error: "登录需要有效的 HTTPS 站点地址，请检查访问地址或 SITE_ORIGIN。",
+        code: "INVALID_SITE_ORIGIN",
+      },
+      400,
+    );
+  }
   if (path === "/api/auth/oidc/client.json") {
     if (request.method !== "GET")
       return json({ error: "Method not allowed" }, 405);
@@ -501,7 +529,7 @@ export async function authentication(request, env) {
     return json(
       {
         enabled: false,
-        error: "请在 Worker 配置 SITE_ORIGIN 和有效的 SECRET_KEY。",
+        error: "请在 Worker 配置有效的 SECRET_KEY。",
         code: "AUTH_NOT_CONFIGURED",
       },
       503,

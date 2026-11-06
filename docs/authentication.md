@@ -8,18 +8,19 @@ This version recognizes administrators and ordinary users. Collection creation a
 
 ## Configure the Worker
 
-Add these public variables to the LanternDock Worker, keeping its existing `SECRET_KEY` secret:
+Add the login provider's public issuer URL to the LanternDock Worker, keeping its existing `SECRET_KEY` secret:
 
 ```dotenv
-SITE_ORIGIN="https://nas.example.com"
 OIDC_ISSUER_URL="https://auth.example.com"
 ```
 
-Use the exact HTTPS site origin, with no path or trailing slash, and the exact issuer advertised by the login service's Discovery document. Do not regenerate `SECRET_KEY` when enabling login.
+Use the exact issuer advertised by the login service's Discovery document. The Worker automatically uses the HTTPS origin of its request URL for the client metadata, callback, site sessions and NAS token issuer. It does not read `Host` or forwarded headers to choose this origin. Do not regenerate `SECRET_KEY` when enabling login.
+
+Worker `SITE_ORIGIN` is optional: set it to an exact HTTPS origin, with no path or trailing slash, if you want to require one canonical login domain. Requests to other domains are then rejected by the account endpoints. Without that override, each served origin has separate session encryption and signing keys. The NAS still needs its trusted portal address in `SITE_ORIGIN`; it never selects a trusted issuer from an incoming token or request.
 
 With a CIMD-capable provider, no client registration or client secret is needed. The client ID is the public metadata URL `https://nas.example.com/api/auth/oidc/client.json`, with the fixed callback `https://nas.example.com/auth/callback`. The login service must be able to fetch that document. The provider must support Authorization Code flow and PKCE S256. workers-sso does not need source changes, additional private keys, or knowledge of NAS roles.
 
-For an already registered OIDC client, optional `OIDC_CLIENT_ID` overrides CIMD. A confidential client can additionally use `OIDC_CLIENT_SECRET` as a Worker Secret if the provider supports `client_secret_post`; otherwise leave it unset. Configure the same callback in that registration. Browser login requires the configured HTTPS origin; the default HTTP Vite server is for UI and connection development.
+For an already registered OIDC client, optional `OIDC_CLIENT_ID` overrides CIMD. A confidential client can additionally use `OIDC_CLIENT_SECRET` as a Worker Secret if the provider supports `client_secret_post`; otherwise leave it unset. Configure the same callback in that registration. Browser login requires HTTPS; the default HTTP Vite server is for UI and connection development.
 
 ## Configure the NAS
 
@@ -89,7 +90,7 @@ This procedure is for routine signing-key rotation. A compromised `SECRET_KEY` c
 
 ## Troubleshooting
 
-- `AUTH_NOT_CONFIGURED`: check the Worker's site origin and existing secret. `OIDC_NOT_CONFIGURED` applies to new login and requires the issuer **on the Worker only**. The CIMD client metadata document only requires the site origin.
+- `AUTH_NOT_CONFIGURED`: check the Worker's existing `SECRET_KEY`. `OIDC_NOT_CONFIGURED` applies to new login and requires the issuer **on the Worker only**. `INVALID_SITE_ORIGIN` requires HTTPS and, if set, a valid Worker `SITE_ORIGIN`. CIMD metadata uses the request origin without requiring a secret.
 - Login returns an error: check Discovery/CIMD support, the provider's ability to fetch the client metadata URL, the exact callback, and HTTPS access from the Worker to the provider.
 - Login succeeds but the NAS check fails: update both Worker and NAS, configure NAS `SITE_ORIGIN`, allow `/api/account` in the bridge, and check NAS outbound HTTPS/DNS access to the Worker's Discovery/JWKS endpoints. For direct HTTPS, check `NAS_RESOURCE_ORIGIN` against the backend URL. The page keeps the site `sub` visible.
 - The role is still ordinary user: copy the exact `sub` into the NAS `ADMIN_SUBJECTS` JSON array, recreate the container so its environment changes, and recheck. Setting this variable only on the Worker does not grant NAS permissions.

@@ -12,7 +12,7 @@ Once the WebTransport address and site key are configured, `missing-certificates
 
 Credentials are entered in the connection dialog and kept in page memory. The public `/api/config` document contains connection metadata and certificate pins.
 
-Optional [OIDC/CIMD login](authentication.md) uses separate account endpoints and an HttpOnly cookie. Configure `SITE_ORIGIN` on Worker and NAS, `OIDC_ISSUER_URL` only on the Worker, and `ADMIN_SUBJECTS` using site user IDs on the NAS. The NAS trusts site-issued identities and has no external-login configuration. These settings are independent of the backend connection wizard.
+Optional [OIDC/CIMD login](authentication.md) uses separate account endpoints and an HttpOnly cookie. Configure `SITE_ORIGIN` on the NAS, `OIDC_ISSUER_URL` only on the Worker, and `ADMIN_SUBJECTS` using site user IDs on the NAS. The Worker detects the HTTPS request origin; an optional Worker `SITE_ORIGIN` restricts account endpoints to one canonical domain. The NAS trusts site-issued identities and has no external-login configuration. These settings are independent of the backend connection wizard.
 
 NAS signing-key rotation can optionally use Worker `AUTH_SIGNING_KEY_VERSIONS`, defaulting to `["v1"]`. This changes signing versions without rotating `SECRET_KEY`, cookies or the certificate webhook; follow the [prepublish/switch/retire procedure](authentication.md#rotate-nas-signing-keys). Direct HTTPS identities on a separate backend origin additionally use NAS `NAS_RESOURCE_ORIGIN`; WebTransport defaults need no extra variable.
 

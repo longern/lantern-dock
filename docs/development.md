@@ -105,6 +105,8 @@ GO_BIN=/path/to/go PLAYWRIGHT_CHANNEL=chrome npm run test:bridge
 
 Use `SSO_SOURCE` to override that source path. The test uses the sibling's Miniflare installation, forwards its public fixture hostname to local HTTPS, and grants local-network access to that test origin so Chromium can reach the loopback UDP bridge. The NAS trusts only the temporary fixture certificate for that connection, using a local CONNECT proxy. No system trust or production provider source is changed. Both desktop and mobile cases cover login, subject/config copying, reload, administrator changes, signing-key rollover, DPoP nonce retry, direct HTTPS resource-origin binding and logout. They also verify that NAS authorization uses site subjects rather than upstream subjects, and that an existing site session can obtain fresh NAS credentials without an upstream provider. These integration tests are local; CI currently runs unit checks and the NAS Docker smoke test.
 
+The Worker fixture leaves `SITE_ORIGIN` unset to exercise automatic HTTPS request-origin detection; the NAS explicitly configures its trusted portal origin. Unit tests also check domain isolation, optional canonical-origin enforcement and rejection of forwarded-header overrides.
+
 ## NAS backend
 
 The optional `server/` Go module implements public read-only WebDAV, private file drops and local management commands. It uses `os.Root` for filesystem confinement, `golang.org/x/net/webdav` for DAV and pure-Go SQLite for persistent grants and transactional quota reservations. See the [NAS guide](nas-server.md) for its API and deployment.
