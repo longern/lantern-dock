@@ -60,17 +60,17 @@ Docker's native `user: "UID:GID"` (or `--user`) takes precedence when selecting 
 
 When upgrading from the earlier `65532:65532` default, an unset `PUID/PGID` now selects `1000:1000`; the next container start migrates the existing private state. Explicit IDs remain supported. Pull the updated image and recreate the container with its existing data mounts. For Compose, use the updated file and remove the old NAS `cap_drop`/`cap_add` overrides. The public mount stays read-only. On UGREEN UGOS, use the Docker environment-variable page or edit the Compose project; the selected account still needs access under UGOS folder ACLs. See the official [Compose guide](https://support.ugnas.com/knowledgecenter/detail/article/zh-CN/411) and [folder permission guide](https://support.ugnas.com/detail/article/zh-CN/918).
 
-The bridge listens on **4433/udp** (`BRIDGE_PORT` optionally changes the host port). Keep the existing UDP tunnel forwarding to this port. Its backend becomes `http://nas:8080`, allowed paths are `/dav,/api/uploads,/api/account`, and methods are `GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS`. The bridge uses public mode; the NAS service checks every upload's own permission and verifies identity proofs on the account API.
+The bridge listens on **4433/udp** (`BRIDGE_PORT` optionally changes the host port). Keep the existing UDP tunnel forwarding to this port. Its backend becomes `http://nas:8080`, allowed paths are `/dav,/api`, and methods are `GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS`. The bridge uses public mode; the NAS service checks every upload's own permission and verifies identity proofs on the account API.
 
 If you keep an existing bridge container instead, attach it and the NAS service to the same Docker network and update those arguments. Preserve the bridge's existing certificate volume, certificate flags and frontend origin. Do not start a second bridge on an occupied host UDP port. Changing to a new bridge certificate volume requires that instance to publish its new hashes before clients connect.
 
-Set these Worker variables while keeping the existing `WEBTRANSPORT_URL`:
+Keep the existing Worker `WEBTRANSPORT_URL`. The file root now defaults to `/dav/`, so a new deployment only needs this override for the public bridge:
 
 ```dotenv
-BACKEND_ROOT="/dav/"
-BACKEND_AUTH="none"
 GATEWAY_AUTH="false"
 ```
+
+An explicit existing `BACKEND_ROOT` remains authoritative. Clear an old override or set it to `/dav/` if it points elsewhere; keep `BACKEND_AUTH` unset or `none` for anonymous browsing. File drops, account checks and capability metadata use fixed paths under `/api`, independently of the file root. See the [service path contract](backend-protocol.md).
 
 The NAS HTTP port is only available on the Compose network. The public WebDAV root is `/dav/`; the whole public folder appears there. Private data and public files must be separate, non-overlapping directories, including when symlinks are resolved. The service refuses to start with overlapping roots. A single NAS server instance owns each data directory; CLI commands can safely operate while it runs.
 
@@ -147,22 +147,24 @@ For direct HTTPS connections, place the HTTP server behind your HTTPS reverse pr
   --origins=https://nas.example.com
 ```
 
-Set `WEBDAV_URL="https://files.example.com/dav/"` on the Worker and clear `WEBTRANSPORT_URL`. The reverse proxy must forward both `/dav/` and `/api/uploads` without changing paths and allow the required body size and transfer duration. Upload progress uses XHR for direct HTTPS and streamed binary writes for WebTransport.
+Set `WEBDAV_URL="https://files.example.com/dav/"` on the Worker and clear `WEBTRANSPORT_URL`. The reverse proxy must forward both `/dav` and `/api` without changing paths and allow the required body size and transfer duration. Upload progress uses XHR for direct HTTPS and streamed binary writes for WebTransport.
 
 ## HTTP interface
 
 All upload endpoints require the file-drop bearer token. A token cannot read file contents or enumerate other uploads. It can inspect a known task belonging to the same drop and cancel an incomplete task. Public WebDAV remains anonymous and read-only.
 
-| Request                    | Result                                                                                    |
-| -------------------------- | ----------------------------------------------------------------------------------------- |
-| `GET /healthz`             | Service liveness.                                                                         |
-| `PROPFIND /dav/`           | Public directory metadata; `Depth: 0` or `1` is required.                                 |
-| `GET`, `HEAD /dav/<path>`  | Public files, including Range and conditional reads.                                      |
-| `GET /api/uploads`         | This link's title, expiry, limits and aggregate usage; no file listing.                   |
-| `POST /api/uploads`        | Reserve a task with JSON `{ "name": "photo.jpg", "size": 12345 }`.                        |
-| `PUT /api/uploads/<id>`    | Send exactly the reserved number of binary bytes; returns `201` after durable completion. |
-| `GET /api/uploads/<id>`    | Check this task's state, including recovery after a lost response.                        |
-| `DELETE /api/uploads/<id>` | Cancel an incomplete task and release quota.                                              |
+| Request                         | Result                                                                                    |
+| ------------------------------- | ----------------------------------------------------------------------------------------- |
+| `GET /healthz`                  | Service liveness.                                                                         |
+| `GET`, `HEAD /api/capabilities` | Public versioned service metadata with cache validators; no permissions or credentials.   |
+| `GET /api/account`              | Account identity using a site-issued DPoP-bound credential.                               |
+| `PROPFIND /dav/`                | Public directory metadata; `Depth: 0` or `1` is required.                                 |
+| `GET`, `HEAD /dav/<path>`       | Public files, including Range and conditional reads.                                      |
+| `GET /api/uploads`              | This link's title, expiry, limits and aggregate usage; no file listing.                   |
+| `POST /api/uploads`             | Reserve a task with JSON `{ "name": "photo.jpg", "size": 12345 }`.                        |
+| `PUT /api/uploads/<id>`         | Send exactly the reserved number of binary bytes; returns `201` after durable completion. |
+| `GET /api/uploads/<id>`         | Check this task's state, including recovery after a lost response.                        |
+| `DELETE /api/uploads/<id>`      | Cancel an incomplete task and release quota.                                              |
 
 Errors are JSON with `error` and `code`: `401` for an invalid/missing link token, `410` for an expired/revoked link, `413` for a file above its size limit, `409` for insufficient quota or a conflicting task state, and `503` for storage/service failures. Public WebDAV writes return `405`.
 

@@ -52,7 +52,7 @@ export function SetupConnection({ wizard }) {
       <p id="setup-endpoint-help" class="field-note">
         {webtransport
           ? "填写以 /webtransport 结尾的完整网关地址。"
-          : "粘贴完整 WebDAV 地址，根目录会自动识别。"}
+          : "填写服务地址，默认使用 /dav/；完整 WebDAV 地址会自动识别根目录。"}
       </p>
       <details class="setup-advanced">
         <summary>高级设置</summary>
@@ -73,7 +73,9 @@ export function SetupConnection({ wizard }) {
             <input
               id="setup-root"
               value={form.rootPath}
-              placeholder={webtransport ? "/（默认）" : "自动从地址识别"}
+              placeholder={
+                webtransport ? "/dav/（默认）" : "自动识别，默认 /dav/"
+              }
               onInput={(event) => update("rootPath", event.currentTarget.value)}
             />
           </div>

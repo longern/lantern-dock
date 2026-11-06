@@ -83,6 +83,8 @@ NAS containers support optional `PUID/PGID` (default `1000:1000`) to match a loc
 
 Set `SITE_ORIGIN` on the NAS and `OIDC_ISSUER_URL` **only on the Worker**; the Worker detects its HTTPS origin automatically. Open **我的账户**, sign in, and copy your **site** `sub` into the NAS `ADMIN_SUBJECTS` JSON array. The Worker maps third-party logins to stable site identities and signs short-lived, browser-bound credentials. The NAS discovers the Worker's public keys, verifies tokens locally and determines the role; it has no SSO configuration. See [authentication setup](docs/authentication.md) for deployment and key rotation, or the [identity protocol](docs/identity-protocol.md) for Discovery, JWT and DPoP details. workers-sso requires no changes.
 
+The included NAS uses `/dav/` for files and `/api` for inbox, account and capability metadata. Configure one backend address; individual feature paths need no environment variables. See the [service path contract](docs/backend-protocol.md).
+
 ## How it works
 
 ```mermaid

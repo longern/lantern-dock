@@ -1,4 +1,5 @@
 import { DirectTransport } from "./transport.js";
+import { backendPaths } from "../../shared/backend-paths.js";
 import {
   AUTHORIZATION_METADATA_PATH,
   SESSION_GRANT_TYPE,
@@ -216,7 +217,7 @@ export async function accountConnection(signal) {
   const grant = await requestNASGrant(signal);
   const transport = new DirectTransport(config.backend);
   try {
-    const path = "/api/account";
+    const path = backendPaths.account;
     const resourceOrigin =
       config.backend.transport === "http"
         ? new URL(config.backend.endpoint).origin

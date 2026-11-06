@@ -164,7 +164,7 @@ test("URL variables select the transport and retain legacy settings", async () =
     })
   ).backend;
   assert.equal(bridge.transport, "webtransport");
-  assert.equal(bridge.rootPath, "/");
+  assert.equal(bridge.rootPath, "/dav/");
   assert.equal(bridge.gatewayAuth, true);
   assert.equal(
     (
@@ -186,6 +186,28 @@ test("URL variables select the transport and retain legacy settings", async () =
     ).backend.transport,
     "http",
   );
+});
+
+test("NAS paths default to /dav/ while explicit third-party roots are preserved", async () => {
+  for (const address of [
+    { WEBDAV_URL: "https://files.example.com" },
+    {
+      BACKEND_ENDPOINT: "https://files.example.com",
+      BACKEND_TRANSPORT: "http",
+    },
+    {
+      WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
+      CERTIFICATE_MODE: "webpki",
+    },
+  ]) {
+    assert.equal((await configuration(address)).backend.rootPath, "/dav/");
+    for (const root of ["/", "/public/", "/dav/subfolder/"])
+      assert.equal(
+        (await configuration({ ...address, BACKEND_ROOT: root })).backend
+          .rootPath,
+        root,
+      );
+  }
 });
 
 test("two active URL variables require an explicit choice instead of falling back", async () => {

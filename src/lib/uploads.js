@@ -1,4 +1,5 @@
 import { DirectTransport } from "./transport.js";
+import { backendPaths } from "../../shared/backend-paths.js";
 
 export async function uploadResponse(response) {
   const value = await response.json().catch(() => ({}));
@@ -30,7 +31,7 @@ export class UploadClient {
     this.transport.close();
   }
   async info(signal) {
-    return this.request("/api/uploads", { signal });
+    return this.request(backendPaths.inbox, { signal });
   }
   async request(path, options) {
     if (this.closed) throw new DOMException("连接已关闭", "AbortError");
@@ -73,13 +74,13 @@ export class UploadClient {
     });
   }
   async upload(file, { signal, onProgress } = {}) {
-    const task = await this.request("/api/uploads", {
+    const task = await this.request(backendPaths.inbox, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: file.name, size: file.size }),
       signal,
     });
-    const path = `/api/uploads/${task.id}`;
+    const path = `${backendPaths.inbox}/${task.id}`;
     try {
       const response =
         this.transport.config.transport === "http"

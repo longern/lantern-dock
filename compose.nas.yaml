@@ -30,7 +30,7 @@ services:
       - --backend=http://nas:8080
       - --origins=${SITE_ORIGIN:?Set the frontend HTTPS origin without a trailing slash}
       - --public
-      - --paths=/dav,/api/uploads,/api/account
+      - --paths=/dav,/api
       - --methods=GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS
       - --auto-cert
       - --cert-dir=/certs

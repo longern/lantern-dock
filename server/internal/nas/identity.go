@@ -415,7 +415,7 @@ func (s *Server) serveAccount(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(204)
 		return
 	}
-	if r.URL.Path == "/api/account/config" && r.Method == "GET" {
+	if r.URL.Path == accountPath+"/config" && r.Method == "GET" {
 		value := map[string]any{"enabled": s.identity != nil}
 		if s.identity != nil {
 			value["issuer"] = s.identity.config.SiteOrigin
@@ -425,7 +425,7 @@ func (s *Server) serveAccount(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 200, value)
 		return
 	}
-	if r.URL.Path != "/api/account" || r.Method != "GET" {
+	if r.URL.Path != accountPath || r.Method != "GET" {
 		writeError(w, fault(404, "NOT_FOUND", "找不到这个账户接口。"))
 		return
 	}

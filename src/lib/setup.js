@@ -1,5 +1,8 @@
 import { normalizePath } from "./dav.js";
-import { backendDefaults as defaults } from "../../shared/backend-defaults.js";
+import {
+  backendDefaults as defaults,
+  defaultBackendRoot,
+} from "../../shared/backend-defaults.js";
 
 export function setupVariables(form, resetVariables = []) {
   const name = (form.name || "").trim() || defaults.name;
@@ -26,8 +29,7 @@ export function setupVariables(form, resetVariables = []) {
   let root;
   try {
     root = normalizePath(
-      form.rootPath.trim() ||
-        (form.transport === "http" ? endpoint.pathname : defaults.rootPath),
+      form.rootPath.trim() || defaultBackendRoot(form.transport, endpoint),
     );
   } catch {
     throw new Error("根目录必须以 / 开头，且不能包含 ..、查询参数或无效编码。");
@@ -57,6 +59,9 @@ export function setupVariables(form, resetVariables = []) {
       String(!!form.gatewayAuth),
       String(defaults.gatewayAuth),
     );
+  } else if (root === "/") {
+    // A bare origin uses /dav/ by default; preserve an explicit third-party root.
+    vars.BACKEND_ROOT = "/";
   } else if (resetVariables.includes("BACKEND_ROOT")) vars.BACKEND_ROOT = "";
   if (form.transport === "webtransport") {
     if (!["pinned", "webpki"].includes(form.certificateMode))

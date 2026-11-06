@@ -36,6 +36,8 @@ start() {
     sleep 1
   done
   curl --fail --silent --show-error --max-time 5 "http://$address/healthz"
+  curl --fail --silent --show-error --max-time 5 "http://$address/api/capabilities" \
+    | jq -e '.version == 1 and .services.files.href == "/dav/" and .services.files.readOnly == true and .services.inbox.href == "/api/uploads" and .services.account.href == "/api/account"' >/dev/null
   docker top "$container" -eo pid,uid,gid,args | awk -v uid="$uid" -v gid="$gid" \
     'NR > 1 { count++; if ($2 != uid || $3 != gid) exit 1 } END { if (count != 1) exit 1 }'
   docker run --rm --pid="container:$container" --cap-drop ALL "$helper" \

@@ -1,11 +1,19 @@
+import { backendPaths } from "./backend-paths.js";
+
 export const backendDefaults = Object.freeze({
   name: "我的文件",
   transport: "http",
-  rootPath: "/",
+  rootPath: backendPaths.files,
   auth: "none",
   gatewayAuth: true,
   certificateMode: "pinned",
 });
+
+export function defaultBackendRoot(transport, endpoint) {
+  return transport === "http" && endpoint.pathname !== "/"
+    ? endpoint.pathname
+    : backendDefaults.rootPath;
+}
 
 export function backendAddress(env) {
   const webdav = env.WEBDAV_URL?.trim(),

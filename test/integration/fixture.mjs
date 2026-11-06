@@ -215,6 +215,11 @@ export async function startFixture({ nas = false, identity = false } = {}) {
       },
       async (req, res) => {
         try {
+          if (req.url === "/shared/backend-paths.js") {
+            res.writeHead(200, { "Content-Type": "text/javascript" });
+            res.end(await readFile(resolve("shared/backend-paths.js")));
+            return;
+          }
           if (req.url.startsWith("/__test/lib/")) {
             const name = req.url.slice("/__test/lib/".length);
             if (
@@ -365,7 +370,7 @@ export async function startFixture({ nas = false, identity = false } = {}) {
       const address = nasLogs.match(/listening on (127\.0\.0\.1:\d+)/)?.[1];
       if (!address) throw new Error("NAS server did not start");
       backendEndpoint = `http://${address}`;
-      env.BACKEND_ROOT = "/dav/";
+      delete env.BACKEND_ROOT;
       env.BACKEND_AUTH = "none";
       env.GATEWAY_AUTH = "false";
       nasFixture = {
@@ -439,7 +444,7 @@ export async function startFixture({ nas = false, identity = false } = {}) {
         `--listen=127.0.0.1:${bridgePort}`,
         `--backend=${backendEndpoint}`,
         `--origins=${origin}`,
-        nas ? "--paths=/dav,/api/uploads,/api/account" : "--paths=/public",
+        nas ? "--paths=/dav,/api" : "--paths=/public",
         nas
           ? "--methods=GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS"
           : "--methods=GET,HEAD,PROPFIND",

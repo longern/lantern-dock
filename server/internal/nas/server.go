@@ -99,7 +99,7 @@ func New(publicDir, dataDir string, origins []string) (*Server, error) {
 	if err = s.private.MkdirAll("inbox/.staging", 0700); err != nil {
 		return nil, err
 	}
-	s.dav = &webdav.Handler{Prefix: "/dav", FileSystem: publicFS{s.public}, LockSystem: webdav.NewMemLS()}
+	s.dav = &webdav.Handler{Prefix: filesPath, FileSystem: publicFS{s.public}, LockSystem: webdav.NewMemLS()}
 	if err = s.recover(); err != nil {
 		return nil, err
 	}
@@ -170,25 +170,27 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fault(400, "INVALID_PATH", "请求路径无效。"))
 		return
 	}
+	w.Header().Add("Vary", "Origin")
 	if origin := r.Header.Get("Origin"); origin != "" {
-		w.Header().Add("Vary", "Origin")
 		if !s.origins[origin] {
 			writeError(w, fault(403, "ORIGIN_DENIED", "此网页来源未获允许。"))
 			return
 		}
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PROPFIND, POST, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Depth, DPoP")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Depth, DPoP, If-None-Match")
 		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, ETag, WWW-Authenticate, DPoP-Nonce")
 	}
 	switch {
-	case r.URL.Path == "/api/account" || strings.HasPrefix(r.URL.Path, "/api/account/"):
+	case r.URL.Path == capabilitiesPath:
+		s.serveCapabilities(w, r)
+	case r.URL.Path == accountPath || strings.HasPrefix(r.URL.Path, accountPath+"/"):
 		s.serveAccount(w, r)
 	case r.URL.Path == "/healthz" && (r.Method == "GET" || r.Method == "HEAD"):
 		w.WriteHeader(200)
-	case r.URL.Path == "/dav" || strings.HasPrefix(r.URL.Path, "/dav/"):
+	case r.URL.Path == filesPath || strings.HasPrefix(r.URL.Path, filesPath+"/"):
 		s.serveDAV(w, r)
-	case r.URL.Path == "/api/uploads" || strings.HasPrefix(r.URL.Path, "/api/uploads/"):
+	case r.URL.Path == inboxPath || strings.HasPrefix(r.URL.Path, inboxPath+"/"):
 		s.serveUploads(w, r)
 	default:
 		writeError(w, fault(404, "NOT_FOUND", "找不到这个地址。"))
@@ -212,7 +214,7 @@ func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	id := strings.TrimPrefix(r.URL.Path, "/api/uploads")
+	id := strings.TrimPrefix(r.URL.Path, inboxPath)
 	if id == "" || id == "/" {
 		switch r.Method {
 		case "GET":

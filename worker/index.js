@@ -1,6 +1,7 @@
 import {
   backendDefaults as defaults,
   backendAddress,
+  defaultBackendRoot,
 } from "../shared/backend-defaults.js";
 import { certificateWebhookTokens, validateSecretKey } from "./secrets.js";
 import { authentication, secureResponse } from "./auth.js";
@@ -155,9 +156,7 @@ export async function configuration(env) {
     throw new SetupRequired("Invalid backend URL");
   if (transport === "webtransport" && endpoint.protocol !== "https:")
     throw new SetupRequired("WebTransport requires an HTTPS endpoint");
-  const root =
-    env.BACKEND_ROOT ||
-    (transport === "http" ? endpoint.pathname : defaults.rootPath);
+  const root = env.BACKEND_ROOT || defaultBackendRoot(transport, endpoint);
   if (
     !root.startsWith("/") ||
     /[?#\\\x00-\x1f]/.test(root) ||

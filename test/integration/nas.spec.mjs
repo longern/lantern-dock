@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { startFixture, textFile } from "./fixture.mjs";
+import { backendPaths } from "../../shared/backend-paths.js";
 
 let fixture;
 test.beforeAll(async () => {
@@ -10,6 +11,53 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => {
   await fixture?.stop();
+});
+
+test("default NAS routes and capabilities work through the shared bridge namespaces", async ({
+  page,
+}) => {
+  expect(fixture.env.BACKEND_ROOT).toBeUndefined();
+  await page.goto(fixture.origin);
+  await expect(page.locator(".file-card")).toHaveCount(3);
+  const result = await page.evaluate(async () => {
+    const { DirectTransport } = await import("/__test/lib/transport.js");
+    const { backendPaths } = await import("/shared/backend-paths.js");
+    const { backend } = await (await fetch("/api/config")).json();
+    const transport = new DirectTransport(backend);
+    try {
+      const response = await transport.request(backendPaths.capabilities);
+      const document = await response.json();
+      const cached = await transport.request(backendPaths.capabilities, {
+        headers: { "If-None-Match": response.headers.get("ETag") },
+      });
+      await cached.body?.cancel();
+      return {
+        root: backend.rootPath,
+        status: response.status,
+        cache: response.headers.get("Cache-Control"),
+        cachedStatus: cached.status,
+        document,
+      };
+    } finally {
+      transport.close();
+    }
+  });
+  expect(result.root).toBe(backendPaths.files);
+  expect(result.status).toBe(200);
+  expect(result.cache).toBe("public, max-age=300");
+  expect(result.cachedStatus).toBe(304);
+  expect(result.document.version).toBe(1);
+  expect(result.document.services.files).toMatchObject({
+    href: backendPaths.files,
+    protocol: "webdav",
+    readOnly: true,
+  });
+  expect(result.document.services.inbox.href).toBe(backendPaths.inbox);
+  expect(result.document.services.account).toMatchObject({
+    href: backendPaths.account,
+    version: 2,
+    enabled: false,
+  });
 });
 
 test("NAS serves public read-only WebDAV and receives a private file through the real bridge", async ({
@@ -120,7 +168,7 @@ test("direct HTTPS upload uses the same NAS permissions and supports zero-byte f
   const created = await fixture.nas.createLink();
   try {
     fixture.env.BACKEND_TRANSPORT = "http";
-    fixture.env.BACKEND_ENDPOINT = "https://uploads.example/dav/";
+    fixture.env.BACKEND_ENDPOINT = "https://uploads.example";
     await page.route("https://uploads.example/**", async (route) => {
       const path = new URL(route.request().url()).pathname;
       const response = await route.fetch({ url: fixture.nas.endpoint + path });

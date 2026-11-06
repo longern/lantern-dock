@@ -104,6 +104,21 @@ test("a default WebDAV setup generates just one variable and resolves its root",
   assert.equal(backend.auth, "none");
 });
 
+test("bare NAS addresses and explicit third-party / roots round-trip through setup", async () => {
+  for (const rootPath of ["", "/", "/dav/", "/public/"]) {
+    const vars = setupVariables({ ...base, rootPath });
+    const root = rootPath || "/dav/";
+    assert.equal((await configuration(vars)).backend.rootPath, root);
+    assert.equal(vars.BACKEND_ROOT, root === "/" ? "/" : undefined);
+    const previous = { BACKEND_ROOT: "/old/" };
+    const reset = setupVariables({ ...base, rootPath }, Object.keys(previous));
+    assert.equal(
+      (await configuration({ ...previous, ...reset })).backend.rootPath,
+      root,
+    );
+  }
+});
+
 test("explicit resets clear the other URL and old overrides when applying generated settings", async () => {
   const previous = {
     WEBTRANSPORT_URL: "https://old.example.com/webtransport",
@@ -126,17 +141,22 @@ test("explicit resets clear the other URL and old overrides when applying genera
   assert.equal(backend.auth, "none");
 });
 
-test("non-default WebTransport public mode is explicit while pinned certificates use the default", () => {
+test("default WebTransport paths need no root variable and preserve explicit root overrides", () => {
   const vars = setupVariables({
     ...base,
     transport: "webtransport",
     endpoint: "https://bridge.example.com/webtransport",
-    rootPath: "/",
+    rootPath: "",
     gatewayAuth: true,
   });
   assert.deepEqual(vars, {
     WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
   });
+  assert.equal(
+    setupVariables({ ...base, transport: "webtransport", rootPath: "/" })
+      .BACKEND_ROOT,
+    "/",
+  );
   assert.equal(
     setupVariables({ ...base, transport: "webtransport", gatewayAuth: false })
       .GATEWAY_AUTH,
