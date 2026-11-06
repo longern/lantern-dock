@@ -50,6 +50,9 @@ if [ "$(id -u)" -eq 0 ]; then
       fail "$name must be a decimal ID between 1 and 2147483647"
     fi
   done
+  # Canonical decimal IDs also avoid Go flag parsing a leading zero as octal.
+  uid=$(printf '%s' "$uid" | sed 's/^0*//')
+  gid=$(printf '%s' "$gid" | sed 's/^0*//')
   "$binary" init-data --public-dir="$public" --data-dir="$data" --uid="$uid" --gid="$gid"
 
   # Keep Docker group_add access, without inheriting the launcher's root group.

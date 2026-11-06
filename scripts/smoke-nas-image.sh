@@ -89,7 +89,7 @@ stop
 # Migrate existing SQLite state and inbox files while preserving link IDs and
 # public ownership/permissions. Unrelated files in the data mount stay untouched.
 fixture 'mkdir -p /fixture/data/inbox/legacy; printf "private fixture" > /fixture/data/inbox/legacy/photo.txt; chmod 400 /fixture/data/inbox/legacy/photo.txt; chown -R 65532:65532 /fixture/data; printf "unrelated" > /fixture/data/notes.txt; chmod 400 /fixture/data/notes.txt; chown -R 1001:100 /fixture/public; chmod 700 /fixture/public; chmod 600 /fixture/public/hello.txt'
-start nas-user 1001 100 -e PUID=1001 -e PGID=100
+start nas-user 1001 100 -e PUID=01001 -e PGID=00100
 list_link
 test "$(fixture 'stat -c %u:%g:%a /fixture/data/inbox/legacy/photo.txt')" = 1001:100:600
 test "$(fixture 'stat -c %u:%g:%a /fixture/data/notes.txt')" = 0:0:400
