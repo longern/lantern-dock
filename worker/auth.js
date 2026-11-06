@@ -219,32 +219,75 @@ function fetchFor(env) {
     ? (url, init) => env.SSO_SERVICE.fetch(new Request(url, init))
     : fetch;
 }
+class OIDCProviderError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.code = code;
+  }
+}
 async function provider(env) {
   const state = stateFor(env);
   if (state.provider && state.provider.expires > Date.now())
     return state.provider;
   const cfg = settings(env, true),
     fetcher = fetchFor(env);
-  const document = await limitedJSON(
-    await fetcher(
+  let response;
+  try {
+    response = await fetcher(
       cfg.issuer.replace(/\/$/, "") + "/.well-known/openid-configuration",
       {
         redirect: "error",
         signal: AbortSignal.timeout(10000),
         headers: { Accept: "application/json" },
       },
-    ),
-  );
-  if (document.issuer !== cfg.issuer) throw new Error("Issuer mismatch");
+    );
+  } catch {
+    throw new OIDCProviderError(
+      "OIDC_DISCOVERY_UNREACHABLE",
+      "Worker 无法连接登录服务的 Discovery 接口，请检查地址和网络访问限制。",
+    );
+  }
+  if (!response.ok)
+    throw new OIDCProviderError(
+      "OIDC_DISCOVERY_HTTP_ERROR",
+      `登录服务的 Discovery 接口返回 HTTP ${response.status}，请检查登录服务的访问规则。`,
+    );
+  let document;
+  try {
+    document = await limitedJSON(response);
+  } catch {
+    throw new OIDCProviderError(
+      "OIDC_DISCOVERY_INVALID",
+      "登录服务的 Discovery 接口没有返回有效的 JSON 配置。",
+    );
+  }
+  if (document?.issuer !== cfg.issuer)
+    throw new OIDCProviderError(
+      "OIDC_ISSUER_MISMATCH",
+      "OIDC_ISSUER_URL 与登录服务声明的 issuer 不一致，请核对完整地址及结尾斜杠。",
+    );
   if (
     !env.OIDC_CLIENT_ID &&
     document.client_id_metadata_document_supported !== true
   )
-    throw new Error("CIMD is not supported");
+    throw new OIDCProviderError(
+      "OIDC_CIMD_UNSUPPORTED",
+      "登录服务未声明支持 CIMD，请配置已注册的 OIDC_CLIENT_ID。",
+    );
   if (!document.code_challenge_methods_supported?.includes("S256"))
-    throw new Error("PKCE S256 is required");
-  for (const key of ["authorization_endpoint", "token_endpoint", "jwks_uri"])
-    httpsURL(document[key]);
+    throw new OIDCProviderError(
+      "OIDC_PKCE_UNSUPPORTED",
+      "登录服务未声明支持 PKCE S256。",
+    );
+  try {
+    for (const key of ["authorization_endpoint", "token_endpoint", "jwks_uri"])
+      httpsURL(document[key]);
+  } catch {
+    throw new OIDCProviderError(
+      "OIDC_DISCOVERY_INVALID",
+      "登录服务的 Discovery 配置包含无效的 HTTPS 接口地址。",
+    );
+  }
   const jwks = createRemoteJWKSet(new URL(document.jwks_uri), {
     [customFetch]: async (url, init) => {
       const r = await fetcher(url, {
@@ -748,9 +791,11 @@ export async function authentication(request, env) {
       return response;
     }
     return json({ error: "Not found" }, 404);
-  } catch {
+  } catch (error) {
     if (path === "/auth/callback")
       return accountError(env, "登录验证失败，请重新登录。");
+    if (path === "/api/auth/login" && error instanceof OIDCProviderError)
+      return json({ error: error.message, code: error.code }, 503);
     if (path === "/api/auth/token")
       return oauthError(
         "temporarily_unavailable",

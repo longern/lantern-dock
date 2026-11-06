@@ -668,3 +668,54 @@ test("Worker infers its HTTPS origin, isolates domains, and ignores forwarded ho
   assert.equal((await insecure.json()).code, "INVALID_SITE_ORIGIN");
   assert.equal(f.env.SITE_ORIGIN, undefined);
 });
+
+test("login identifies Discovery failures without returning upstream bodies or exception details", async () => {
+  const cases = [
+    {
+      fetch: () => new Response("private-canary", { status: 403 }),
+      code: "OIDC_DISCOVERY_HTTP_ERROR",
+      message: /HTTP 403/,
+    },
+    {
+      fetch: () => {
+        throw new Error("private-canary");
+      },
+      code: "OIDC_DISCOVERY_UNREACHABLE",
+    },
+    {
+      fetch: () => new Response("private-canary"),
+      code: "OIDC_DISCOVERY_INVALID",
+    },
+    { patch: { issuer: issuer + "/" }, code: "OIDC_ISSUER_MISMATCH" },
+    {
+      patch: { client_id_metadata_document_supported: false },
+      code: "OIDC_CIMD_UNSUPPORTED",
+    },
+    {
+      patch: { code_challenge_methods_supported: [] },
+      code: "OIDC_PKCE_UNSUPPORTED",
+    },
+    {
+      patch: { jwks_uri: "http://private-canary" },
+      code: "OIDC_DISCOVERY_INVALID",
+    },
+  ];
+  for (const entry of cases) {
+    const f = await fixture();
+    const fetch = f.env.SSO_SERVICE.fetch;
+    f.env.SSO_SERVICE.fetch = async (request) => {
+      if (entry.fetch) return entry.fetch();
+      const response = await fetch(request);
+      return Response.json({ ...(await response.json()), ...entry.patch });
+    };
+    const response = await f.request("/api/auth/login", {
+      method: "POST",
+      headers: { DPoP: await f.proof("/api/auth/login") },
+    });
+    assert.equal(response.status, 503);
+    const value = await response.json();
+    assert.equal(value.code, entry.code);
+    if (entry.message) assert.match(value.error, entry.message);
+    assert.ok(!JSON.stringify(value).includes("private-canary"));
+  }
+});
