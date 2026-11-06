@@ -1,6 +1,9 @@
 import { test, expect } from "@playwright/test";
 import { startFixture } from "./fixture.mjs";
-import { identitySubject } from "./sso-fixture.mjs";
+import {
+  siteIdentitySubject as identitySubject,
+  identitySubject as upstreamSubject,
+} from "./sso-fixture.mjs";
 
 let fixture;
 test.beforeAll(async () => {
@@ -244,6 +247,47 @@ test("direct HTTPS identities bind the proof to the NAS public origin", async ({
     await expect(page.getByLabel("用户标识（sub）")).toHaveValue(
       identitySubject,
     );
+  } finally {
+    Object.assign(fixture.env, previous);
+  }
+});
+
+test("NAS sees only site identity and an existing session works without an upstream provider", async ({
+  page,
+}) => {
+  await fixture.nas.administrators([upstreamSubject]);
+  await login(page);
+  await expect(page.getByText("普通用户", { exact: true })).toBeVisible();
+  await fixture.nas.administrators([identitySubject]);
+  await page.getByRole("button", { name: "重新检测", exact: true }).click();
+  await expect(
+    page.getByText("管理员身份已生效", { exact: false }),
+  ).toBeVisible();
+  const previous = { ...fixture.env };
+  delete fixture.env.OIDC_ISSUER_URL;
+  fixture.env.SSO_SERVICE = {
+    fetch() {
+      throw new Error("Upstream identity must not be used");
+    },
+  };
+  try {
+    await page.reload();
+    await expect(
+      page.getByText("管理员身份已生效", { exact: false }),
+    ).toBeVisible();
+    const session = await page.evaluate(async () =>
+      (await fetch("/api/auth/session")).json(),
+    );
+    expect(session.user).toMatchObject({
+      issuer: fixture.origin,
+      sub: identitySubject,
+    });
+    expect(JSON.stringify(session)).not.toContain("sso.example");
+    const config = await (
+      await fetch(fixture.nas.endpoint + "/api/account/config")
+    ).json();
+    expect(config).toMatchObject({ enabled: true, issuer: fixture.origin });
+    expect(JSON.stringify(config)).not.toContain("sso.example");
   } finally {
     Object.assign(fixture.env, previous);
   }

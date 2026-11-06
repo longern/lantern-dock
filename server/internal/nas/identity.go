@@ -28,7 +28,6 @@ import (
 type IdentityConfig struct {
 	SiteOrigin     string
 	ResourceOrigin string
-	Issuer         string
 	AdminSubjects  []string
 	HTTPClient     *http.Client
 }
@@ -102,21 +101,21 @@ func (k *rotatingKeys) discover(ctx context.Context) (string, error) {
 	keys, err := url.Parse(metadata.JWKS)
 	issuer, _ := url.Parse(k.uri)
 	// Discovery is trusted only under the explicitly configured portal origin.
-	if err != nil || metadata.Issuer != k.uri || metadata.LanternDock.ProtocolVersion != 1 || keys.Scheme != "https" || keys.Host != issuer.Host || keys.User != nil || keys.RawQuery != "" || keys.Fragment != "" {
+	if err != nil || metadata.Issuer != k.uri || metadata.LanternDock.ProtocolVersion != 2 || keys.Scheme != "https" || keys.Host != issuer.Host || keys.User != nil || keys.RawQuery != "" || keys.Fragment != "" {
 		return "", fmt.Errorf("untrusted issuer or jwks_uri")
 	}
 	return keys.String(), nil
 }
 func IdentityEnvironment(getenv func(string) string) (IdentityConfig, error) {
-	cfg := IdentityConfig{SiteOrigin: getenv("SITE_ORIGIN"), ResourceOrigin: getenv("NAS_RESOURCE_ORIGIN"), Issuer: getenv("OIDC_ISSUER_URL")}
+	cfg := IdentityConfig{SiteOrigin: getenv("SITE_ORIGIN"), ResourceOrigin: getenv("NAS_RESOURCE_ORIGIN")}
 	if raw := getenv("ADMIN_SUBJECTS"); raw != "" {
 		if err := json.Unmarshal([]byte(raw), &cfg.AdminSubjects); err != nil || cfg.AdminSubjects == nil {
-			return cfg, fmt.Errorf("ADMIN_SUBJECTS must be a JSON array of OIDC sub strings")
+			return cfg, fmt.Errorf("ADMIN_SUBJECTS must be a JSON array of site subject strings")
 		}
 	}
-	if cfg.Issuer == "" {
+	if cfg.SiteOrigin == "" {
 		if len(cfg.AdminSubjects) > 0 {
-			return cfg, fmt.Errorf("OIDC_ISSUER_URL is required with ADMIN_SUBJECTS")
+			return cfg, fmt.Errorf("SITE_ORIGIN is required with ADMIN_SUBJECTS")
 		}
 		return cfg, nil
 	}
@@ -177,9 +176,9 @@ func identityClient() (*http.Client, error) {
 	return &http.Client{Transport: limitedTransport{transport}, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, nil
 }
 func (s *Server) ConfigureIdentity(cfg IdentityConfig) error {
-	if cfg.Issuer == "" {
+	if cfg.SiteOrigin == "" {
 		if len(cfg.AdminSubjects) > 0 {
-			return fmt.Errorf("OIDC_ISSUER_URL is required")
+			return fmt.Errorf("SITE_ORIGIN is required")
 		}
 		return nil
 	}
@@ -194,10 +193,6 @@ func (s *Server) ConfigureIdentity(cfg IdentityConfig) error {
 	cfg.ResourceOrigin, err = identityOrigin(cfg.ResourceOrigin)
 	if err != nil {
 		return fmt.Errorf("NAS_RESOURCE_ORIGIN must be an HTTPS origin")
-	}
-	issuer, err := url.Parse(cfg.Issuer)
-	if err != nil || issuer.Scheme != "https" || issuer.Host == "" || issuer.User != nil || issuer.RawQuery != "" || issuer.Fragment != "" {
-		return fmt.Errorf("OIDC_ISSUER_URL must be an HTTPS issuer URL")
 	}
 	admins := map[string]bool{}
 	for _, sub := range cfg.AdminSubjects {
@@ -253,16 +248,18 @@ func (s *Server) identityUser(r *http.Request) (IdentityUser, error) {
 	}
 	var claims struct {
 		jwt.Claims
-		ClientID       string `json:"client_id"`
-		Scope          string `json:"scope"`
-		IdentityIssuer string `json:"identity_issuer"`
-		Name           string `json:"name"`
-		Email          string `json:"email"`
-		CNF            struct {
+		ClientID    string `json:"client_id"`
+		Scope       string `json:"scope"`
+		LanternDock struct {
+			ProtocolVersion int `json:"protocol_version"`
+		} `json:"lantern_dock"`
+		Name  string `json:"name"`
+		Email string `json:"email"`
+		CNF   struct {
 			JKT string `json:"jkt"`
 		} `json:"cnf"`
 	}
-	if err = json.Unmarshal(payload, &claims); err != nil || claims.Issuer != s.identity.config.SiteOrigin || !claims.Audience.Contains(s.identity.config.SiteOrigin+"/nas") || claims.IdentityIssuer != s.identity.config.Issuer || !validSubject(claims.Subject) || claims.ClientID == "" || len(claims.ClientID) > 2048 || claims.ID == "" || len(claims.ID) > 128 || claims.CNF.JKT == "" || claims.IssuedAt == nil || claims.Expiry == nil {
+	if err = json.Unmarshal(payload, &claims); err != nil || claims.Issuer != s.identity.config.SiteOrigin || !claims.Audience.Contains(s.identity.config.SiteOrigin+"/nas") || claims.LanternDock.ProtocolVersion != 2 || !validSubject(claims.Subject) || claims.ClientID == "" || len(claims.ClientID) > 2048 || claims.ID == "" || len(claims.ID) > 128 || claims.CNF.JKT == "" || claims.IssuedAt == nil || claims.Expiry == nil {
 		return user, fault(401, "INVALID_IDENTITY", "身份凭据不匹配。")
 	}
 	now := time.Now()
@@ -276,7 +273,7 @@ func (s *Server) identityUser(r *http.Request) (IdentityUser, error) {
 	if !containsScope(claims.Scope, "account:read") {
 		return user, fault(403, "INSUFFICIENT_SCOPE", "此凭据没有读取账户的权限。")
 	}
-	user = IdentityUser{Issuer: claims.IdentityIssuer, Sub: claims.Subject, Name: claims.Name, Email: claims.Email, Role: "member"}
+	user = IdentityUser{Issuer: claims.Issuer, Sub: claims.Subject, Name: claims.Name, Email: claims.Email, Role: "member"}
 	if s.identity.admins[user.Sub] {
 		user.Role = "admin"
 	}
@@ -421,7 +418,7 @@ func (s *Server) serveAccount(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/api/account/config" && r.Method == "GET" {
 		value := map[string]any{"enabled": s.identity != nil}
 		if s.identity != nil {
-			value["issuer"] = s.identity.config.Issuer
+			value["issuer"] = s.identity.config.SiteOrigin
 			value["siteOrigin"] = s.identity.config.SiteOrigin
 			value["resourceOrigin"] = s.identity.config.ResourceOrigin
 		}

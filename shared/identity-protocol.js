@@ -4,6 +4,7 @@ export const SESSION_GRANT_TYPE =
   "urn:lantern-dock:params:oauth:grant-type:session";
 export const ACCOUNT_SCOPE = "account:read";
 export const GRANT_SECONDS = 60;
+export const IDENTITY_PROTOCOL_VERSION = 2;
 
 export function canonicalProofURI(value) {
   const url = new URL(value);

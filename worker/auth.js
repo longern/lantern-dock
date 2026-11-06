@@ -9,11 +9,13 @@ import {
 } from "jose";
 import { deriveSecret, validateSecretKey } from "../shared/site-secret.js";
 import { signingKeys } from "./signing-keys.js";
+import { siteSubject } from "./site-identity.js";
 import {
   AUTHORIZATION_METADATA_PATH,
   SESSION_GRANT_TYPE,
   ACCOUNT_SCOPE,
   GRANT_SECONDS,
+  IDENTITY_PROTOCOL_VERSION,
   canonicalProofURI,
 } from "../shared/identity-protocol.js";
 export { GRANT_SECONDS } from "../shared/identity-protocol.js";
@@ -63,11 +65,12 @@ function httpsURL(value) {
     throw new Error("Invalid OIDC endpoint");
   return u.href;
 }
-function settings(env) {
+function settings(env, oidc = false) {
   const site = origin(env.SITE_ORIGIN);
+  validateSecretKey(env.SECRET_KEY);
+  if (!oidc) return { site };
   const issuer = httpsURL(env.OIDC_ISSUER_URL);
   if (new URL(issuer).search) throw new Error("Invalid issuer");
-  validateSecretKey(env.SECRET_KEY);
   return {
     site,
     issuer: env.OIDC_ISSUER_URL,
@@ -153,6 +156,18 @@ async function open(env, name, value) {
     return null;
   }
 }
+async function siteSession(request, env, site) {
+  const session = await open(
+    env,
+    SESSION_COOKIE,
+    cookie(request, SESSION_COOKIE),
+  );
+  return session?.version === IDENTITY_PROTOCOL_VERSION &&
+    session.issuer === site &&
+    session.user?.issuer === site
+    ? session
+    : null;
+}
 async function limitedText(body, limit) {
   if (!body) return "";
   const reader = body.getReader();
@@ -191,7 +206,7 @@ async function provider(env) {
   const state = stateFor(env);
   if (state.provider && state.provider.expires > Date.now())
     return state.provider;
-  const cfg = settings(env),
+  const cfg = settings(env, true),
     fetcher = fetchFor(env);
   const document = await limitedJSON(
     await fetcher(
@@ -283,7 +298,10 @@ function authorizationMetadata(site) {
     scopes_supported: [ACCOUNT_SCOPE],
     dpop_signing_alg_values_supported: ["ES256"],
     // This is a session-backed extension grant, not a second OIDC provider.
-    lantern_dock: { protocol_version: 1, resource: site + "/nas" },
+    lantern_dock: {
+      protocol_version: IDENTITY_PROTOCOL_VERSION,
+      resource: site + "/nas",
+    },
   };
 }
 async function issueGrant(request, env, cfg) {
@@ -347,12 +365,8 @@ async function issueGrant(request, env, cfg) {
       "The requested scope is not allowed.",
       "请求的权限无效。",
     );
-  const session = await open(
-    env,
-    SESSION_COOKIE,
-    cookie(request, SESSION_COOKIE),
-  );
-  if (!session || session.issuer !== cfg.issuer)
+  const session = await siteSession(request, env, cfg.site);
+  if (!session)
     return oauthError(
       "invalid_grant",
       "The site session has expired or is missing.",
@@ -397,7 +411,7 @@ async function issueGrant(request, env, cfg) {
   } = await signingKeys(env, cfg.site);
   const issuedAt = now();
   const accessToken = await new SignJWT({
-    identity_issuer: cfg.issuer,
+    lantern_dock: { protocol_version: IDENTITY_PROTOCOL_VERSION },
     client_id: cfg.site + "/",
     scope: ACCOUNT_SCOPE,
     name: session.user.name,
@@ -487,11 +501,25 @@ export async function authentication(request, env) {
     return json(
       {
         enabled: false,
-        error: "请在 Worker 配置 SITE_ORIGIN 和 OIDC_ISSUER_URL。",
+        error: "请在 Worker 配置 SITE_ORIGIN 和有效的 SECRET_KEY。",
         code: "AUTH_NOT_CONFIGURED",
       },
       503,
     );
+  }
+  if (path === "/api/auth/login" || path === "/auth/callback") {
+    try {
+      cfg = settings(env, true);
+    } catch {
+      return json(
+        {
+          enabled: false,
+          error: "请在 Worker 配置有效的 OIDC_ISSUER_URL。",
+          code: "OIDC_NOT_CONFIGURED",
+        },
+        503,
+      );
+    }
   }
   try {
     if (path === AUTHORIZATION_METADATA_PATH && request.method === "GET") {
@@ -508,13 +536,8 @@ export async function authentication(request, env) {
       return response;
     }
     if (path === "/api/auth/session" && request.method === "GET") {
-      const session = await open(
-        env,
-        SESSION_COOKIE,
-        cookie(request, SESSION_COOKIE),
-      );
-      if (!session || session.issuer !== cfg.issuer)
-        return json({ authenticated: false });
+      const session = await siteSession(request, env, cfg.site);
+      if (!session) return json({ authenticated: false });
       return json({
         authenticated: true,
         user: session.user,
@@ -652,8 +675,8 @@ export async function authentication(request, env) {
           throw new Error("UserInfo subject mismatch");
       }
       const user = {
-        issuer: cfg.issuer,
-        sub: payload.sub,
+        issuer: cfg.site,
+        sub: await siteSubject(cfg.issuer, payload.sub),
         name:
           typeof profile.name === "string" ? profile.name.slice(0, 200) : "",
         email:
@@ -665,7 +688,8 @@ export async function authentication(request, env) {
         response,
         SESSION_COOKIE,
         await seal(env, SESSION_COOKIE, {
-          issuer: cfg.issuer,
+          version: IDENTITY_PROTOCOL_VERSION,
+          issuer: cfg.site,
           user,
           jkt: state.jkt,
           expires: now() + SESSION_SECONDS,

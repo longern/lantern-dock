@@ -16,9 +16,11 @@ import {
   ACCOUNT_SCOPE,
 } from "../shared/identity-protocol.js";
 import { certificateWebhookTokens } from "../worker/secrets.js";
+import { siteSubject } from "../worker/site-identity.js";
 
 const site = "https://portal.example";
 const issuer = "https://sso.example";
+const expectedSiteSubject = "ld_1KzSHPuTIpRkcYiSJTXRlCJhVX0uRCVptuP6f7tF0rM";
 const encoder = new TextEncoder();
 const encode = (bytes) => Buffer.from(bytes).toString("base64url");
 async function fixture() {
@@ -234,7 +236,8 @@ test("CIMD describes the app, and site cookies are encrypted, HttpOnly and separ
     assert.ok(!value.includes("test-user"));
   }
   const session = await (await f.request("/api/auth/session")).json();
-  assert.equal(session.user.sub, "test-user");
+  assert.equal(session.user.sub, expectedSiteSubject);
+  assert.equal(session.user.issuer, site);
   assert.equal(session.authenticated, true);
   assert.ok(!("accessToken" in session));
   const token = await (await f.grant()).json();
@@ -252,8 +255,10 @@ test("CIMD describes the app, and site cookies are encrypted, HttpOnly and separ
       algorithms: ["EdDSA"],
     },
   );
-  assert.equal(verified.payload.sub, "test-user");
-  assert.equal(verified.payload.identity_issuer, issuer);
+  assert.equal(verified.payload.sub, expectedSiteSubject);
+  assert.equal(verified.payload.lantern_dock.protocol_version, 2);
+  assert.ok(!("identity_issuer" in verified.payload));
+  assert.ok(!JSON.stringify(verified.payload).includes(issuer));
   assert.equal(verified.payload.client_id, site + "/");
   assert.equal(verified.payload.scope, ACCOUNT_SCOPE);
   assert.equal(
@@ -544,4 +549,64 @@ test("signing versions allow prepublication, overlap and retirement without chan
     assert.equal(failed.status, 503);
     assert.equal((await failed.json()).error, "temporarily_unavailable");
   }
+});
+
+test("site subjects are stable, namespace external identities, and survive signing-secret changes", async () => {
+  assert.equal(await siteSubject(issuer, "test-user"), expectedSiteSubject);
+  assert.notEqual(
+    await siteSubject("https://other-sso.example", "test-user"),
+    expectedSiteSubject,
+  );
+  assert.notEqual(
+    await siteSubject(issuer, "another-user"),
+    expectedSiteSubject,
+  );
+  assert.notEqual(
+    await siteSubject("https://a.example", "b:c"),
+    await siteSubject("https://a.example:b", "c"),
+  );
+  const f = await fixture();
+  f.env.SECRET_KEY = "a-new-site-secret-key-0123456789abcdef";
+  await f.login();
+  assert.equal(
+    (await (await f.request("/api/auth/session")).json()).user.sub,
+    expectedSiteSubject,
+  );
+});
+
+test("a site session and NAS grant no longer depend on external login configuration or availability", async () => {
+  const f = await fixture();
+  await f.login();
+  const calls = f.calls();
+  delete f.env.OIDC_ISSUER_URL;
+  f.env.SSO_SERVICE = {
+    fetch() {
+      throw new Error("SSO must not be contacted after login");
+    },
+  };
+  const session = await (await f.request("/api/auth/session")).json();
+  assert.equal(session.authenticated, true);
+  assert.equal(session.user.issuer, site);
+  assert.equal(session.user.sub, expectedSiteSubject);
+  assert.equal((await f.request(AUTHORIZATION_METADATA_PATH)).status, 200);
+  assert.equal((await f.request("/api/auth/jwks.json")).status, 200);
+  const response = await f.grant();
+  assert.equal(response.status, 200);
+  const payload = decodeJwt((await response.json()).access_token);
+  assert.equal(payload.iss, site);
+  assert.equal(payload.sub, expectedSiteSubject);
+  assert.equal(payload.lantern_dock.protocol_version, 2);
+  assert.ok(!("identity_issuer" in payload));
+  assert.equal(f.calls(), calls);
+  const login = await f.request("/api/auth/login", {
+    method: "POST",
+    headers: { DPoP: await f.proof("/api/auth/login") },
+  });
+  assert.equal(login.status, 503);
+  assert.equal((await login.json()).code, "OIDC_NOT_CONFIGURED");
+  await f.request("/api/auth/logout", { method: "POST" });
+  assert.equal(
+    (await (await f.request("/api/auth/session")).json()).authenticated,
+    false,
+  );
 });

@@ -4,7 +4,6 @@ services:
     restart: unless-stopped
     environment:
       SITE_ORIGIN: ${SITE_ORIGIN}
-      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
       ADMIN_SUBJECTS: ${ADMIN_SUBJECTS:-[]}
       NAS_RESOURCE_ORIGIN: ${NAS_RESOURCE_ORIGIN:-}
     volumes:

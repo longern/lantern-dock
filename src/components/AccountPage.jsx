@@ -120,7 +120,7 @@ export function AccountPage() {
           </h1>
           <p>
             {session
-              ? "身份由登录服务验证，站点权限由 NAS 管理。"
+              ? "这是你的站点身份，访问权限由 NAS 管理。"
               : "使用站点配置的统一登录服务继续。公开文件和收件链接无需登录。"}
           </p>
         </div>
@@ -138,7 +138,7 @@ export function AccountPage() {
           <>
             <dl class="account-details">
               <div>
-                <dt>登录服务</dt>
+                <dt>身份签发方</dt>
                 <dd>{session.user.issuer}</dd>
               </div>
               {session.user.email && (

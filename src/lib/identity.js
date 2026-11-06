@@ -3,6 +3,7 @@ import {
   AUTHORIZATION_METADATA_PATH,
   SESSION_GRANT_TYPE,
   ACCOUNT_SCOPE,
+  IDENTITY_PROTOCOL_VERSION,
   canonicalProofURI,
 } from "../../shared/identity-protocol.js";
 const encoder = new TextEncoder();
@@ -146,7 +147,7 @@ export async function requestNASGrant(signal) {
   const endpoint = new URL(metadata.token_endpoint);
   if (
     metadata.issuer !== location.origin ||
-    metadata.lantern_dock?.protocol_version !== 1 ||
+    metadata.lantern_dock?.protocol_version !== IDENTITY_PROTOCOL_VERSION ||
     metadata.lantern_dock?.resource !== location.origin + "/nas" ||
     endpoint.origin !== location.origin ||
     endpoint.username ||

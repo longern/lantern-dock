@@ -1,4 +1,4 @@
-# NAS identity protocol, version 1
+# NAS identity protocol, version 2
 
 This document defines the contract between the LanternDock Worker, browser and NAS. It uses OAuth authorization-server metadata ([RFC 8414](https://www.rfc-editor.org/rfc/rfc8414.html)), JWT access tokens ([RFC 9068](https://www.rfc-editor.org/rfc/rfc9068.html)), JWKS ([RFC 7517](https://www.rfc-editor.org/rfc/rfc7517.html)) and DPoP ([RFC 9449](https://www.rfc-editor.org/rfc/rfc9449.html)).
 
@@ -25,13 +25,13 @@ Accept: application/json
   "scopes_supported": ["account:read"],
   "dpop_signing_alg_values_supported": ["ES256"],
   "lantern_dock": {
-    "protocol_version": 1,
+    "protocol_version": 2,
     "resource": "https://nas.example.com/nas"
   }
 }
 ```
 
-`lantern_dock` is a project extension. The empty response-type list is intentional: this issuer only supports the session extension grant. OIDC login Discovery belongs to the upstream SSO issuer and is a separate document.
+`lantern_dock` is a project extension. The empty response-type list is intentional: this issuer only supports the session extension grant. OIDC login Discovery belongs to the upstream SSO issuer and is a separate document used only by the Worker during login. The NAS needs only `SITE_ORIGIN`, not any OIDC/SSO configuration.
 
 The NAS starts from its configured `SITE_ORIGIN`, validates an exact metadata issuer match, and fetches the advertised `jwks_uri`. In this profile the JWKS URL must be HTTPS on the same origin, without credentials, query or fragment. Redirects are rejected. The NAS never follows a token-supplied `jku`, `x5u` or issuer URL to decide whom to trust.
 
@@ -88,15 +88,17 @@ The protected header uses `typ: at+jwt`, `alg: EdDSA` and the signing key's `kid
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `iss`               | Exact configured LanternDock site origin.                                                                                             |
 | `aud`               | Includes `SITE_ORIGIN + "/nas"`, the NAS resource identifier.                                                                         |
-| `sub`               | Upstream OIDC subject; nonempty, at most 255 ASCII characters.                                                                        |
+| `sub`               | Opaque site user ID; nonempty, at most 255 ASCII characters.                                                                          |
 | `client_id`         | Built-in client identifier, `SITE_ORIGIN + "/"`. The NAS requires a nonempty identifier.                                              |
 | `iat`, `exp`, `jti` | Required issuance/expiry times and unique token identifier. Lifetime is positive and at most 60 seconds; expired tokens are rejected. |
 | `scope`             | `account:read` is required for the account endpoint.                                                                                  |
 | `cnf.jkt`           | SHA-256 JWK thumbprint of the browser proof key.                                                                                      |
-| `identity_issuer`   | Project claim identifying the upstream SSO; must match NAS `OIDC_ISSUER_URL`.                                                         |
+| `lantern_dock`      | Project claim `{ "protocol_version": 2 }`; version 1 tokens are rejected.                                                             |
 | `name`, `email`     | Optional display data; do not determine permissions.                                                                                  |
 
-The NAS accepts only signed access tokens of the expected type and algorithm, not OIDC ID tokens or DPoP proof JWTs. The account role is computed locally from `(identity_issuer, sub)` and the configured `ADMIN_SUBJECTS`, never from a token's claimed role. This version has no administrative write scopes or APIs.
+The NAS accepts only signed access tokens of the expected type and algorithm, not OIDC ID tokens or DPoP proof JWTs. The account role is computed locally from the site-issued `sub` and configured `ADMIN_SUBJECTS`, never from a token's claimed role. The issuer is always the configured LanternDock origin. The NAS neither knows nor validates the external login provider. This version has no administrative write scopes or APIs.
+
+The Worker maps the validated external `(issuer, sub)` to `ld_` plus the base64url SHA-256 digest of the UTF-8 JSON array `["lantern-dock:subject:v1", issuer, sub]`. Neither signing secrets nor key versions are inputs, so key rotation does not change user IDs. The mapping belongs entirely to the login adapter; NAS implementations treat `sub` as opaque. Neither `identity_issuer` nor raw upstream subjects appear in site sessions, NAS tokens or NAS account responses. Site-session cookies include protocol version 2 and are issued under the LanternDock origin. A session can be used until its own expiry without retrieving external identity again.
 
 ## NAS resource requests
 
@@ -116,6 +118,6 @@ The NAS does not require its own DPoP nonce: its short-lived grants and persiste
 
 ## Versioning
 
-`lantern_dock.protocol_version` identifies this identity contract; the browser and NAS reject unsupported/missing versions. Additions that old clients can ignore may remain version 1. Incompatible grants, claim meanings or URI mappings require a new protocol version. Discovery/JWKS paths and ordinary JSON property order are not part of the signature contract. Consumers use `kid`, not key-array order, for verification.
+`lantern_dock.protocol_version` identifies this identity contract; the browser and NAS reject unsupported/missing versions. Additions that old clients can ignore may remain version 2. Incompatible grants, claim meanings or URI mappings require a new protocol version. Discovery/JWKS paths and ordinary JSON property order are not part of the signature contract. Consumers use `kid`, not key-array order, for verification.
 
-Deploy the updated Worker before a NAS that requires discovery, and refresh existing account pages after upgrading the token format. Existing public DAV/file-drop APIs are unaffected. See [key rotation](authentication.md#rotate-nas-signing-keys) for maintaining overlapping verification keys.
+Upgrade both Worker and NAS for version 2, refresh the account page and sign in again. Administrators must replace previously configured upstream subjects with the new site subject shown on the account page. Existing public DAV/file-drop APIs are unaffected. See [key rotation](authentication.md#rotate-nas-signing-keys) for maintaining overlapping verification keys.

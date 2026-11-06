@@ -344,7 +344,6 @@ export async function startFixture({ nas = false, identity = false } = {}) {
         ? {
             ...process.env,
             SITE_ORIGIN: origin,
-            OIDC_ISSUER_URL: sso.issuer,
             ADMIN_SUBJECTS: "[]",
             SSL_CERT_FILE: resolve(certDirectory, "cert.pem"),
             HTTPS_PROXY: `http://127.0.0.1:${proxy.address().port}`,

@@ -23,11 +23,10 @@ For an already registered OIDC client, optional `OIDC_CLIENT_ID` overrides CIMD.
 
 ## Configure the NAS
 
-Use the same public site origin and issuer in the `.env` beside `compose.nas.yaml`:
+The NAS trusts the LanternDock site, not its external login provider. Configure only the public site origin in the `.env` beside `compose.nas.yaml`:
 
 ```dotenv
 SITE_ORIGIN="https://nas.example.com"
-OIDC_ISSUER_URL="https://auth.example.com"
 ADMIN_SUBJECTS='[]'
 ```
 
@@ -45,22 +44,28 @@ The NAS can continue serving plain HTTP privately behind the WebTransport bridge
 Open **我的账户**, sign in, and copy the displayed administrator configuration into the NAS `.env`, for example:
 
 ```dotenv
-ADMIN_SUBJECTS='["your-oidc-sub"]'
+ADMIN_SUBJECTS='["ld_your-site-sub"]'
 ```
 
-Recreate the NAS service and choose **重新检测** on the account page. Multiple administrators use a JSON array of their exact subjects. The NAS pairs each subject with the configured issuer; names and email addresses do not determine administrator status. An empty array grants nobody administrator access. There is no public first-user enrollment endpoint.
+Recreate the NAS service and choose **重新检测** on the account page. Multiple administrators use a JSON array of their exact **site subjects**. The NAS pairs each subject with the configured LanternDock origin; names and email addresses do not determine administrator status. An empty array grants nobody administrator access. There is no public first-user enrollment endpoint. Do not configure an SSO issuer, client ID or client secret on the NAS.
 
-Without NAS connectivity, the verified login still displays `sub` for copying. The page only reports whether administrators are configured after the NAS responds. Without `OIDC_ISSUER_URL`, NAS identity verification is disabled and public browsing/file drops continue to work.
+Without NAS connectivity, the verified login still displays its site `sub` for copying. The page only reports whether administrators are configured after the NAS responds. Setting `SITE_ORIGIN` enables NAS identity verification. With no site origin or administrators configured, standalone public browsing/file drops continue to work without identity verification.
 
 ## Sessions and request verification
 
-1. The LanternDock Worker handles the OIDC callback, verifies the ID token, and checks UserInfo's `sub` against it. SSO access and ID tokens stay server-side and are discarded after login.
+1. The LanternDock Worker handles the OIDC callback, verifies the ID token, and checks UserInfo's `sub` against it. The external `(issuer, sub)` pair is mapped to a stable, opaque site user ID. SSO access and ID tokens stay server-side and are discarded after login. Upstream issuer and raw subject are not forwarded to the NAS or stored in its configuration.
 2. The browser receives an encrypted, host-only session cookie lasting 30 minutes, with `HttpOnly`, `Secure` and `SameSite=Lax`. Login uses state, nonce and PKCE. Cookie-changing POST routes require the exact site Origin.
 3. When checking its NAS identity, the browser uses the discovered token endpoint, presenting its cookie and a DPoP proof. It handles the server's `DPoP-Nonce` challenge automatically and receives a 60-second JWT access token in memory. Responses use `access_token`, `token_type`, `expires_in` and `scope`. The Worker uses its own Ed25519 signing key, deterministically derived from `SECRET_KEY` with a purpose, site and key version. This is separate from the login service's signing key and the certificate-webhook credential.
 4. The token is bound to a non-extractable browser ECDSA key stored in IndexedDB. NAS requests carry a DPoP signature binding the token, method, canonical resource URL, timestamp and unique request ID. The NAS rejects replayed proofs using SQLite. Neither SSO tokens nor NAS grants are saved in local/session storage.
 5. The NAS retrieves `/.well-known/oauth-authorization-server`, validates the configured portal issuer, and obtains public keys through its `jwks_uri`. It verifies access-token type, signature, issuer, audience, required claims, lifetime, `account:read` scope and browser proof, then computes the role from `ADMIN_SUBJECTS`. Discovery and the local public-key cache refresh on demand after five minutes, with an earlier JWKS refresh for an unknown key ID. The NAS does not contact SSO or the Worker for each authenticated request.
 
-Only login needs the SSO service. Grant renewal uses the valid Worker session cookie and the same browser key, without another SSO request. An expired grant alone cannot renew itself. The account page obtains a fresh grant when it checks the NAS; this release does not add a background renewal loop to public file browsing.
+Only login needs the SSO service. The resulting site session and NAS grant renewal use the Worker's own identity and browser key; they keep working for the remaining site-session lifetime even if the upstream login service is unavailable or its configuration is removed. New login requires Worker `OIDC_ISSUER_URL`; NAS discovery/JWKS and existing site sessions do not. An expired grant alone cannot renew itself. The account page obtains a fresh grant when it checks the NAS; this release does not add a background renewal loop to public file browsing.
+
+The mapping uses a versioned SHA-256 digest of the upstream issuer and subject, without the site's signing secret. Repeated logins, restarts and signing-secret/key-version rotation keep the site ID stable. Different upstream identities produce different site IDs, even if their raw subjects match. Linking two external identities to one site account is not implemented; it must not happen implicitly based on a matching email or subject.
+
+## Upgrade from upstream subjects
+
+Identity protocol version 2 replaces the earlier upstream subjects with site subjects. Update both Worker and NAS, refresh the account page and sign in again. Copy the new `ld_…` site subject into NAS `ADMIN_SUBJECTS` if you previously configured an upstream subject. Older session cookies and version-1 identity tokens are rejected; no compatibility alias silently grants privileges to an external subject. Existing private data, collection links and public WebDAV are unchanged. Signing-key versions remain independent of this protocol version.
 
 The NAS trusts the Worker as an identity issuer. A compromised Worker signing key could forge administrator subjects even though the role list is local to the NAS. Putting a signing key on the NAS would not remove this trust if the NAS still accepted arbitrary identities asserted by the Worker. Independent NAS authentication would require a different trust model.
 
@@ -84,9 +89,9 @@ This procedure is for routine signing-key rotation. A compromised `SECRET_KEY` c
 
 ## Troubleshooting
 
-- `AUTH_NOT_CONFIGURED`: check the Worker's site origin, issuer and existing secret. The metadata document only requires the site origin.
+- `AUTH_NOT_CONFIGURED`: check the Worker's site origin and existing secret. `OIDC_NOT_CONFIGURED` applies to new login and requires the issuer **on the Worker only**. The CIMD client metadata document only requires the site origin.
 - Login returns an error: check Discovery/CIMD support, the provider's ability to fetch the client metadata URL, the exact callback, and HTTPS access from the Worker to the provider.
-- Login succeeds but the NAS check fails: deploy the Worker before the updated NAS binary, configure the NAS issuer/site origin, allow `/api/account` in the bridge, and check NAS outbound HTTPS/DNS access to the Worker's Discovery/JWKS endpoints. For direct HTTPS, check `NAS_RESOURCE_ORIGIN` against the backend URL. The page keeps `sub` visible.
+- Login succeeds but the NAS check fails: update both Worker and NAS, configure NAS `SITE_ORIGIN`, allow `/api/account` in the bridge, and check NAS outbound HTTPS/DNS access to the Worker's Discovery/JWKS endpoints. For direct HTTPS, check `NAS_RESOURCE_ORIGIN` against the backend URL. The page keeps the site `sub` visible.
 - The role is still ordinary user: copy the exact `sub` into the NAS `ADMIN_SUBJECTS` JSON array, recreate the container so its environment changes, and recheck. Setting this variable only on the Worker does not grant NAS permissions.
 
 `GET /api/account/config` reports NAS identity support without authentication. `GET /api/account` requires `Authorization: DPoP <grant>` plus its `DPoP` proof. Authentication errors return `401`; disabled NAS identity verification returns `503`.

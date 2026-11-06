@@ -67,7 +67,7 @@ func TestDiscoveryRefreshRolloverAndTrustBoundary(t *testing.T) {
 	}))
 	defer portal.Close()
 	metadata := func(issuer, uri string) string {
-		value, _ := json.Marshal(map[string]any{"issuer": issuer, "jwks_uri": uri, "lantern_dock": map[string]any{"protocol_version": 1}})
+		value, _ := json.Marshal(map[string]any{"issuer": issuer, "jwks_uri": uri, "lantern_dock": map[string]any{"protocol_version": 2}})
 		return string(value)
 	}
 	document.Store(metadata(portal.URL, portal.URL+"/custom/keys"))
@@ -111,7 +111,7 @@ func TestDiscoveryRefreshRolloverAndTrustBoundary(t *testing.T) {
 		metadata(portal.URL, "http://localhost/keys"),
 		metadata(portal.URL, "https://untrusted.example/keys"),
 		metadata(portal.URL, portal.URL+"/custom/keys") + ` {"extra":true}`,
-		strings.Replace(metadata(portal.URL, portal.URL+"/custom/keys"), `"protocol_version":1`, `"protocol_version":2`, 1),
+		strings.Replace(metadata(portal.URL, portal.URL+"/custom/keys"), `"protocol_version":2`, `"protocol_version":1`, 1),
 	} {
 		document.Store(bad)
 		keys.expires = time.Now().Add(-time.Second)
@@ -146,7 +146,7 @@ func TestIdentityProofAndLocalAdministrator(t *testing.T) {
 	portal = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/.well-known/oauth-authorization-server" {
 			metadataFetches.Add(1)
-			json.NewEncoder(w).Encode(map[string]any{"issuer": portal.URL, "jwks_uri": portal.URL + "/keys/current", "lantern_dock": map[string]any{"protocol_version": 1}})
+			json.NewEncoder(w).Encode(map[string]any{"issuer": portal.URL, "jwks_uri": portal.URL + "/keys/current", "lantern_dock": map[string]any{"protocol_version": 2}})
 			return
 		}
 		keyFetches.Add(1)
@@ -156,7 +156,7 @@ func TestIdentityProofAndLocalAdministrator(t *testing.T) {
 		json.NewEncoder(w).Encode(map[string]any{"keys": []jose.JSONWebKey{{Key: public, KeyID: "portal", Algorithm: "EdDSA", Use: "sig"}}})
 	}))
 	defer portal.Close()
-	if err := f.s.ConfigureIdentity(IdentityConfig{SiteOrigin: portal.URL, Issuer: "https://sso.example", AdminSubjects: []string{"owner"}, HTTPClient: portal.Client()}); err != nil {
+	if err := f.s.ConfigureIdentity(IdentityConfig{SiteOrigin: portal.URL, AdminSubjects: []string{"owner"}, HTTPClient: portal.Client()}); err != nil {
 		t.Fatal(err)
 	}
 	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
@@ -164,7 +164,7 @@ func TestIdentityProofAndLocalAdministrator(t *testing.T) {
 	hash, _ := jwk.Thumbprint(crypto.SHA256)
 	thumb := base64.RawURLEncoding.EncodeToString(hash)
 	grant := func(sub string, patch map[string]any) string {
-		payload := map[string]any{"iss": portal.URL, "aud": portal.URL + "/nas", "identity_issuer": "https://sso.example", "sub": sub, "iat": time.Now().Unix(), "exp": time.Now().Add(time.Minute).Unix(), "jti": randomID(), "client_id": portal.URL + "/", "scope": "account:read", "cnf": map[string]string{"jkt": thumb}}
+		payload := map[string]any{"iss": portal.URL, "aud": portal.URL + "/nas", "lantern_dock": map[string]any{"protocol_version": 2}, "sub": sub, "iat": time.Now().Unix(), "exp": time.Now().Add(time.Minute).Unix(), "jti": randomID(), "client_id": portal.URL + "/", "scope": "account:read", "cnf": map[string]string{"jkt": thumb}}
 		for k, v := range patch {
 			payload[k] = v
 		}
@@ -210,7 +210,7 @@ func TestIdentityProofAndLocalAdministrator(t *testing.T) {
 	for _, patch := range []map[string]any{{"htm": "POST"}, {"htu": portal.URL + "/dav/"}, {"ath": "wrong"}, {"iat": time.Now().Add(-2 * time.Minute).Unix()}} {
 		status(t, request(token, proof(token, patch)), 401)
 	}
-	for _, patch := range []map[string]any{{"aud": "other"}, {"iss": "https://attacker.example"}, {"identity_issuer": "https://other-sso.example"}, {"exp": time.Now().Add(-time.Minute).Unix()}, {"exp": time.Now().Add(time.Hour).Unix()}, {"exp": nil}, {"iat": nil}, {"client_id": ""}, {"jti": ""}, {"nbf": time.Now().Add(time.Minute).Unix()}} {
+	for _, patch := range []map[string]any{{"aud": "other"}, {"iss": "https://attacker.example"}, {"lantern_dock": map[string]any{"protocol_version": 1}}, {"lantern_dock": nil}, {"exp": time.Now().Add(-time.Minute).Unix()}, {"exp": time.Now().Add(time.Hour).Unix()}, {"exp": nil}, {"iat": nil}, {"client_id": ""}, {"jti": ""}, {"nbf": time.Now().Add(time.Minute).Unix()}} {
 		bad := grant("owner", patch)
 		status(t, request(bad, proof(bad, nil)), 401)
 	}
@@ -258,8 +258,6 @@ func TestIdentityConfigurationAndBootstrap(t *testing.T) {
 				return raw
 			case "SITE_ORIGIN":
 				return "https://portal.example"
-			case "OIDC_ISSUER_URL":
-				return "https://sso.example"
 			}
 			return ""
 		})
@@ -277,7 +275,32 @@ func TestIdentityConfigurationAndBootstrap(t *testing.T) {
 	if !strings.Contains(read(t, r), `"enabled":false`) {
 		t.Fatal("unexpected identity config")
 	}
-	if err := f.s.ConfigureIdentity(IdentityConfig{SiteOrigin: "http://portal.example", Issuer: "https://sso.example"}); err == nil {
+	if err := f.s.ConfigureIdentity(IdentityConfig{SiteOrigin: "http://portal.example"}); err == nil {
 		t.Fatal("accepted HTTP")
+	}
+}
+
+func TestNASIdentityOnlyNeedsPortalConfiguration(t *testing.T) {
+	f := newFixture(t)
+	cfg, err := IdentityEnvironment(func(key string) string {
+		if strings.HasPrefix(key, "OIDC_") {
+			t.Fatal("NAS requested upstream identity configuration", key)
+		}
+		if key == "SITE_ORIGIN" {
+			return "https://portal.example"
+		}
+		return ""
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = f.s.ConfigureIdentity(cfg); err != nil {
+		t.Fatal(err)
+	}
+	r := f.request(t, "GET", "/api/account/config", "", nil, nil)
+	status(t, r, 200)
+	body := read(t, r)
+	if !strings.Contains(body, `"enabled":true`) || !strings.Contains(body, `"issuer":"https://portal.example"`) {
+		t.Fatal(body)
 	}
 }
