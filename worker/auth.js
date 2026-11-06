@@ -236,7 +236,7 @@ async function provider(env) {
     response = await fetcher(
       cfg.issuer.replace(/\/$/, "") + "/.well-known/openid-configuration",
       {
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(10000),
         headers: { Accept: "application/json" },
       },
@@ -292,7 +292,7 @@ async function provider(env) {
     [customFetch]: async (url, init) => {
       const r = await fetcher(url, {
         ...init,
-        redirect: "error",
+        redirect: "manual",
         signal: AbortSignal.timeout(10000),
       });
       const value = await limitedJSON(r);
@@ -697,7 +697,7 @@ export async function authentication(request, env) {
       const tokens = await limitedJSON(
         await fetchFor(env)(p.token_endpoint, {
           method: "POST",
-          redirect: "error",
+          redirect: "manual",
           signal: AbortSignal.timeout(10000),
           headers: {
             "Content-Type": "application/x-www-form-urlencoded",
@@ -734,7 +734,7 @@ export async function authentication(request, env) {
           throw new Error("Missing UserInfo access token");
         profile = await limitedJSON(
           await fetchFor(env)(httpsURL(p.userinfo_endpoint), {
-            redirect: "error",
+            redirect: "manual",
             signal: AbortSignal.timeout(10000),
             headers: {
               Authorization: "Bearer " + tokens.access_token,

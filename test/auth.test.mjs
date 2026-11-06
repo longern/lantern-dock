@@ -45,6 +45,11 @@ async function fixture() {
   env.SSO_SERVICE = {
     async fetch(request) {
       calls++;
+      assert.equal(
+        request.redirect,
+        "manual",
+        "OIDC requests must reject redirects with a Workers-supported mode",
+      );
       const path = new URL(request.url).pathname;
       if (path === "/.well-known/openid-configuration")
         return Response.json({
@@ -675,6 +680,15 @@ test("login identifies Discovery failures without returning upstream bodies or e
       fetch: () => new Response("private-canary", { status: 403 }),
       code: "OIDC_DISCOVERY_HTTP_ERROR",
       message: /HTTP 403/,
+    },
+    {
+      fetch: () =>
+        new Response("private-canary", {
+          status: 302,
+          headers: { Location: "https://attacker.example" },
+        }),
+      code: "OIDC_DISCOVERY_HTTP_ERROR",
+      message: /HTTP 302/,
     },
     {
       fetch: () => {

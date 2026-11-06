@@ -107,6 +107,8 @@ Use `SSO_SOURCE` to override that source path. The test uses the sibling's Minif
 
 The Worker fixture leaves `SITE_ORIGIN` unset to exercise automatic HTTPS request-origin detection; the NAS explicitly configures its trusted portal origin. Unit tests also check domain isolation, optional canonical-origin enforcement and rejection of forwarded-header overrides.
 
+`test/integration/worker-runtime.spec.mjs` additionally bundles the LanternDock Worker itself and runs its Discovery request in workerd, using deployment compatibility flags. It checks successful login initiation and rejects a redirected Discovery response without following it. This covers runtime differences hidden by the other tests' Node-based portal adapter, including Workers' unsupported `redirect: "error"` mode; OIDC subrequests use `manual` and reject non-success statuses instead.
+
 ## NAS backend
 
 The optional `server/` Go module implements public read-only WebDAV, private file drops and local management commands. It uses `os.Root` for filesystem confinement, `golang.org/x/net/webdav` for DAV and pure-Go SQLite for persistent grants and transactional quota reservations. See the [NAS guide](nas-server.md) for its API and deployment.
