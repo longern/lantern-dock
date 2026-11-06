@@ -29,6 +29,9 @@
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --sidebar: 240px;
   --inspector: 360px;
+  --topbar-height: 60px;
+  --topbar-button-size: 48px;
+  --topbar-edge-margin: -12px;
 }
 * {
   box-sizing: border-box;

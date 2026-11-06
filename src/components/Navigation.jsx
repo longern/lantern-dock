@@ -120,6 +120,7 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
 }
 
 export function Topbar({ library, menuOpen, onMenu, onSettings }) {
+  const mobile = useMediaQuery("(max-width: 700px)");
   const root = library.connection?.client.root || "/";
   const crumbs = [
     {
@@ -143,97 +144,109 @@ export function Topbar({ library, menuOpen, onMenu, onSettings }) {
       crumbs.push({ label: decodeURIComponent(part), path });
     }
   }
-  return (
-    <header class="topbar">
-      <button
-        class="icon-button mobile-menu"
-        aria-label="打开导航"
-        aria-expanded={menuOpen}
-        aria-controls="sidebar"
-        aria-haspopup="dialog"
-        onClick={onMenu}
-      >
-        <Icon name="menu" />
-      </button>
-      <a
-        href="#"
-        class="mobile-brand"
-        onClick={(event) => {
-          event.preventDefault();
-          library.navigate(root);
-        }}
-      >
-        LanternDock
-      </a>
-      <nav class="breadcrumbs" aria-label="文件路径">
-        {crumbs.map((crumb, index) => (
-          <span class="breadcrumb" key={`${index}:${crumb.path}`}>
-            {index > 0 && <Icon name="chevron-right" />}
-            <button
-              aria-current={
-                index === crumbs.length - 1 ? "location" : undefined
-              }
-              onClick={() => library.navigate(crumb.path)}
-            >
-              {crumb.label}
-            </button>
-          </span>
-        ))}
-      </nav>
-      <div class="topbar-right">
-        <label class="search-box">
-          <Icon name="search" />
-          <input
-            id="search"
-            type="search"
-            value={library.query}
-            onInput={(event) => library.setQuery(event.currentTarget.value)}
-            placeholder="搜索文件"
-            aria-label="搜索文件"
-          />
-          {library.query && (
-            <button
-              type="button"
-              class="search-clear icon-button"
-              aria-label="清除搜索"
-              onClick={() => {
-                library.setQuery("");
-                document.getElementById("search")?.focus();
-              }}
-            >
-              <Icon name="x" />
-            </button>
-          )}
-        </label>
+  const breadcrumbs = (
+    <nav class="breadcrumbs" aria-label="文件路径">
+      {crumbs.map((crumb, index) => (
+        <span class="breadcrumb" key={`${index}:${crumb.path}`}>
+          {index > 0 && <Icon name="chevron-right" />}
+          <button
+            aria-current={index === crumbs.length - 1 ? "location" : undefined}
+            onClick={() => library.navigate(crumb.path)}
+          >
+            {crumb.label}
+          </button>
+        </span>
+      ))}
+    </nav>
+  );
+  const search = (
+    <label class="search-box">
+      <Icon name="search" />
+      <input
+        id="search"
+        type="search"
+        value={library.query}
+        onInput={(event) => library.setQuery(event.currentTarget.value)}
+        placeholder="搜索文件"
+        aria-label="搜索文件"
+      />
+      {library.query && (
         <button
-          id="refresh-button"
-          class="icon-button"
-          aria-label="刷新目录"
-          title="刷新"
-          aria-busy={library.loading}
-          disabled={library.loading}
-          onClick={library.refresh}
+          type="button"
+          class="search-clear icon-button"
+          aria-label="清除搜索"
+          onClick={() => {
+            library.setQuery("");
+            document.getElementById("search")?.focus();
+          }}
         >
-          <Icon name="refresh" />
+          <Icon name="x" />
         </button>
+      )}
+    </label>
+  );
+  return (
+    <div class="browser-header">
+      <header class="topbar">
         <button
-          class="icon-button"
-          aria-label="连接设置"
-          title="连接设置"
-          onClick={onSettings}
+          class="icon-button mobile-menu"
+          aria-label="打开导航"
+          aria-expanded={menuOpen}
+          aria-controls="sidebar"
+          aria-haspopup="dialog"
+          onClick={onMenu}
         >
-          <Icon name="settings" />
+          <Icon name="menu" />
         </button>
         <a
-          class="account-entry icon-button"
-          href="#/account"
-          aria-label="我的账户"
-          title="我的账户"
+          href="#"
+          class="mobile-brand"
+          onClick={(event) => {
+            event.preventDefault();
+            library.navigate(root);
+          }}
         >
-          <Icon name="user" />
+          LanternDock
         </a>
-      </div>
-    </header>
+        {!mobile && breadcrumbs}
+        <div class="topbar-right">
+          {!mobile && search}
+          <button
+            id="refresh-button"
+            class="icon-button"
+            aria-label="刷新目录"
+            title="刷新"
+            aria-busy={library.loading}
+            disabled={library.loading}
+            onClick={library.refresh}
+          >
+            <Icon name="refresh" />
+          </button>
+          <button
+            class="icon-button"
+            aria-label="连接设置"
+            title="连接设置"
+            onClick={onSettings}
+          >
+            <Icon name="settings" />
+          </button>
+          <a
+            class="account-entry icon-button"
+            href="#/account"
+            aria-label="我的账户"
+            title="我的账户"
+          >
+            <Icon name="user" />
+          </a>
+        </div>
+      </header>
+      {mobile && (
+        <div class="mobile-file-tools">
+          {breadcrumbs}
+          {search}
+        </div>
+      )}
+    </div>
   );
 }
 

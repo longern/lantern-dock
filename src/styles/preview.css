@@ -21,9 +21,25 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 72px;
-  padding: 0 14px;
+  height: var(--topbar-height);
+  min-height: var(--topbar-height);
+  flex-shrink: 0;
+  padding: 0 20px;
   border-bottom: 1px solid var(--line);
+}
+.preview-header .icon-button {
+  width: var(--topbar-button-size);
+  height: var(--topbar-button-size);
+}
+.preview-header .icon-button svg {
+  width: 24px;
+  height: 24px;
+}
+.preview-header > .icon-button:first-child {
+  margin-left: var(--topbar-edge-margin);
+}
+.preview-header > .icon-button:last-child {
+  margin-right: var(--topbar-edge-margin);
 }
 .preview-header strong {
   flex: 1;
