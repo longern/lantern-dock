@@ -4,7 +4,14 @@ import dgram from "node:dgram";
 import net from "node:net";
 import { startSSO } from "./sso-fixture.mjs";
 import { clientMetadata } from "../../worker/auth.js";
-import { mkdir, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  writeFile,
+  rm,
+  symlink,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, extname } from "node:path";
 import { execFile, spawn } from "node:child_process";
@@ -335,6 +342,14 @@ export async function startFixture({ nas = false, identity = false } = {}) {
       await mkdir(resolve(publicDir, "照片"), { recursive: true });
       await writeFile(resolve(publicDir, "hello.txt"), textFile);
       await writeFile(resolve(publicDir, "coast.svg"), picture);
+      for (const path of ["#recycle", "@Recycle", "照片/@rEcYcLe"]) {
+        await mkdir(resolve(publicDir, path), { recursive: true });
+        await writeFile(
+          resolve(publicDir, path, "deleted.txt"),
+          "recycled private fixture",
+        );
+      }
+      await symlink("#recycle", resolve(publicDir, "recycle-alias"));
       let nasLogs = "";
       const nasArguments = [
         "serve",

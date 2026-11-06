@@ -13,6 +13,8 @@ Only the backend connection URL needs to be configured. An unset or empty `BACKE
 
 `BACKEND_ROOT` controls only file navigation. It never changes the inbox, account or capabilities paths and does not grant filesystem access. Existing explicit roots remain unchanged after upgrading. An existing WebTransport backend mounted at `/` must set `BACKEND_ROOT="/"` when upgrading from the previous `/` default.
 
+Public WebDAV reserves `#recycle` and `@Recycle` as excluded entry names at every level (case-insensitive). Listings omit them and direct access to the entry or anything beneath it returns `404`. Symbolic links are also omitted and never followed, so aliases cannot bypass the exclusion. The NAS's on-disk recycle bins are not modified.
+
 ## Capability document
 
 `GET /api/capabilities` returns deployment capabilities without authentication:

@@ -53,6 +53,18 @@ start() {
   curl --fail --silent --show-error --max-time 5 -X PROPFIND -H 'Depth: 1' \
     "http://$address/dav/" > "$test_dir/dav.xml"
   grep -q multistatus "$test_dir/dav.xml"
+  if grep -qi recycle "$test_dir/dav.xml"; then
+    echo "Public listing exposed a recycle bin or symlink alias" >&2
+    exit 1
+  fi
+  for hidden_path in '%23recycle/' '%23recycle/deleted.txt' '%40Recycle/deleted.txt' 'recycle-alias/deleted.txt'; do
+    for method in GET HEAD PROPFIND; do
+      local method_args=(--request "$method")
+      if [ "$method" = HEAD ]; then method_args=(--head); fi
+      test "$(curl --silent --max-time 5 --output /dev/null --write-out '%{http_code}' \
+        "${method_args[@]}" -H 'Depth: 1' "http://$address/dav/$hidden_path")" = 404
+    done
+  done
   test "$(curl --fail --silent --show-error "http://$address/dav/hello.txt")" = "public fixture"
   test "$(curl --silent --output /dev/null --write-out '%{http_code}' -X PUT \
     --data 'denied' "http://$address/dav/blocked.txt")" = 405
@@ -79,6 +91,7 @@ expect_failure() {
 # Root-owned bind mounts reproduce NAS GUI-created folders. The service must
 # initialize private state, then run entirely as the default unprivileged user.
 fixture 'mkdir -p /fixture/data /fixture/public; chmod 700 /fixture/data; chmod 755 /fixture/public; printf "public fixture" > /fixture/public/hello.txt; chmod 644 /fixture/public/hello.txt'
+fixture 'mkdir -p "/fixture/public/#recycle" "/fixture/public/@Recycle"; printf "deleted fixture" > "/fixture/public/#recycle/deleted.txt"; printf "deleted fixture" > "/fixture/public/@Recycle/deleted.txt"; ln -s "#recycle" /fixture/public/recycle-alias'
 start default 1000 1000 --security-opt no-new-privileges:true
 docker exec "$container" /lantern-dock link create --data-dir=/data \
   --site=https://files.example.com > "$test_dir/drop.json"

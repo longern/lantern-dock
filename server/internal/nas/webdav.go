@@ -8,30 +8,128 @@ import (
 	"time"
 
 	"golang.org/x/net/webdav"
+	"golang.org/x/sys/unix"
 )
 
 type publicFS struct{ root *os.Root }
 
-func rootName(name string) string {
-	name = strings.TrimPrefix(name, "/")
-	if name == "" {
-		return "."
+func publicPathAllowed(name string) bool {
+	if !validRequestPath(name) {
+		return false
 	}
-	return name
+	for _, part := range strings.Split(name, "/") {
+		if strings.EqualFold(part, "#recycle") || strings.EqualFold(part, "@Recycle") {
+			return false
+		}
+	}
+	return true
 }
 func (f publicFS) Mkdir(context.Context, string, os.FileMode) error { return os.ErrPermission }
 func (f publicFS) RemoveAll(context.Context, string) error          { return os.ErrPermission }
 func (f publicFS) Rename(context.Context, string, string) error     { return os.ErrPermission }
 func (f publicFS) Stat(_ context.Context, name string) (os.FileInfo, error) {
-	return f.root.Stat(rootName(name))
+	file, err := f.open(name)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return file.Stat()
 }
 func (f publicFS) OpenFile(_ context.Context, name string, flag int, _ os.FileMode) (webdav.File, error) {
 	if flag != os.O_RDONLY {
 		return nil, os.ErrPermission
 	}
-	return f.root.Open(rootName(name))
+	return f.open(name)
+}
+
+// Open each component relative to an already-open directory without following
+// symlinks. A check followed by Root.Open would allow aliases (or symlink swaps)
+// to reach excluded directories even when the requested name looks public.
+func (f publicFS) open(name string) (*publicFile, error) {
+	if name == "." {
+		name = ""
+	}
+	if !publicPathAllowed(name) {
+		return nil, os.ErrNotExist
+	}
+	file, err := f.root.Open(".")
+	if err != nil {
+		return nil, err
+	}
+	parts := strings.FieldsFunc(name, func(c rune) bool { return c == '/' })
+	for i, part := range parts {
+		flags := 0
+		if i < len(parts)-1 || strings.HasSuffix(name, "/") {
+			flags |= unix.O_DIRECTORY
+		}
+		next, err := openPublicChild(file, part, flags)
+		file.Close()
+		if err != nil {
+			return nil, err
+		}
+		file = next
+	}
+	info, err := file.Stat()
+	if err != nil || (!info.IsDir() && !info.Mode().IsRegular()) {
+		file.Close()
+		return nil, os.ErrNotExist
+	}
+	return &publicFile{file}, nil
+}
+
+func openPublicChild(directory *os.File, name string, flags int) (*os.File, error) {
+	fd, err := unix.Openat(int(directory.Fd()), name, flags|unix.O_RDONLY|unix.O_CLOEXEC|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
+	if err != nil {
+		if err == unix.ELOOP || err == unix.ENOTDIR {
+			err = os.ErrNotExist
+		}
+		return nil, &os.PathError{Op: "open", Path: name, Err: err}
+	}
+	return os.NewFile(uintptr(fd), name), nil
+}
+
+type publicFile struct{ *os.File }
+
+func (f *publicFile) Readdir(count int) ([]os.FileInfo, error) {
+	var visible []os.FileInfo
+	for {
+		remaining := count
+		if count > 0 {
+			remaining -= len(visible)
+		}
+		// Readdir uses the File's display name for lstat on Unix. Enumerate
+		// names, then inspect children relative to this actual directory FD.
+		entries, err := f.File.Readdirnames(remaining)
+		for _, name := range entries {
+			if !publicPathAllowed(name) {
+				continue
+			}
+			child, openErr := openPublicChild(f.File, name, 0)
+			if openErr != nil {
+				if os.IsNotExist(openErr) || os.IsPermission(openErr) {
+					continue
+				}
+				return visible, openErr
+			}
+			info, statErr := child.Stat()
+			child.Close()
+			if statErr != nil {
+				return visible, statErr
+			}
+			if info.IsDir() || info.Mode().IsRegular() {
+				visible = append(visible, info)
+			}
+		}
+		if count <= 0 || len(visible) == count || err != nil {
+			return visible, err
+		}
+	}
 }
 func (s *Server) serveDAV(w http.ResponseWriter, r *http.Request) {
+	if !publicPathAllowed(r.URL.Path) {
+		writeError(w, fault(404, "NOT_FOUND", "找不到这个地址。"))
+		return
+	}
 	const allow = "GET, HEAD, OPTIONS, PROPFIND"
 	w.Header().Set("Allow", allow)
 	w.Header().Set("DAV", "1")

@@ -123,6 +123,60 @@ test("NAS serves public read-only WebDAV and receives a private file through the
   expect(errors).toEqual([]);
 });
 
+test("recycle bins and symlink aliases stay hidden and inaccessible through WebTransport", async ({
+  page,
+}) => {
+  await page.goto(fixture.origin);
+  await expect(page.locator(".file-card")).toHaveCount(3);
+  await expect(
+    page.locator(".file-card").filter({ hasText: /recycle/i }),
+  ).toHaveCount(0);
+  const result = await page.evaluate(async () => {
+    const { DirectTransport } = await import("/__test/lib/transport.js");
+    const { backend } = await (await fetch("/api/config")).json();
+    const transport = new DirectTransport(backend);
+    try {
+      const listings = [];
+      for (const path of ["/dav/", "/dav/%E7%85%A7%E7%89%87/"]) {
+        const response = await transport.request(path, {
+          method: "PROPFIND",
+          headers: { Depth: "1" },
+        });
+        listings.push({ status: response.status, xml: await response.text() });
+      }
+      const statuses = [];
+      for (const path of [
+        "/dav/%23recycle/",
+        "/dav/%23recy%63le/deleted.txt",
+        "/dav/%40Recycle/deleted.txt",
+        "/dav/%E7%85%A7%E7%89%87/%40rEcYcLe/deleted.txt",
+        "/dav/recycle-alias/",
+        "/dav/recycle-alias/deleted.txt",
+      ]) {
+        for (const method of ["GET", "HEAD", "PROPFIND"]) {
+          const response = await transport.request(path, {
+            method,
+            headers: { Depth: "1", Range: "bytes=0-5" },
+          });
+          statuses.push({ path, method, status: response.status });
+          await response.body?.cancel();
+        }
+      }
+      return { listings, statuses };
+    } finally {
+      transport.close();
+    }
+  });
+  for (const listing of result.listings) {
+    expect(listing.status).toBe(207);
+    expect(listing.xml.toLowerCase()).not.toMatch(
+      /recycle|deleted\.txt|recycled private fixture/,
+    );
+  }
+  for (const request of result.statuses)
+    expect(request.status, `${request.method} ${request.path}`).toBe(404);
+});
+
 test("NAS upload links enforce size, quotas, expiry and revocation in the browser", async ({
   page,
 }) => {

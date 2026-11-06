@@ -74,6 +74,8 @@ An explicit existing `BACKEND_ROOT` remains authoritative. Clear an old override
 
 The NAS HTTP port is only available on the Compose network. The public WebDAV root is `/dav/`; the whole public folder appears there. Private data and public files must be separate, non-overlapping directories, including when symlinks are resolved. The service refuses to start with overlapping roots. A single NAS server instance owns each data directory; CLI commands can safely operate while it runs.
 
+The public service excludes entries named `#recycle` or `@Recycle` at every directory level, ignoring case. Directory listings omit them, and direct requests for these entries or their descendants return `404`, including URL-encoded paths, file reads, HEAD and PROPFIND. The bins remain on disk and are managed by the NAS normally. Similar names such as `#recycled` and `@Recycle-old` are ordinary public entries. Public WebDAV does not follow symbolic links and omits them from listings, preventing an alternate link name from exposing an excluded bin; publish actual files/directories instead. This rule applies to the included NAS service; a third-party WebDAV backend enforces its own exclusions.
+
 ## Create a file-drop link
 
 Run on the NAS:
