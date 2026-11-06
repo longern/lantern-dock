@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"image/jpeg"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -130,7 +131,9 @@ func TestVideoInputCannotOpenPlaylistsOrExternalURLs(t *testing.T) {
 		t.Fatal("ignored cancellation")
 	}
 	output := &boundedOutput{limit: 100}
-	n, _ := output.Write(make([]byte, 1000000))
+	// Match os/exec's copy path without allowing an embedded Buffer.ReadFrom
+	// or a source WriteTo method to bypass the bounded writer.
+	n, _ := io.Copy(output, struct{ io.Reader }{bytes.NewReader(make([]byte, 1000000))})
 	if n != 1000000 || output.Len() != 100 || !output.overflow {
 		t.Fatal("unbounded process output")
 	}

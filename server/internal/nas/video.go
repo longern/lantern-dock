@@ -25,10 +25,13 @@ func videoSource(name string) bool {
 }
 
 type boundedOutput struct {
-	bytes.Buffer
+	buffer   bytes.Buffer
 	limit    int
 	overflow bool
 }
+
+func (b *boundedOutput) Len() int      { return b.buffer.Len() }
+func (b *boundedOutput) Bytes() []byte { return b.buffer.Bytes() }
 
 func (b *boundedOutput) Write(data []byte) (int, error) {
 	n := len(data)
@@ -37,7 +40,7 @@ func (b *boundedOutput) Write(data []byte) (int, error) {
 		b.overflow = true
 		data = data[:remaining]
 	}
-	_, _ = b.Buffer.Write(data)
+	_, _ = b.buffer.Write(data)
 	return n, nil
 }
 
