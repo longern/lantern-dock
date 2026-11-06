@@ -39,9 +39,10 @@ type IdentityUser struct {
 	Role   string `json:"role"`
 }
 type identityAuth struct {
-	config IdentityConfig
-	admins map[string]bool
-	keys   *rotatingKeys
+	config                 IdentityConfig
+	admins                 map[string]bool
+	keys                   *rotatingKeys
+	resourceOriginExplicit bool
 }
 type rotatingKeys struct {
 	mu      sync.Mutex
@@ -187,6 +188,7 @@ func (s *Server) ConfigureIdentity(cfg IdentityConfig) error {
 		return err
 	}
 	cfg.SiteOrigin = site
+	resourceOriginExplicit := cfg.ResourceOrigin != ""
 	if cfg.ResourceOrigin == "" {
 		cfg.ResourceOrigin = site
 	}
@@ -213,7 +215,7 @@ func (s *Server) ConfigureIdentity(cfg IdentityConfig) error {
 	if _, err = s.Store.DB.Exec(`CREATE TABLE IF NOT EXISTS identity_proofs (id TEXT PRIMARY KEY, expires_at INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS identity_proofs_expiry ON identity_proofs(expires_at);`); err != nil {
 		return err
 	}
-	s.identity = &identityAuth{config: cfg, admins: admins, keys: keys}
+	s.identity = &identityAuth{config: cfg, admins: admins, keys: keys, resourceOriginExplicit: resourceOriginExplicit}
 	s.origins[site] = true
 	return nil
 }

@@ -363,3 +363,24 @@ func TestImageVersionDetectsPreservedSizeAndMtime(t *testing.T) {
 		t.Fatal("ctime not included in image version")
 	}
 }
+
+func TestIIIFOriginDoesNotDefaultToTheLoginPortal(t *testing.T) {
+	for _, resource := range []string{"", "https://backend.example/"} {
+		f := newFixture(t)
+		writePhoto(t, f, "photo.png", 30, 20)
+		if err := f.s.ConfigureIdentity(IdentityConfig{SiteOrigin: "https://portal.example", ResourceOrigin: resource}); err != nil {
+			t.Fatal(err)
+		}
+		response := f.request(t, "GET", imageURL("photo.png")+"/info.json", "", nil, map[string]string{"X-Forwarded-Host": "evil.example", "X-Forwarded-Proto": "https"})
+		status(t, response, 200)
+		var info struct{ ID string }
+		json.NewDecoder(response.Body).Decode(&info)
+		want := f.http.URL
+		if resource != "" {
+			want = "https://backend.example"
+		}
+		if info.ID != want+imageURL("photo.png") {
+			t.Fatal("IIIF id must address the NAS, not its login portal or untrusted forwarding headers", info.ID)
+		}
+	}
+}

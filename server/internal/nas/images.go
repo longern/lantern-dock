@@ -251,7 +251,9 @@ func (s *Server) serveImage(w http.ResponseWriter, r *http.Request) {
 		scheme = "https"
 	}
 	origin := scheme + "://" + r.Host
-	if s.identity != nil {
+	// The default identity origin is a logical DPoP audience on the Worker,
+	// which does not serve image bytes. Use only an explicit public NAS origin.
+	if s.identity != nil && s.identity.resourceOriginExplicit {
 		origin = s.identity.config.ResourceOrigin
 	}
 	base := origin + imagesPath + "/" + parts[0]
