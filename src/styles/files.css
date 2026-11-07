@@ -280,46 +280,6 @@
 .mobile-refresh {
   display: none;
 }
-.file-grid.album-layout {
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 4px;
-}
-.album-layout .album-item {
-  border: 0;
-  border-radius: 0;
-  background: var(--surface-subtle);
-}
-.album-preview {
-  position: relative;
-  display: block;
-  aspect-ratio: 1;
-  padding: 0;
-}
-.album-preview img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.album-preview .thumbnail-slot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--muted);
-}
-.album-preview .thumbnail-slot > svg {
-  width: 32px;
-  height: 32px;
-  stroke-width: 1.2;
-}
-.album-preview:focus-visible {
-  border-radius: 0;
-}
-.album-layout .skeleton {
-  height: auto;
-  aspect-ratio: 1;
-  border-radius: 0;
-}
 @media (max-width: 700px) {
   .mobile-refresh {
     display: inline-flex;

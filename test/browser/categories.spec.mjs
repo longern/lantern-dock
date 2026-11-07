@@ -73,14 +73,17 @@ test("home shortcuts support keyboard activation and return to recent files", as
 test("album is a compact square preview-only grid with accessible file opening", async ({ page }, testInfo) => {
   await cards(page).getByRole("button", { name: "相册", exact: true }).click();
   const gallery = page.getByLabel("相册", { exact: true });
-  await expect(gallery).toHaveClass(/album-layout/);
+  await expect(gallery).toHaveClass(/album-timeline/);
   await expect(gallery).not.toHaveClass(/list-layout/);
   await expect(page.getByRole("group", { name: "显示方式" })).toHaveCount(0);
   await expect(page.locator(".list-head")).toBeHidden();
   await expect(gallery.locator(".file-info,.row-size,.row-modified,.extension,.favorite-button,svg")).toHaveCount(0);
-  await expect(gallery).toHaveText("");
+  await expect(gallery.locator(".album-item")).toHaveText(["", "", ""]);
   await expect(gallery.locator(".album-item")).toHaveCount(3);
-  await expect(gallery).toHaveCSS("gap", "4px");
+  await expect(gallery.locator(".album-layout")).toHaveCSS("gap", "4px");
+  await expect(page.getByRole("heading", { name: "照片", exact: true })).toBeVisible();
+  await expect(page.locator(".album-heading p")).toHaveCount(0);
+  await expect(page.getByLabel("排序", { exact: true })).toHaveCount(0);
   for (const item of await gallery.locator(".album-item").all()) {
     await expect(item).toHaveCSS("border-width", "0px");
     await expect(item).toHaveCSS("border-radius", "0px");
@@ -100,7 +103,7 @@ test("album is a compact square preview-only grid with accessible file opening",
   await page.keyboard.press("Escape");
   await expect(page.locator("#preview-dialog")).toHaveCount(0);
   await expect(photo).toBeFocused();
-  await expect(gallery).toHaveClass(/album-layout/);
+  await expect(gallery).toHaveClass(/album-timeline/);
   await page.getByRole("searchbox").fill("unmatched-photo");
   await expect(gallery.locator(".album-item")).toHaveCount(0);
   await page.locator(".empty-state").getByRole("button", { name: "清除搜索" }).click();
@@ -111,12 +114,14 @@ test("leaving and reentering album preserves the normal file view preference", a
   for (const view of ["列表视图", "网格视图"]) {
     await mainNav(page).getByRole("button", { name: /^文件/ }).click();
     await page.getByRole("button", { name: view, exact: true }).click();
+    await page.getByLabel("排序", { exact: true }).selectOption("size");
     await mainNav(page).getByRole("button", { name: "首页", exact: true }).click();
     await cards(page).getByRole("button", { name: "相册", exact: true }).click();
-    await expect(page.locator("#file-list")).toHaveClass(/album-layout/);
+    await expect(page.locator("#file-list")).toHaveClass(/album-timeline/);
     await page.getByRole("button", { name: "清除类型筛选" }).click();
-    await expect(page.locator("#file-list")).not.toHaveClass(/album-layout/);
+    await expect(page.locator("#file-list")).not.toHaveClass(/album-timeline/);
     await expect(page.locator(".file-name")).toHaveCount(12);
     await expect(page.getByRole("button", { name: view, exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByLabel("排序", { exact: true })).toHaveValue("size");
   }
 });

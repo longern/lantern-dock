@@ -3,8 +3,9 @@ import { Icon } from "./Icon.jsx";
 import { artwork } from "../lib/demo.js";
 import { bytes, date } from "../lib/format.js";
 import { Thumbnail } from "./Thumbnail.jsx";
-import { fileCategories } from "../lib/categories.js";
+import { categoryLabel } from "../lib/categories.js";
 import { fileListing } from "../lib/file-listing.js";
+import { Album } from "./Album.jsx";
 
 function FileCard({
   item,
@@ -14,38 +15,9 @@ function FileCard({
   selected,
   favorite,
   recent,
-  album,
   onOpen,
   onFavorite,
 }) {
-  if (album) {
-    return (
-      <article class="file-card album-item">
-        <button
-          class="file-open album-preview"
-          data-path={item.path}
-          aria-label={`预览 ${item.name}`}
-          aria-pressed={selected}
-          onClick={() => onOpen(item)}
-        >
-          {demo ? (
-            <img
-              src={`data:image/svg+xml,${encodeURIComponent(artwork(item.name))}`}
-              alt=""
-              decoding="async"
-            />
-          ) : (
-            <Thumbnail
-              item={item}
-              client={client}
-              side={384}
-              fallback={<Icon name="image" />}
-            />
-          )}
-        </button>
-      </article>
-    );
-  }
   return (
     <article
       class={`file-card${item.isDirectory ? " folder-card" : ""}${selected ? " selected" : ""}`}
@@ -130,7 +102,7 @@ export function FileBrowser({
     ],
   );
   const home = library.mode === "home";
-  const album = library.kind === "image";
+  const album = ["album", "image"].includes(library.kind);
   const error = recordsError ||
     ((usesDirectory || recordsPending) ? library.error : null);
   const busy = !error && (recordsPending || (library.loading && usesDirectory));
@@ -145,9 +117,14 @@ export function FileBrowser({
           : "已连接";
   return (
     <section
-      class={`content${home ? " home-content" : ""}`}
+      class={`content${home ? " home-content" : ""}${album ? " album-content" : ""}`}
       aria-label="文件浏览器"
     >
+      {album && (
+        <div class="album-heading">
+          <h1>照片</h1>
+        </div>
+      )}
       <div class="file-toolbar">
         <div class="file-stats">
           {home && (
@@ -178,7 +155,7 @@ export function FileBrowser({
               onClick={() => library.selectMode("all")}
               aria-label="清除类型筛选"
             >
-              {fileCategories.find(({ kind }) => kind === library.kind)?.label}
+              {categoryLabel(library.kind)}
               <Icon name="x" />
             </button>
           )}
@@ -193,7 +170,7 @@ export function FileBrowser({
           >
             <Icon name="refresh" />
           </button>
-          {!recent && (
+          {!recent && !album && (
             <select
               aria-label="排序"
               value={sort}
@@ -262,12 +239,21 @@ export function FileBrowser({
       </div>
       <div
         id="file-list"
-        class={`file-grid${album ? " album-layout" : library.view === "list" ? " list-layout" : ""}`}
+        class={album ? "album-timeline" : `file-grid${library.view === "list" ? " list-layout" : ""}`}
         aria-live="polite"
         aria-busy={busy}
         aria-label={album ? "相册" : recent ? "最近文件列表" : "文件列表"}
       >
-        {busy && !entries.length
+        {album ? (
+          <Album
+            entries={error ? [] : entries}
+            loading={busy}
+            client={library.connection?.client}
+            demo={library.backend?.transport === "demo"}
+            selected={selected}
+            onPreview={onPreview}
+          />
+        ) : busy && !entries.length
           ? Array.from({ length: 8 }, (_, index) => (
               <div class="skeleton" key={index} />
             ))
@@ -281,7 +267,6 @@ export function FileBrowser({
                 selected={selected?.path === item.path}
                 favorite={records.isFavorite(item)}
                 recent={recent}
-                album={album}
                 onFavorite={records.toggleFavorite}
                 onOpen={(item) =>
                   item.isDirectory

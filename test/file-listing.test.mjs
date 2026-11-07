@@ -78,6 +78,17 @@ test("file navigation and type filtering use directory entries, not recent histo
   assert.deepEqual(result.entries.map((item) => item.name), ["directory-only.md"]);
 });
 
+test("album search includes videos and does not show an empty state for video-only directories", () => {
+  const video = { ...file("clip.mp4"), kind: "video" };
+  const image = { ...file("photo.png"), kind: "image" };
+  const result = fileListing(library({ mode: "all", kind: "album", entries: [image, video, file("notes.md")] }), records());
+  assert.deepEqual(result.entries, [video, image]);
+  const searched = fileListing(library({ mode: "all", kind: "album", entries: [image, video], query: "clip" }), records());
+  assert.deepEqual(searched.entries, [video]);
+  assert.deepEqual(fileListing(library({ mode: "all", kind: "album", entries: [video] }), records()).entries, [video]);
+  assert.deepEqual(fileListing(library({ mode: "all", kind: "album", entries: [] }), records()).entries, []);
+});
+
 test("favorites keep their own source and never fall back to directory files", () => {
   const favorite = file("favorite.md");
   assert.deepEqual(fileListing(library({ mode: "favorites" }), records([], [favorite])).entries, [favorite]);

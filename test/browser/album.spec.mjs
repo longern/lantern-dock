@@ -65,7 +65,8 @@ for (const service of ["unavailable", "unsupported", "broken-image"]) {
       await expect.poll(() => failedThumbnailRequests).toBeGreaterThan(0);
     await expect(open.locator(".thumbnail-slot svg")).toBeVisible();
     await expect(gallery.locator(".file-info,.favorite-button")).toHaveCount(0);
-    await expect(gallery).toHaveText("");
+    await expect(gallery.locator(".album-date")).toHaveText("日期未知");
+    await expect(gallery.locator(".album-item")).toHaveText("");
     expect(originalReads).toBe(0);
     await open.focus();
     await page.keyboard.press("Enter");

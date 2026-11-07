@@ -8,7 +8,7 @@ export function CategoryCards({ library }) {
         <button
           key={kind}
           type="button"
-          class={`category-card${kind === "image" ? " category-album" : ""}`}
+          class={`category-card${kind === "album" ? " category-album" : ""}`}
           aria-controls="file-list"
           onClick={() => library.selectMode("all", kind)}
         >
