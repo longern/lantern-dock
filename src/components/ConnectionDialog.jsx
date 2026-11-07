@@ -1,6 +1,7 @@
 import { useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { Dialog } from "./Dialog.jsx";
+import { useMediaQuery } from "../hooks/useMediaQuery.js";
 
 export function ConnectionDialog({
   backend,
@@ -12,6 +13,7 @@ export function ConnectionDialog({
   open,
   feedback,
 }) {
+  const mobile = useMediaQuery("(max-width: 700px)");
   const [form, setForm] = useState({
     ...credentials,
     mode:
@@ -38,7 +40,9 @@ export function ConnectionDialog({
       open={open}
       onClose={onClose}
       onExited={onExited}
-      fallbackFocus='.topbar button[aria-label="连接设置"]'
+      fallbackFocus={mobile
+        ? '.topbar button[aria-label="打开导航"]'
+        : '#sidebar button[aria-label="连接设置"]'}
       class="settings-dialog"
       aria-labelledby="settings-title"
     >

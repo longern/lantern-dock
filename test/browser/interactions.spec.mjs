@@ -1,9 +1,9 @@
 import { test, expect } from "@playwright/test";
-
-const settingsTrigger = (page) =>
-  page
-    .locator(".topbar")
-    .getByRole("button", { name: "连接设置", exact: true });
+import {
+  connectionSettingsReturnTarget,
+  mainNavigation,
+  openConnectionSettings,
+} from "../helpers/navigation.mjs";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
@@ -77,9 +77,8 @@ test("mobile drawer fades its backdrop both ways, contains focus and restores it
 test("dialog backdrop, Escape and close control share an exit and restore focus", async ({
   page,
 }) => {
-  const trigger = settingsTrigger(page);
   for (const dismiss of ["backdrop", "escape", "button"]) {
-    await trigger.click();
+    const trigger = await openConnectionSettings(page);
     const dialog = page.getByRole("dialog", { name: "连接设置", exact: true });
     await expect(dialog).toBeVisible();
     await dialog.getByLabel("访问方式", { exact: true }).selectOption("basic");
@@ -89,12 +88,15 @@ test("dialog backdrop, Escape and close control share an exit and restore focus"
     else await dialog.getByRole("button", { name: "关闭设置" }).click();
     await expect(dialog).toHaveCount(0);
     await expect(trigger).toBeFocused();
+    await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
   }
-  await trigger.click();
+  await openConnectionSettings(page);
   await expect(page.getByLabel("访问方式", { exact: true })).toHaveValue(
     "none",
   );
   await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "连接设置", exact: true })).toHaveCount(0);
+  await expect(connectionSettingsReturnTarget(page)).toBeFocused();
 });
 
 test("drawer can hand over to settings and switching to desktop releases the modal", async ({
@@ -114,6 +116,7 @@ test("drawer can hand over to settings and switching to desktop releases the mod
   ).toBe(true);
   await page.keyboard.press("Escape");
   await expect(settings).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "打开导航", exact: true })).toBeFocused();
   await page.getByRole("button", { name: "打开导航" }).click();
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
@@ -128,11 +131,63 @@ test("drawer can hand over to settings and switching to desktop releases the mod
   await expect(page.locator("#sidebar")).not.toHaveAttribute("open");
 });
 
+test("settings on Files restore visible navigation focus after crossing the drawer breakpoint", async ({ page }) => {
+  await mainNavigation(page).getByRole("button", { name: /^文件/ }).click();
+  for (const [from, to] of [[700, 701], [701, 700]]) {
+    await page.setViewportSize({ width: from, height: 900 });
+    await openConnectionSettings(page);
+    await page.setViewportSize({ width: to, height: 900 });
+    const settings = page.getByRole("dialog", { name: "连接设置", exact: true });
+    await expect(settings).toBeVisible();
+    await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+    await expect(page.locator(".topbar").getByRole("button", {
+      name: "连接设置", exact: true, includeHidden: true,
+    })).toHaveCount(0);
+    await settings.getByRole("button", { name: "关闭设置", exact: true }).click();
+    await expect(settings).toHaveCount(0);
+    await expect(connectionSettingsReturnTarget(page)).toBeVisible();
+    await expect(connectionSettingsReturnTarget(page)).toBeFocused();
+    await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
+    await expect(mainNavigation(page).getByRole("button", { name: /^文件/ }))
+      .toHaveAttribute("aria-current", "page");
+    if (to <= 700) {
+      await expect(page.locator("#sidebar")).not.toHaveAttribute("open");
+      await expect(connectionSettingsReturnTarget(page)).toHaveAttribute("aria-expanded", "false");
+    }
+  }
+});
+
+for (const [from, to] of [[700, 701], [701, 700]]) {
+  test(`settings return focus when resizing from ${from}px to ${to}px during the exit animation`, async ({ page }) => {
+    await mainNavigation(page).getByRole("button", { name: /^文件/ }).click();
+    await page.setViewportSize({ width: from, height: 900 });
+    await openConnectionSettings(page);
+    // Freeze only after the mobile drawer has finished handing over to settings.
+    await page.clock.install();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    const settings = page.getByRole("dialog", { name: "连接设置", exact: true });
+    await settings.getByRole("button", { name: "关闭设置", exact: true }).click();
+    await expect(settings).toHaveAttribute("data-state", "closed");
+    await expect(settings).toHaveAttribute("open", "");
+    await page.setViewportSize({ width: to, height: 900 });
+    await page.clock.runFor(16);
+    await expect(page.locator("#sidebar")).toHaveJSProperty("tagName", to <= 700 ? "DIALOG" : "ASIDE");
+    await expect(settings).toHaveAttribute("open", "");
+    await page.clock.runFor(220);
+    await expect(settings).toHaveCount(0);
+    await expect(connectionSettingsReturnTarget(page)).toBeFocused();
+    await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
+    await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+    await expect(mainNavigation(page).getByRole("button", { name: /^文件/ }))
+      .toHaveAttribute("aria-current", "page");
+  });
+}
+
 test("reduced motion disables surface and backdrop animation without leaving a modal behind", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await settingsTrigger(page).click();
+  const trigger = await openConnectionSettings(page);
   const settings = page.getByRole("dialog", { name: "连接设置", exact: true });
   expect(
     await settings.evaluate((node) => [
@@ -142,6 +197,7 @@ test("reduced motion disables surface and backdrop animation without leaving a m
   ).toEqual(["none", "none"]);
   await page.keyboard.press("Escape");
   await expect(settings).toHaveCount(0);
+  await expect(trigger).toBeFocused();
   if (page.viewportSize().width <= 700) {
     await page.getByRole("button", { name: "打开导航" }).click();
     const drawer = page.getByRole("dialog", { name: "主导航" });

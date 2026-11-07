@@ -1,15 +1,17 @@
 import { test, expect } from "@playwright/test";
+import { mainNavigation as nav } from "../helpers/navigation.mjs";
 
-const nav = (page) => page.getByRole("navigation", {
-  name: page.viewportSize().width <= 700 ? "移动端资源导航" : "资源导航",
-  exact: true,
-});
 const home = (page) => nav(page).getByRole("button", { name: "首页", exact: true });
 const files = (page) => nav(page).getByRole("button", { name: /^文件/ });
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(1);
+  await expect(page.getByRole("searchbox")).toBeVisible();
+  await expect(page.locator(".topbar").getByRole("button", {
+    name: "连接设置", exact: true, includeHidden: true,
+  })).toHaveCount(0);
 });
 
 test("home and files are separate destinations, with breadcrumbs only in files", async ({ page }) => {
@@ -19,13 +21,88 @@ test("home and files are separate destinations, with breadcrumbs only in files",
   await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(0);
   await expect(page.locator(".file-section-title")).toHaveText("文件");
   await files(page).click();
+  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "文件路径" })).toBeVisible();
   await expect(page.locator(".category-cards")).toHaveCount(0);
   await page.getByRole("button", { name: "打开文件夹 照片", exact: true }).click();
   await expect(page.locator(".file-card")).toHaveCount(4);
+  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
   await home(page).click();
   await expect(page.locator(".file-card")).toHaveCount(12);
   await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(0);
+  await expect(page.getByRole("searchbox")).toHaveValue("");
+});
+
+test("leaving Home clears search for Files, Favorites, folders and sidebar categories", async ({ page }) => {
+  await page.getByRole("button", { name: "收藏 项目笔记.md", exact: true }).click();
+  for (const [name, count] of [[/^文件/, 12], [/^收藏/, 1]]) {
+    await page.getByRole("searchbox").fill("no-matching-file");
+    await expect(page.locator(".file-card")).toHaveCount(0);
+    await nav(page).getByRole("button", { name }).click();
+    await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+    await expect(page.locator(".topbar").getByRole("button", {
+      name: "连接设置", exact: true, includeHidden: true,
+    })).toHaveCount(0);
+    await expect(page.locator(".file-card")).toHaveCount(count);
+    await expect(page.locator(".empty-state")).toHaveCount(0);
+    await home(page).click();
+    await expect(page.getByRole("searchbox")).toHaveValue("");
+    await expect(page.locator(".file-card")).toHaveCount(12);
+  }
+  await page.getByRole("searchbox").fill("照片");
+  await page.getByRole("button", { name: "打开文件夹 照片", exact: true }).click();
+  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  await expect(page.locator(".file-card")).toHaveCount(4);
+  await page.getByRole("navigation", { name: "文件路径" })
+    .getByRole("button", { name: "公开资源库", exact: true }).click();
+  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  await expect(page.locator(".file-card")).toHaveCount(12);
+  await home(page).click();
+  await expect(page.getByRole("searchbox")).toHaveValue("");
+
+  await page.getByRole("searchbox").fill("no-matching-file");
+  if (page.viewportSize().width <= 700)
+    await page.getByRole("button", { name: "打开导航", exact: true }).click();
+  await page.getByRole("navigation", { name: "文件类型", exact: true })
+    .getByRole("button", { name: "文档", exact: true }).click();
+  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  await expect(page.locator(".file-card")).toHaveCount(4);
+  await home(page).click();
+  await expect(page.getByRole("searchbox")).toHaveValue("");
+  await expect(page.locator(".file-card")).toHaveCount(12);
+});
+
+test("slash focuses Home search without navigating from other destinations", async ({ page }) => {
+  await home(page).focus();
+  await page.keyboard.press("/");
+  await expect(page.getByRole("searchbox")).toBeFocused();
+  await page.getByRole("searchbox").fill("note");
+  await page.keyboard.press("/");
+  await expect(page.getByRole("searchbox")).toHaveValue("note/");
+  for (const name of [/^文件/, /^收藏/]) {
+    const destination = nav(page).getByRole("button", { name });
+    await destination.click();
+    await destination.focus();
+    await page.keyboard.press("/");
+    await expect(destination).toHaveAttribute("aria-current", "page");
+    await expect(destination).toBeFocused();
+    await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  }
+  await files(page).click();
+  await page.getByRole("button", { name: "打开文件夹 照片", exact: true }).click();
+  const root = page.getByRole("navigation", { name: "文件路径" })
+    .getByRole("button", { name: "公开资源库", exact: true });
+  await root.focus();
+  await page.keyboard.press("/");
+  await expect(root).toBeFocused();
+  await expect(page.getByRole("navigation", { name: "文件路径" })).toContainText("照片");
+  await expect(page.locator(".file-card")).toHaveCount(4);
+  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  await home(page).click();
+  await home(page).focus();
+  await page.keyboard.press("/");
+  await expect(page.getByRole("searchbox")).toBeFocused();
+  await expect(page.getByRole("searchbox")).toHaveValue("");
 });
 
 test("home shows actual recent visits, persists them and does not fall back after an unmatched search", async ({ page }) => {
@@ -66,9 +143,13 @@ test("home has no divider between the search header and category shortcuts", asy
   await expect(headerRow).toHaveCSS("border-bottom-width", "1px");
 });
 
-test("search is 36px tall with and without the clear control on both destinations", async ({ page }) => {
-  for (const destination of [home(page), files(page)]) {
-    await destination.click();
+test("Home search stays 36px tall with and without the clear control after returning", async ({ page }) => {
+  for (const returnHome of [false, true]) {
+    if (returnHome) {
+      await files(page).click();
+      await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+      await home(page).click();
+    }
     for (const value of ["", "笔记", ""]) {
       await page.getByRole("searchbox").fill(value);
       await expect(page.locator(".search-box")).toHaveCSS("height", "36px");
@@ -80,6 +161,22 @@ test("search is 36px tall with and without the clear control on both destination
         expect(clear.y + clear.height).toBeLessThanOrEqual(box.y + box.height);
       }
     }
+  }
+});
+
+test("mobile header keeps account at the right edge without an empty settings column", async ({ page }) => {
+  test.skip(page.viewportSize().width > 700, "Mobile header layout");
+  for (const destination of [home(page), files(page)]) {
+    await destination.click();
+    const header = page.locator(".topbar");
+    await expect(header.getByRole("button", { name: "连接设置", includeHidden: true })).toHaveCount(0);
+    const columns = await header.evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(" "));
+    expect(columns).toHaveLength(3);
+    const menu = await header.getByRole("button", { name: "打开导航", exact: true }).boundingBox();
+    const account = await header.getByRole("link", { name: "我的账户", exact: true }).boundingBox();
+    expect(Math.abs(menu.x - (page.viewportSize().width - account.x - account.width))).toBeLessThan(1);
+    expect(Math.abs(menu.y - account.y)).toBeLessThan(1);
+    expect(await header.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   }
 });
 

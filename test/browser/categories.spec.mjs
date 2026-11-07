@@ -34,7 +34,10 @@ test("category shortcuts open the file view and clear search", async ({ page }) 
     await mainNav(page).getByRole("button", { name: "首页", exact: true }).click();
     await page.getByRole("searchbox").fill("no-matching-file");
     await cards(page).getByRole("button", { name: label, exact: true }).click();
-    await expect(page.getByRole("searchbox")).toHaveValue("");
+    await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+    await expect(page.locator(".topbar").getByRole("button", {
+      name: "连接设置", exact: true, includeHidden: true,
+    })).toHaveCount(0);
     await expect(cards(page)).toHaveCount(0);
     await expect(mainNav(page).getByRole("button", { name: /^文件/ })).toHaveAttribute("aria-current", "page");
     await expect(page.locator(".filter-chip")).toContainText(label);
@@ -45,6 +48,10 @@ test("category shortcuts open the file view and clear search", async ({ page }) 
     } else {
       await page.getByRole("button", { name: "清除类型筛选" }).click();
     }
+    await expect(page.locator(".file-card")).toHaveCount(12);
+    await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+    await mainNav(page).getByRole("button", { name: "首页", exact: true }).click();
+    await expect(page.getByRole("searchbox")).toHaveValue("");
     await expect(page.locator(".file-card")).toHaveCount(12);
   }
 });
@@ -104,9 +111,9 @@ test("album is a compact square preview-only grid with accessible file opening",
   await expect(page.locator("#preview-dialog")).toHaveCount(0);
   await expect(photo).toBeFocused();
   await expect(gallery).toHaveClass(/album-timeline/);
-  await page.getByRole("searchbox").fill("unmatched-photo");
-  await expect(gallery.locator(".album-item")).toHaveCount(0);
-  await page.locator(".empty-state").getByRole("button", { name: "清除搜索" }).click();
+  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  await page.keyboard.press("/");
+  await expect(photo).toBeFocused();
   await expect(gallery.locator(".album-item")).toHaveCount(3);
 });
 

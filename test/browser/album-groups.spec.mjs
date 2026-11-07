@@ -29,6 +29,13 @@ function listing(items) {
   return `<d:multistatus xmlns:d="DAV:">${responses}</d:multistatus>`;
 }
 
+async function replaceListing(page, items) {
+  await page.route("**/dav/**", (route) => route.request().method() === "PROPFIND"
+    ? route.fulfill({ status: 207, contentType: "application/xml", body: listing(items) })
+    : route.fallback());
+  await page.getByRole("button", { name: "刷新目录", exact: true }).click();
+}
+
 test.beforeEach(async ({ page }) => {
   const requests = [];
   videoRequests.set(page, requests);
@@ -73,6 +80,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".file-card")).toHaveCount(14);
   await album(page).click();
+  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
 });
 
 test("photos form dated groups with real thumbnails and four edge-to-edge mobile columns", async ({ page }, testInfo) => {
@@ -109,8 +117,8 @@ test("photos form dated groups with real thumbnails and four edge-to-edge mobile
   await page.screenshot({ path: testInfo.outputPath("album-date-groups.png"), fullPage: true });
 });
 
-test("search prunes empty groups and preview closes back to the same photo", async ({ page }) => {
-  await page.getByRole("searchbox").fill("yesterday");
+test("refreshed listings prune empty groups and preview closes back to the same photo", async ({ page }) => {
+  await replaceListing(page, photos.filter(({ name }) => name.startsWith("yesterday")));
   await expect(page.locator(".album-date")).toHaveText(["昨天"]);
   const photo = page.getByRole("button", { name: "预览 yesterday-late.png", exact: true });
   await photo.focus();
@@ -119,10 +127,12 @@ test("search prunes empty groups and preview closes back to the same photo", asy
   await page.keyboard.press("Escape");
   await expect(page.locator("#preview-dialog")).toHaveCount(0);
   await expect(photo).toBeFocused();
-  await page.getByRole("searchbox").fill("no-such-photo");
+  await replaceListing(page, []);
   await expect(page.locator(".album-group")).toHaveCount(0);
-  await expect(page.locator(".empty-state")).toContainText("没有找到匹配的文件");
-  await page.locator(".empty-state").getByRole("button", { name: "清除搜索", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "暂无文件", exact: true })).toBeVisible();
+  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "清除搜索", exact: true })).toHaveCount(0);
+  await replaceListing(page, photos);
   await expect(page.locator(".album-date")).toHaveText(labels);
 });
 
@@ -159,8 +169,8 @@ test("refresh moves photos into their updated date groups without duplicates", a
   await expect(page.locator(".album-item")).toHaveCount(14);
 });
 
-test("album video search opens the existing player without autoplay and restores focus", async ({ page }) => {
-  await page.getByRole("searchbox").fill("clip");
+test("a video-only album opens the existing player without autoplay and restores focus", async ({ page }) => {
+  await replaceListing(page, photos.filter(({ name }) => name === "clip.mp4"));
   await expect(page.locator(".album-date")).toHaveText(["今天"]);
   await expect(page.locator(".album-item")).toHaveCount(1);
   await expect(page.locator(".album-video-indicator")).toHaveCount(1);
@@ -189,8 +199,7 @@ test("unavailable video posters stay playable placeholders without eager origina
     await route.fulfill({ status: 415 });
     if (route.request().url().includes("/Y2xpcC5tcDQ/")) failedPosterRequests++;
   });
-  await page.getByRole("searchbox").fill("clip");
-  await page.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await replaceListing(page, photos.filter(({ name }) => name === "clip.mp4"));
   const open = page.getByRole("button", { name: "预览视频 clip.mp4", exact: true });
   await expect.poll(() => failedPosterRequests).toBeGreaterThan(0);
   await expect(open.locator(".thumbnail-slot img")).toHaveCount(0);

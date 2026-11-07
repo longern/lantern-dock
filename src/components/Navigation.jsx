@@ -118,7 +118,7 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
   );
 }
 
-export function Topbar({ library, menuOpen, onMenu, onSettings }) {
+export function Topbar({ library, menuOpen, onMenu }) {
   const mobile = useMediaQuery("(max-width: 700px)");
   const home = library.mode === "home";
   const root = library.connection?.client.root || "/";
@@ -205,7 +205,7 @@ export function Topbar({ library, menuOpen, onMenu, onSettings }) {
         </a>
         {!mobile && !home && breadcrumbs}
         <div class="topbar-right">
-          {!mobile && search}
+          {!mobile && home && search}
           <button
             id="refresh-button"
             class="icon-button"
@@ -216,14 +216,6 @@ export function Topbar({ library, menuOpen, onMenu, onSettings }) {
             onClick={library.refresh}
           >
             <Icon name="refresh" />
-          </button>
-          <button
-            class="icon-button"
-            aria-label="连接设置"
-            title="连接设置"
-            onClick={onSettings}
-          >
-            <Icon name="settings" />
           </button>
           <a
             class="account-entry icon-button"
@@ -238,7 +230,7 @@ export function Topbar({ library, menuOpen, onMenu, onSettings }) {
       {mobile && (
         <div class="mobile-file-tools">
           {!home && breadcrumbs}
-          {search}
+          {home && search}
         </div>
       )}
     </div>

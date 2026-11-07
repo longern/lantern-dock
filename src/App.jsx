@@ -87,7 +87,8 @@ function LibraryApp() {
         ) &&
         !settings &&
         !selected &&
-        !menu
+        !menu &&
+        library.mode === "home"
       ) {
         event.preventDefault();
         document.getElementById("search")?.focus();
@@ -95,7 +96,7 @@ function LibraryApp() {
     };
     document.addEventListener("keydown", keyboard);
     return () => document.removeEventListener("keydown", keyboard);
-  }, [selected, settings, menu]);
+  }, [selected, settings, menu, library.mode]);
   useEffect(() => {
     const stop = () => {
       transfer.cancel();
@@ -157,7 +158,6 @@ function LibraryApp() {
           library={library}
           menuOpen={menu}
           onMenu={() => setMenu((value) => !value)}
-          onSettings={showSettings}
         />
         {library.mode === "home" && <CategoryCards library={library} />}
         {library.demoPreview && (

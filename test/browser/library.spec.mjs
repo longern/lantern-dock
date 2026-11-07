@@ -1,5 +1,6 @@
 import { test as base, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
+import { openConnectionSettings } from "../helpers/navigation.mjs";
 
 const test = base.extend({
   page: async ({ page }, use) => {
@@ -133,19 +134,13 @@ test("settings reconnect and credential clearing clean up preview", async ({
     .getByRole("button", { name: "预览 项目笔记.md", exact: true })
     .click();
   await page.getByRole("button", { name: "关闭预览" }).click();
-  await page
-    .locator(".topbar")
-    .getByRole("button", { name: "连接设置", exact: true })
-    .click();
+  await openConnectionSettings(page);
   await page.getByLabel("访问方式", { exact: true }).selectOption("basic");
   await page.getByLabel("用户名", { exact: true }).fill("local-user");
   await page.getByLabel("密码", { exact: true }).fill("memory-only-secret");
   await page.getByRole("button", { name: "连接", exact: true }).click();
   await expect(page.locator(".file-card")).toHaveCount(1);
-  await page
-    .locator(".topbar")
-    .getByRole("button", { name: "连接设置", exact: true })
-    .click();
+  await openConnectionSettings(page);
   await expect(page.getByLabel("用户名", { exact: true })).toHaveValue(
     "local-user",
   );
@@ -159,10 +154,7 @@ test("settings reconnect and credential clearing clean up preview", async ({
   await page.getByRole("button", { name: "关闭设置" }).click();
   await page.reload();
   await expect(page.locator(".file-card")).toHaveCount(1);
-  await page
-    .locator(".topbar")
-    .getByRole("button", { name: "连接设置", exact: true })
-    .click();
+  await openConnectionSettings(page);
   await expect(page.getByLabel("访问方式", { exact: true })).toHaveValue(
     "none",
   );
@@ -194,11 +186,14 @@ test("config failures stay visible and reconnect can recover", async ({
   );
   await expect(page.locator(".file-card")).toHaveCount(0);
   await expect(page.locator(".list-head")).toBeHidden();
+  const settings = page.locator(".empty-state").getByRole("button", { name: "连接设置", exact: true });
+  await settings.click();
+  await expect(page.getByRole("dialog", { name: "连接设置", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "关闭设置", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "连接设置", exact: true })).toHaveCount(0);
+  await expect(settings).toBeFocused();
   await page.unroute("**/api/config");
-  await page
-    .locator(".topbar")
-    .getByRole("button", { name: "连接设置", exact: true })
-    .click();
+  await settings.click();
   await page.getByRole("button", { name: "连接", exact: true }).click();
   await expect(page.locator(".file-card")).toHaveCount(12);
   await expect(page.locator(".list-head")).not.toHaveAttribute("hidden");

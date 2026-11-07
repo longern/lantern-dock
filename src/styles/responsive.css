@@ -84,7 +84,7 @@
   .topbar {
     padding: 0 16px;
     display: grid;
-    grid-template-columns: 36px minmax(0, 1fr) 48px 36px;
+    grid-template-columns: 36px minmax(0, 1fr) 36px;
     gap: 8px;
     border-bottom: 0;
   }
@@ -115,7 +115,7 @@
     grid-column: 3;
   }
   .topbar-right > .account-entry {
-    grid-column: 4;
+    grid-column: 3;
   }
   .topbar-right > #refresh-button {
     display: none;

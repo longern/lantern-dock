@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openConnectionSettings } from "../helpers/navigation.mjs";
 
 const recentKey = "lantern-dock:demo::/:recent";
 const visit = {
@@ -120,7 +121,7 @@ for (const switchBackend of [false, true]) {
       } } });
     });
     try {
-      await page.locator(".topbar").getByRole("button", { name: "连接设置", exact: true }).click();
+      await openConnectionSettings(page);
       await page.getByRole("button", { name: "连接", exact: true }).click();
       await expect(page.locator(".file-section-title")).toHaveText("最近文件");
       await expect(page.locator("#file-list")).toHaveAttribute("aria-busy", "true");

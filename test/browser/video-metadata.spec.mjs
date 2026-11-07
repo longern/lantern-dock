@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { openConnectionSettings } from "../helpers/navigation.mjs";
 import { tailMoovMP4 } from "../helpers/mp4-fixture.mjs";
 
 async function openFixture(page, fixture) {
@@ -35,7 +36,7 @@ async function openFixture(page, fixture) {
   await expect(page.getByRole("button", { name: "预览 metadata.mp4", exact: true })).toBeVisible();
   // A synthetic credential forces the same MSE path used by WebTransport,
   // without depending on a real NAS, UDP connection or private credentials.
-  await page.locator(".topbar").getByRole("button", { name: "连接设置", exact: true }).click();
+  await openConnectionSettings(page);
   await page.getByLabel("访问方式", { exact: true }).selectOption("bearer");
   await page.getByLabel("访问令牌", { exact: true }).fill("fixture-only-token");
   await page.getByRole("button", { name: "连接", exact: true }).click();

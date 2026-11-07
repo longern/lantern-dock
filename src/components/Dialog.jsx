@@ -15,7 +15,7 @@ export function Dialog({
   const outsidePress = useRef(false);
   const returnFocus = useRef(null);
   const callbacks = useRef(null);
-  callbacks.current = { open, onClose, onExited };
+  callbacks.current = { open, onClose, onExited, fallbackFocus };
   useLayoutEffect(() => {
     const node = element.current;
     if (open) {
@@ -47,8 +47,8 @@ export function Dialog({
           !trigger.closest("dialog:not([open]), [inert]")
         ) {
           trigger.focus({ preventScroll: true });
-        } else if (fallbackFocus) {
-          document.querySelector(fallbackFocus)?.focus({ preventScroll: true });
+        } else if (callbacks.current.fallbackFocus) {
+          document.querySelector(callbacks.current.fallbackFocus)?.focus({ preventScroll: true });
         }
         returnFocus.current = null;
         callbacks.current.onExited?.();
