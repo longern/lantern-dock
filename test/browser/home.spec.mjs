@@ -29,6 +29,7 @@ test("home and files are separate destinations, with breadcrumbs only in files",
 });
 
 test("home shows actual recent visits, persists them and does not fall back after an unmatched search", async ({ page }) => {
+  await page.getByLabel("排序", { exact: true }).selectOption("name");
   await page.getByRole("button", { name: "预览 项目笔记.md", exact: true }).click();
   await page.getByRole("button", { name: "关闭预览" }).click();
   await expect(page.locator(".file-section-title")).toHaveText("最近文件");
@@ -40,16 +41,29 @@ test("home shows actual recent visits, persists them and does not fall back afte
   await page.getByRole("button", { name: "关闭预览" }).click();
   await home(page).click();
   await expect(page.locator(".file-name")).toHaveText(["阅读清单.txt", "项目笔记.md"]);
-  await expect(page.getByLabel("排序", { exact: true })).toHaveValue("recent");
+  await expect(page.getByLabel("排序", { exact: true })).toHaveCount(0);
   await page.getByRole("searchbox").fill("山间");
   await expect(page.locator(".file-card")).toHaveCount(0);
   await expect(page.locator(".file-section-title")).toHaveText("最近文件");
   await expect(page.locator(".empty-state")).toContainText("没有找到匹配的文件");
+  await expect(page.getByLabel("排序", { exact: true })).toHaveCount(0);
   await page.locator(".empty-state").getByRole("button", { name: "清除搜索" }).click();
   await page.reload();
   await expect(page.locator(".file-name")).toHaveText(["阅读清单.txt", "项目笔记.md"]);
   await files(page).click();
   await expect(page.locator(".file-card")).toHaveCount(12);
+  await page.getByLabel("排序", { exact: true }).selectOption("size");
+  await home(page).click();
+  await expect(page.locator(".file-name")).toHaveText(["阅读清单.txt", "项目笔记.md"]);
+  await expect(page.getByLabel("排序", { exact: true })).toHaveCount(0);
+});
+
+test("home has no divider between the search header and category shortcuts", async ({ page }) => {
+  const headerRow = page.locator(page.viewportSize().width <= 700 ? ".mobile-file-tools" : ".topbar");
+  await expect(headerRow).toHaveCSS("border-bottom-width", "0px");
+  await expect(page.locator(".category-cards")).toHaveCSS("border-top-width", "0px");
+  await files(page).click();
+  await expect(headerRow).toHaveCSS("border-bottom-width", "1px");
 });
 
 test("search is 36px tall with and without the clear control on both destinations", async ({ page }) => {

@@ -6,6 +6,10 @@
 .home-page > .category-cards {
   flex-shrink: 0;
 }
+.home-page .topbar,
+.home-page .mobile-file-tools {
+  border-bottom: 0;
+}
 .home-content {
   flex: 1;
   min-width: 0;

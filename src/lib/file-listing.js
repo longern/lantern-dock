@@ -3,15 +3,20 @@ import { matchesCategory } from "./categories.js";
 export function fileListing(library, records) {
   // Choose the source before filtering: an unmatched search must not replace
   // recent files with unrelated directory entries.
-  const recent = library.mode === "home" && records.recent.length > 0;
+  const recent = library.mode === "home" &&
+    (records.recentStatus !== "ready" || records.recent.length > 0);
+  const recordsPending = recent && records.recentStatus === "pending";
+  const recordsError = recent ? records.recentError : null;
   const usesDirectory = library.mode === "all" ||
     (library.mode === "home" && !recent);
   const source = recent
-    ? records.recent
+    ? records.recentStatus === "ready"
+      ? records.recent
+      : []
     : library.mode === "favorites"
       ? records.favorites
       : library.entries;
-  const sort = !recent && library.sort === "recent" ? "name" : library.sort;
+  const sort = recent ? "recent" : library.sort === "recent" ? "name" : library.sort;
   const entries = source
     .filter((item) => matchesCategory(item, library.kind) &&
       item.name.toLocaleLowerCase().includes(library.query.toLocaleLowerCase()))
@@ -23,5 +28,5 @@ export function fileListing(library, records) {
         return (Date.parse(b.modified) || 0) - (Date.parse(a.modified) || 0);
       return a.name.localeCompare(b.name, "zh-CN", { numeric: true });
     });
-  return { entries, recent, usesDirectory, sort };
+  return { entries, recent, usesDirectory, sort, recordsPending, recordsError };
 }

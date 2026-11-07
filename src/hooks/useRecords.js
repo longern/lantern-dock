@@ -1,38 +1,27 @@
 import { useMemo, useState } from "preact/hooks";
-
-function read(key, suffix) {
-  try {
-    const records = JSON.parse(localStorage.getItem(key + suffix) || "[]");
-    return Array.isArray(records)
-      ? records.filter(
-          (item) =>
-            item &&
-            typeof item.path === "string" &&
-            typeof item.name === "string",
-        )
-      : [];
-  } catch {
-    return [];
-  }
-}
+import { readRecords } from "../lib/records.js";
 
 export function useRecords(key, toast) {
   const [revision, setRevision] = useState(0);
-  const favorites = useMemo(
-    () => (key ? read(key, "favorites") : []),
+  const favoriteState = useMemo(
+    () => readRecords(key, "favorites"),
     [key, revision],
   );
-  const recent = useMemo(
-    () => (key ? read(key, "recent") : []),
+  const recentState = useMemo(
+    () => readRecords(key, "recent"),
     [key, revision],
   );
+  const favorites = favoriteState.items;
+  const recent = recentState.items;
   const save = (suffix, items) => {
-    if (!key) return;
+    if (!key) return false;
     try {
       localStorage.setItem(key + suffix, JSON.stringify(items));
       setRevision((value) => value + 1);
+      return true;
     } catch {
       toast("浏览器未允许保存本机记录。", true);
+      return false;
     }
   };
   const isFavorite = (item) =>
@@ -40,23 +29,36 @@ export function useRecords(key, toast) {
   return {
     favorites,
     recent,
+    recentStatus: recentState.status,
+    recentError: recentState.error,
+    retry: () => setRevision((value) => value + 1),
     isFavorite,
     toggleFavorite(item) {
-      const exists = isFavorite(item);
-      save(
+      const current = readRecords(key, "favorites");
+      if (current.status !== "ready") {
+        if (current.error) toast(current.error.message, true);
+        return;
+      }
+      const exists = current.items.some((entry) => entry.path === item.path);
+      const saved = save(
         "favorites",
         exists
-          ? favorites.filter((entry) => entry.path !== item.path)
-          : [item, ...favorites],
+          ? current.items.filter((entry) => entry.path !== item.path)
+          : [item, ...current.items],
       );
-      toast(exists ? "已取消收藏" : "已收藏");
+      if (saved) toast(exists ? "已取消收藏" : "已收藏");
     },
     remember(item) {
+      const current = readRecords(key, "recent");
+      if (current.status !== "ready") {
+        if (current.error) toast(current.error.message, true);
+        return;
+      }
       save(
         "recent",
         [
           { ...item, visitedAt: Date.now() },
-          ...read(key, "recent").filter((entry) => entry.path !== item.path),
+          ...current.items.filter((entry) => entry.path !== item.path),
         ].slice(0, 30),
       );
     },

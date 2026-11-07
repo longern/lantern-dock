@@ -333,6 +333,14 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
   await expect
     .poll(() => thumbnail.evaluate((img) => img.naturalWidth))
     .toBe(384);
+  if (page.viewportSize().width <= 700)
+    await page.getByRole("button", { name: "打开导航", exact: true }).click();
+  await page.getByRole("navigation", { name: "文件类型", exact: true })
+    .getByRole("button", { name: "图片", exact: true }).click();
+  await expect(page.locator("#file-list")).toHaveClass(/album-layout/);
+  await expect(thumbnail).toBeVisible();
+  await expect(page.locator("#file-list .file-info")).toHaveCount(0);
+  await expect.poll(() => thumbnail.evaluate((img) => img.naturalWidth)).toBe(384);
   await page
     .getByRole("button", { name: "预览 photo.png", exact: true })
     .click();

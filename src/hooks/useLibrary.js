@@ -20,7 +20,7 @@ export function useLibrary() {
   const [kind, setKind] = useState("");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("name");
-  const [homeSort, setHomeSort] = useState("recent");
+  const [homeSort, setHomeSort] = useState("name");
   const [view, setView] = useState("list");
   const forceListing = useRef(false);
 
@@ -32,6 +32,7 @@ export function useLibrary() {
     setListingError(null);
     setConnection(null);
     setEntries([]);
+    setLoading(true);
     const connect = (backend) => {
       transport =
         backend.transport === "demo"

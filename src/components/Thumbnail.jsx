@@ -21,7 +21,7 @@ function observe(node, ready) {
     observer.unobserve(node);
   };
 }
-export function Thumbnail({ item, client, side }) {
+export function Thumbnail({ item, client, side, fallback = null }) {
   const element = useRef(null);
   const [visible, setVisible] = useState(false);
   const [source, setSource] = useState(null);
@@ -64,13 +64,15 @@ export function Thumbnail({ item, client, side }) {
   ]);
   return (
     <span ref={element} class="thumbnail-slot" aria-hidden="true">
-      {source && (
+      {source ? (
         <img
           src={source}
           alt=""
           decoding="async"
           onError={() => setSource(null)}
         />
+      ) : (
+        fallback
       )}
     </span>
   );
