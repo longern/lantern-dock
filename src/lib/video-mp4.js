@@ -7,6 +7,34 @@ const metadataLimit = 16 * 1024 * 1024;
 const queueLimit = 16 * 1024 * 1024;
 const unsupported = "浏览器不支持此视频的格式或编码，请下载后播放。";
 
+// Do not surface raw parser messages: metadata can contain private text. Keep
+// only known parser/box names and a numeric byte offset for useful diagnostics.
+const parserModules = new Set(["ISOFile", "BoxParser", "DataStream"]);
+const diagnosticBoxes = new Set([
+  "ftyp", "moov", "mdat", "moof", "mvhd", "trak", "tkhd", "mdia", "mdhd",
+  "hdlr", "minf", "stbl", "stsd", "stsz", "stz2", "stco", "co64", "stsc",
+  "stts", "ctts", "stss", "udta", "meta", "ilst", "iinf", "avcC", "hvcC",
+  "av1C", "esds", "©xyz",
+]);
+export function mp4ParseError(module, detail = "", offset) {
+  const diagnostic = {
+    parser: parserModules.has(module) ? module : "MP4Box",
+  };
+  const message = typeof detail === "string" ? detail.slice(0, 512) : "";
+  const box = /box (?:of )?type[: ]+['"]([^'"]{4})['"]/i.exec(message)?.[1];
+  if (diagnosticBoxes.has(box)) diagnostic.box = box;
+  const position = /at position (\d{1,16})\b/.exec(message);
+  const value = position ? Number(position[1]) : offset;
+  if (Number.isSafeInteger(value) && value >= 0) diagnostic.offset = value;
+  const context = [diagnostic.parser, diagnostic.box,
+    diagnostic.offset === undefined ? null : `字节 ${diagnostic.offset}`,
+  ].filter(Boolean).join("，");
+  const error = new Error(`视频文件无法解析（${context}），请下载后播放。`);
+  error.code = "MP4_PARSE_ERROR";
+  error.diagnostic = Object.freeze(diagnostic);
+  return error;
+}
+
 // MP4Box only reorganizes compressed samples into fMP4 fragments. Decoding is
 // performed by the browser. Everything is scoped to this preview instance.
 export class MP4MediaSource {
@@ -14,7 +42,9 @@ export class MP4MediaSource {
     this.client = client;
     this.item = item;
     this.mode = "mse";
-    this.file = createFile(false);
+    // QuickTime-style metadata such as ©xyz also appears in isom-branded MP4.
+    // Relax only the box-name charset check; keep structural and read limits.
+    this.file = createFile(false, undefined, { allowInvalidBoxTypes: true });
     this.media = new MediaSource();
     this.url = URL.createObjectURL(this.media);
     this.controller = new AbortController();
@@ -34,8 +64,8 @@ export class MP4MediaSource {
   attach(video, onError) {
     this.video = video;
     this.onError = onError;
-    this.file.onError = () =>
-      this.fail(new Error("视频文件无法解析，请下载后播放。"));
+    this.file.onError = (module, detail) =>
+      this.fail(mp4ParseError(module, detail, this.offset));
     this.file.onReady = (info) => this.ready(info);
     this.file.onSegment = (id, buffer, bytes, sample) => {
       if (this.disposed || this.failed) return;
@@ -294,10 +324,21 @@ export class MP4MediaSource {
         if (this.metadataBytes > metadataLimit)
           throw new Error("视频索引超过预览处理限制，请下载后播放。");
       }
-      const next = this.file.appendBuffer(
-        data,
-        data.fileStart + data.byteLength >= this.size,
-      );
+      let next;
+      try {
+        next = this.file.appendBuffer(
+          data,
+          data.fileStart + data.byteLength >= this.size,
+        );
+      } catch (error) {
+        if (this.failed) return;
+        // Malformed nested boxes can throw instead of invoking onError. Avoid
+        // leaking raw metadata/property text or an unhelpful JavaScript error.
+        if (error instanceof TypeError || error instanceof RangeError ||
+          error instanceof SyntaxError)
+          throw mp4ParseError("MP4Box", "", data.fileStart);
+        throw error;
+      }
       if (this.file.getAllocatedSampleDataSize() > 2 * queueLimit)
         throw new Error("视频片段超过预览处理限制，请下载后播放。");
       if (this.failed) return;
