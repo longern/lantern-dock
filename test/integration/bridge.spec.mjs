@@ -51,6 +51,10 @@ test("real bridge distinguishes gateway 407 and backend 401, then browses, previ
   await expect(page.getByRole("alert")).toContainText("后端需要登录");
   await login(page);
   await expect(page.locator(".file-card")).toHaveCount(5);
+  await page.getByRole("navigation", {
+    name: page.viewportSize().width <= 700 ? "移动端资源导航" : "资源导航",
+    exact: true,
+  }).getByRole("button", { name: /^文件/ }).click();
   await page
     .getByRole("button", { name: "预览 hello.txt", exact: true })
     .click();

@@ -159,7 +159,8 @@
   border: 1px solid #e4e4eb;
   border-radius: var(--radius-control);
   padding: 0 12px;
-  min-height: 48px;
+  height: 36px;
+  min-height: 36px;
   color: #8b8b98;
   background: var(--surface-subtle);
   transition:
@@ -178,8 +179,8 @@
 .search-box input::-webkit-search-cancel-button {
   -webkit-appearance: none;
 }
-.search-box .search-clear {
-  margin-right: var(--topbar-edge-margin);
+.search-box:has(.search-clear) {
+  padding-right: 0;
 }
 .search-clear svg {
   width: 16px;
@@ -218,6 +219,14 @@
 .browser-header .icon-button svg {
   width: 24px;
   height: 24px;
+}
+.browser-header .search-clear {
+  width: 34px;
+  height: 34px;
+}
+.browser-header .search-clear svg {
+  width: 16px;
+  height: 16px;
 }
 .topbar .mobile-menu {
   margin-left: var(--topbar-edge-margin);

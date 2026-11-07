@@ -152,17 +152,14 @@ function LibraryApp() {
         onClose={() => setMenu(false)}
         onSettings={showSettings}
       />
-      <main class="main-area">
+      <main class={`main-area${library.mode === "home" ? " home-page" : ""}`}>
         <Topbar
           library={library}
           menuOpen={menu}
           onMenu={() => setMenu((value) => !value)}
           onSettings={showSettings}
         />
-        {library.mode === "all" &&
-          library.path === (library.connection?.client.root || "/") && (
-            <CategoryCards library={library} />
-          )}
+        {library.mode === "home" && <CategoryCards library={library} />}
         {library.demoPreview && (
           <div class="demo-preview-note">
             <span>正在体验演示文件</span>

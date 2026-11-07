@@ -51,8 +51,9 @@ test("search, sorting, views, folders and navigation work", async ({
     .getByRole("button", { name: "公开资源库", exact: true })
     .click();
   await expect(page.locator(".file-card")).toHaveCount(12);
-  await nav(page).getByRole("button", { name: /最近/ }).click();
-  await expect(page.getByText("暂无访问记录")).toBeVisible();
+  await nav(page).getByRole("button", { name: /首页/ }).click();
+  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(0);
 });
 
 test("preview switches between panel and modal at viewport boundaries", async ({
@@ -117,10 +118,10 @@ test("favorites and recent entries survive reload without storing credentials", 
   await page.getByRole("button", { name: "关闭预览" }).click();
   await nav(page).getByRole("button", { name: /收藏/ }).click();
   await expect(page.locator(".file-card")).toHaveCount(1);
-  await nav(page).getByRole("button", { name: /最近/ }).click();
+  await nav(page).getByRole("button", { name: /首页/ }).click();
   await expect(page.locator(".file-card")).toHaveCount(1);
   await page.reload();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-card")).toHaveCount(1);
   await nav(page).getByRole("button", { name: /收藏/ }).click();
   await expect(page.locator(".file-name")).toHaveText("项目笔记.md");
 });
@@ -140,7 +141,7 @@ test("settings reconnect and credential clearing clean up preview", async ({
   await page.getByLabel("用户名", { exact: true }).fill("local-user");
   await page.getByLabel("密码", { exact: true }).fill("memory-only-secret");
   await page.getByRole("button", { name: "连接", exact: true }).click();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-card")).toHaveCount(1);
   await page
     .locator(".topbar")
     .getByRole("button", { name: "连接设置", exact: true })
@@ -157,7 +158,7 @@ test("settings reconnect and credential clearing clean up preview", async ({
   );
   await page.getByRole("button", { name: "关闭设置" }).click();
   await page.reload();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-card")).toHaveCount(1);
   await page
     .locator(".topbar")
     .getByRole("button", { name: "连接设置", exact: true })

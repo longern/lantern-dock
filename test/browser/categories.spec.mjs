@@ -29,51 +29,43 @@ test("home cards show an icon-only album above its label and match the light gra
   await page.screenshot({ path: testInfo.outputPath("home-categories.png"), fullPage: false });
 });
 
-test("categories filter, toggle, clear search and recover from empty results", async ({ page }) => {
-  const album = cards(page).getByRole("button", { name: "相册", exact: true });
-  await page.getByRole("searchbox").fill("no-matching-file");
-  await album.click();
-  await expect(page.getByRole("searchbox")).toHaveValue("");
-  await expect(album).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".file-card")).toHaveCount(3);
-  await album.click();
-  await expect(album).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".file-card")).toHaveCount(12);
-  await cards(page).getByRole("button", { name: "文档", exact: true }).click();
-  await expect(page.locator(".file-card")).toHaveCount(4);
-  await page.getByRole("searchbox").fill("笔记");
-  await expect(page.locator(".file-card")).toHaveCount(1);
-  await page.getByRole("button", { name: "清除类型筛选" }).click();
-  await expect(page.locator(".file-card")).toHaveCount(12);
-  for (const label of ["视频", "图书", "音频"]) {
-    const button = cards(page).getByRole("button", { name: label, exact: true });
-    await button.click();
-    await expect(button).toHaveAttribute("aria-pressed", "true");
-    await expect(page.locator(".empty-state")).toContainText("当前文件夹没有此类文件");
-    await page.getByRole("button", { name: "查看全部文件" }).click();
-    await expect(button).toHaveAttribute("aria-pressed", "false");
+test("category shortcuts open the file view and clear search", async ({ page }) => {
+  for (const [label, count] of [["相册", 3], ["文档", 4], ["视频", 0], ["图书", 0], ["音频", 0]]) {
+    await mainNav(page).getByRole("button", { name: "首页", exact: true }).click();
+    await page.getByRole("searchbox").fill("no-matching-file");
+    await cards(page).getByRole("button", { name: label, exact: true }).click();
+    await expect(page.getByRole("searchbox")).toHaveValue("");
+    await expect(cards(page)).toHaveCount(0);
+    await expect(mainNav(page).getByRole("button", { name: /^文件/ })).toHaveAttribute("aria-current", "page");
+    await expect(page.locator(".filter-chip")).toContainText(label);
+    await expect(page.locator(".file-card")).toHaveCount(count);
+    if (!count) {
+      await expect(page.locator(".empty-state")).toContainText("当前文件夹没有此类文件");
+      await page.getByRole("button", { name: "查看全部文件" }).click();
+    } else {
+      await page.getByRole("button", { name: "清除类型筛选" }).click();
+    }
     await expect(page.locator(".file-card")).toHaveCount(12);
   }
 });
 
-test("home shortcuts stay scoped to the root file view and work with keyboard and previews", async ({ page }) => {
-  const album = cards(page).getByRole("button", { name: "相册", exact: true });
-  await album.focus();
+test("home shortcuts support keyboard activation and return to recent files", async ({ page }) => {
+  await cards(page).getByRole("button", { name: "相册", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page.locator(".file-card")).toHaveCount(3);
   await page.getByRole("button", { name: "预览 海边的周末.svg", exact: true }).click();
   await expect(page.locator(".preview-content img")).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator("#preview-dialog")).toHaveCount(0);
-  await expect(album).toHaveAttribute("aria-pressed", "true");
-  await mainNav(page).getByRole("button", { name: /最近/ }).click();
+  await mainNav(page).getByRole("button", { name: "首页", exact: true }).click();
+  await expect(cards(page)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "最近文件", exact: true })).toBeVisible();
+  await expect(page.locator(".file-card")).toHaveCount(1);
+  await mainNav(page).getByRole("button", { name: /^文件/ }).click();
   await expect(cards(page)).toHaveCount(0);
-  await mainNav(page).getByRole("button", { name: /文件/ }).click();
-  await expect(album).toHaveAttribute("aria-pressed", "false");
   await page.getByRole("button", { name: "打开文件夹 照片", exact: true }).click();
   await expect(cards(page)).toHaveCount(0);
-  await page.getByRole("navigation", { name: "文件路径" })
-    .getByRole("button", { name: "公开资源库", exact: true }).click();
+  await mainNav(page).getByRole("button", { name: "首页", exact: true }).click();
   await expect(cards(page)).toBeVisible();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(0);
 });

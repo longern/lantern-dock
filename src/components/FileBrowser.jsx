@@ -3,7 +3,8 @@ import { Icon } from "./Icon.jsx";
 import { artwork } from "../lib/demo.js";
 import { bytes, date } from "../lib/format.js";
 import { Thumbnail } from "./Thumbnail.jsx";
-import { fileCategories, matchesCategory } from "../lib/categories.js";
+import { fileCategories } from "../lib/categories.js";
+import { fileListing } from "../lib/file-listing.js";
 
 function FileCard({
   item,
@@ -12,6 +13,7 @@ function FileCard({
   side,
   selected,
   favorite,
+  recent,
   onOpen,
   onFavorite,
 }) {
@@ -53,10 +55,12 @@ function FileCard({
           <div class="file-meta">
             <span>{item.isDirectory ? "文件夹" : bytes(item.size)}</span>
             <span class="separator">·</span>
-            <span>{date(item.modified)}</span>
+            <span>{date(recent ? item.visitedAt : item.modified)}</span>
           </div>
         </div>
-        <span class="row-modified">{date(item.modified, true)}</span>
+        <span class="row-modified">
+          {date(recent ? item.visitedAt : item.modified, true)}
+        </span>
         <span class="row-size">
           {item.isDirectory ? "—" : bytes(item.size)}
         </span>
@@ -80,38 +84,21 @@ export function FileBrowser({
   onPreview,
   onSettings,
 }) {
-  const entries = useMemo(() => {
-    const source =
-      library.mode === "favorites"
-        ? records.favorites
-        : library.mode === "recent"
-          ? records.recent
-          : library.entries;
-    return source
-      .filter(
-        (item) =>
-          matchesCategory(item, library.kind) &&
-          item.name
-            .toLocaleLowerCase()
-            .includes(library.query.toLocaleLowerCase()),
-      )
-      .sort((a, b) => {
-        if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
-        if (library.sort === "size") return (b.size || 0) - (a.size || 0);
-        if (library.sort === "modified")
-          return (Date.parse(b.modified) || 0) - (Date.parse(a.modified) || 0);
-        return a.name.localeCompare(b.name, "zh-CN", { numeric: true });
-      });
-  }, [
-    library.entries,
-    records.favorites,
-    records.recent,
-    library.mode,
-    library.kind,
-    library.query,
-    library.sort,
-  ]);
-  const busy = library.loading && library.mode === "all";
+  const { entries, recent, usesDirectory, sort } = useMemo(
+    () => fileListing(library, records),
+    [
+      library.entries,
+      records.favorites,
+      records.recent,
+      library.mode,
+      library.kind,
+      library.query,
+      library.sort,
+    ],
+  );
+  const home = library.mode === "home";
+  const busy = library.loading && usesDirectory;
+  const error = usesDirectory ? library.error : null;
   const status = library.error
     ? "连接异常"
     : library.loading
@@ -120,13 +107,19 @@ export function FileBrowser({
         ? "演示空间"
         : "已连接";
   return (
-    <section class="content" aria-label="文件浏览器">
+    <section
+      class={`content${home ? " home-content" : ""}`}
+      aria-label="文件浏览器"
+    >
       <div class="file-toolbar">
         <div class="file-stats">
+          {home && (
+            <h2 class="file-section-title">{recent ? "最近文件" : "文件"}</h2>
+          )}
           <strong id="item-count">
             {busy
               ? "加载中…"
-              : library.error
+              : error
                 ? "文件"
                 : `${entries.length} 个项目`}
           </strong>
@@ -164,9 +157,10 @@ export function FileBrowser({
           </button>
           <select
             aria-label="排序"
-            value={library.sort}
+            value={sort}
             onChange={(event) => library.setSort(event.currentTarget.value)}
           >
+            {recent && <option value="recent">最近访问</option>}
             <option value="name">名称</option>
             <option value="modified">修改时间</option>
             <option value="size">大小</option>
@@ -186,7 +180,7 @@ export function FileBrowser({
           </div>
         </div>
       </div>
-      {library.error && (
+      {error && (
         <div class="empty-state">
           <span class="empty-symbol">
             <Icon name="cloud-off" />
@@ -212,12 +206,12 @@ export function FileBrowser({
         class="list-head"
         hidden={
           library.view !== "list" ||
-          !!library.error ||
+          !!error ||
           (!busy && !entries.length)
         }
       >
         <span>文件名</span>
-        <span>修改时间</span>
+        <span>{recent ? "访问时间" : "修改时间"}</span>
         <span>大小</span>
         <span />
       </div>
@@ -226,7 +220,7 @@ export function FileBrowser({
         class={`file-grid${library.view === "list" ? " list-layout" : ""}`}
         aria-live="polite"
         aria-busy={busy}
-        aria-label="文件列表"
+        aria-label={recent ? "最近文件列表" : "文件列表"}
       >
         {busy && !entries.length
           ? Array.from({ length: 8 }, (_, index) => (
@@ -241,6 +235,7 @@ export function FileBrowser({
                 demo={library.backend?.transport === "demo"}
                 selected={selected?.path === item.path}
                 favorite={records.isFavorite(item)}
+                recent={recent}
                 onFavorite={records.toggleFavorite}
                 onOpen={(item) =>
                   item.isDirectory
@@ -250,7 +245,7 @@ export function FileBrowser({
               />
             ))}
       </div>
-      {!busy && !entries.length && !library.error && (
+      {!busy && !entries.length && !error && (
         <div class="empty-state">
           <span class="empty-symbol">
             <Icon
@@ -259,7 +254,7 @@ export function FileBrowser({
                   ? "search"
                   : library.mode === "favorites"
                     ? "star"
-                    : library.mode === "recent"
+                    : recent
                       ? "clock"
                       : "folder"
               }
@@ -270,7 +265,7 @@ export function FileBrowser({
               ? "没有找到匹配的文件"
               : library.mode === "favorites"
                 ? "暂无收藏"
-                : library.mode === "recent"
+                : recent
                   ? "暂无访问记录"
                   : "暂无文件"}
           </h2>
@@ -279,7 +274,7 @@ export function FileBrowser({
               ? "试试其他关键词。"
               : library.mode === "favorites"
                 ? "点击文件旁的星标，收藏常用文件。"
-                : library.mode === "recent"
+                : recent
                   ? "打开过的文件会显示在这里。"
                   : library.kind
                     ? "当前文件夹没有此类文件。"
@@ -301,7 +296,7 @@ export function FileBrowser({
               查看全部文件
             </button>
           )}
-          {!library.query && library.mode !== "all" && (
+          {!library.query && !usesDirectory && (
             <span class="empty-footnote">记录保存在此浏览器</span>
           )}
         </div>

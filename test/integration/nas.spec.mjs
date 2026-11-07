@@ -108,6 +108,10 @@ test("NAS serves public read-only WebDAV and receives a private file through the
     fullPage: true,
   });
   await page.getByRole("link", { name: "返回公开文件", exact: true }).click();
+  await page.getByRole("navigation", {
+    name: page.viewportSize().width <= 700 ? "移动端资源导航" : "资源导航",
+    exact: true,
+  }).getByRole("button", { name: /^文件/ }).click();
   await expect(page.locator(".file-card")).toHaveCount(3);
   await expect(page.getByText("来访资料.txt")).toHaveCount(0);
   const status = await page.evaluate(async () => {

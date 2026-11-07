@@ -4,8 +4,8 @@ import { Dialog } from "./Dialog.jsx";
 import { useEffect } from "preact/hooks";
 
 const modes = [
+  ["home", "home", "首页"],
   ["all", "folder", "文件"],
-  ["recent", "clock", "最近"],
   ["favorites", "star", "收藏"],
 ];
 const kinds = [
@@ -33,7 +33,7 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
           class="brand"
           onClick={(event) => {
             event.preventDefault();
-            library.navigate(library.connection?.client.root || "/");
+            library.selectMode("home");
             onClose();
           }}
         >
@@ -52,10 +52,8 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
         {modes.map(([mode, icon, label]) => (
           <button
             key={mode}
-            class={`nav-item${library.mode === mode && !library.kind ? " active" : ""}`}
-            aria-current={
-              library.mode === mode && !library.kind ? "page" : undefined
-            }
+            class={`nav-item${library.mode === mode ? " active" : ""}`}
+            aria-current={library.mode === mode ? "page" : undefined}
             onClick={() => select(mode)}
           >
             <Icon name={icon} />
@@ -122,15 +120,11 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
 
 export function Topbar({ library, menuOpen, onMenu, onSettings }) {
   const mobile = useMediaQuery("(max-width: 700px)");
+  const home = library.mode === "home";
   const root = library.connection?.client.root || "/";
   const crumbs = [
     {
-      label:
-        library.mode === "recent"
-          ? "最近"
-          : library.mode === "favorites"
-            ? "收藏"
-            : "文件",
+      label: library.mode === "favorites" ? "收藏" : "文件",
       path: root,
     },
   ];
@@ -204,12 +198,12 @@ export function Topbar({ library, menuOpen, onMenu, onSettings }) {
           class="mobile-brand"
           onClick={(event) => {
             event.preventDefault();
-            library.navigate(root);
+            library.selectMode("home");
           }}
         >
           LanternDock
         </a>
-        {!mobile && breadcrumbs}
+        {!mobile && !home && breadcrumbs}
         <div class="topbar-right">
           {!mobile && search}
           <button
@@ -243,7 +237,7 @@ export function Topbar({ library, menuOpen, onMenu, onSettings }) {
       </header>
       {mobile && (
         <div class="mobile-file-tools">
-          {breadcrumbs}
+          {!home && breadcrumbs}
           {search}
         </div>
       )}
@@ -257,17 +251,15 @@ export function MobileTabs({ library, onCloseMenu }) {
       {modes.map(([mode, icon, label]) => (
         <button
           key={mode}
-          class={library.mode === mode && !library.kind ? "active" : ""}
-          aria-current={
-            library.mode === mode && !library.kind ? "page" : undefined
-          }
+          class={library.mode === mode ? "active" : ""}
+          aria-current={library.mode === mode ? "page" : undefined}
           onClick={() => {
             library.selectMode(mode);
             onCloseMenu();
           }}
         >
           <Icon name={icon} />
-          {mode === "recent" ? "最近" : label}
+          {label}
         </button>
       ))}
     </nav>

@@ -16,10 +16,11 @@ export function useLibrary() {
   const [entries, setEntries] = useState([]);
   const [path, setPath] = useState("/");
   const [directoryRevision, setDirectoryRevision] = useState(0);
-  const [mode, setMode] = useState("all");
+  const [mode, setMode] = useState("home");
   const [kind, setKind] = useState("");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("name");
+  const [homeSort, setHomeSort] = useState("recent");
   const [view, setView] = useState("list");
   const forceListing = useRef(false);
 
@@ -38,7 +39,7 @@ export function useLibrary() {
           : new DirectTransport(backend, credentials);
       client = transport ? new DAVClient(transport, backend) : new DemoClient();
       setPath(client.root);
-      setMode("all");
+      setMode("home");
       setKind("");
       setQuery("");
       setConnection({ backend, client, transport });
@@ -111,19 +112,24 @@ export function useLibrary() {
     return () => controller.abort();
   }, [connection, path, directoryRevision]);
 
-  const navigate = (next) => {
+  const navigate = (next, nextMode = "all") => {
     // Clear the old directory before the listing effect starts for the new path.
     const cached = connection?.client.cached?.(next);
     setEntries(cached || []);
     setLoading(!cached);
     setListingError(null);
     setPath(next);
-    setMode("all");
+    setMode(nextMode);
     setKind("");
     setQuery("");
     setDirectoryRevision((value) => value + 1);
   };
   const selectMode = (next, filter = "") => {
+    const root = connection?.client.root || "/";
+    if (next === "home" && path !== root) {
+      navigate(root, "home");
+      return;
+    }
     setMode(next);
     setKind(filter);
     setQuery("");
@@ -148,8 +154,8 @@ export function useLibrary() {
     kind,
     query,
     setQuery,
-    sort,
-    setSort,
+    sort: mode === "home" ? homeSort : sort,
+    setSort: mode === "home" ? setHomeSort : setSort,
     view,
     setView,
     navigate,

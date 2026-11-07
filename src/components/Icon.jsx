@@ -17,6 +17,7 @@ import {
   FolderSearch,
   Grid2X2,
   Image,
+  House,
   Images,
   List,
   Lock,
@@ -39,6 +40,7 @@ import {
 } from "lucide-preact";
 
 const icons = {
+  home: House,
   folder: Folder,
   clock: Clock,
   star: Star,
