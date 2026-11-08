@@ -6,7 +6,7 @@ services:
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
       SITE_ORIGIN: ${SITE_ORIGIN}
-      ADMIN_SUBJECTS: ${ADMIN_SUBJECTS:-[]}
+      ADMIN_SUBJECTS: ${ADMIN_SUBJECTS:-}
       NAS_RESOURCE_ORIGIN: ${NAS_RESOURCE_ORIGIN:-}
     volumes:
       - type: bind

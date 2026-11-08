@@ -16,11 +16,12 @@ import {
   ACCOUNT_SCOPE,
 } from "../shared/identity-protocol.js";
 import { certificateWebhookTokens } from "../worker/secrets.js";
-import { siteSubject } from "../worker/site-identity.js";
+import { deriveSecret } from "../shared/site-secret.js";
+import { siteSubject, validSiteSubject } from "../worker/site-identity.js";
 
 const site = "https://portal.example";
 const issuer = "https://sso.example";
-const expectedSiteSubject = "ld_1KzSHPuTIpRkcYiSJTXRlCJhVX0uRCVptuP6f7tF0rM";
+const expectedSiteSubject = "ld_1KzSHPuTIpRkcYiSJTXRlA";
 const encoder = new TextEncoder();
 const encode = (bytes) => Buffer.from(bytes).toString("base64url");
 async function fixture() {
@@ -577,6 +578,95 @@ test("site subjects are stable, namespace external identities, and survive signi
     (await (await f.request("/api/auth/session")).json()).user.sub,
     expectedSiteSubject,
   );
+});
+
+test("site subjects use the first 16 digest bytes with stable UTF-8 JSON test vectors", async () => {
+  for (const [inputIssuer, subject, expected] of [
+    [issuer, "test-user", "ld_1KzSHPuTIpRkcYiSJTXRlA"],
+    [issuer, "fixture-identity-user", "ld_-TYdm_tjfPUQRGnIAmmSNw"],
+    ["https://a.example", "b:c", "ld_sfyNuavPlDB6cei7AN9ymQ"],
+    ["https://a.example:b", "c", "ld_5mQqWbjReftz6wBFcMsr1w"],
+    [issuer, "\u7528\u6237,\u2713", "ld_b_Tk6rVICWspYAam7rXx8w"],
+  ]) {
+    const actual = await siteSubject(inputIssuer, subject);
+    assert.equal(actual, expected);
+    assert.equal(actual.length, 25);
+    assert.equal(validSiteSubject(actual), true);
+  }
+});
+
+test("site subject validation accepts only canonical 25-character IDs", () => {
+  for (const suffix of ["A", "Q", "g", "w"]) {
+    assert.equal(validSiteSubject("ld_" + "A".repeat(21) + suffix), true);
+  }
+  for (const subject of [
+    undefined, null, 25, {}, "", "upstream,subject",
+    "ld_" + "A".repeat(43), // Legacy full SHA-256 ID.
+    "ld_" + "A".repeat(21) + "B", // Nonzero unused Base64 bits.
+    "ld_" + "+".repeat(21) + "A", "ld_" + "/".repeat(21) + "A",
+    "LD_" + "A".repeat(22), expectedSiteSubject + "=",
+    expectedSiteSubject + "\n", " " + expectedSiteSubject,
+    expectedSiteSubject.slice(0, -1), expectedSiteSubject + "A",
+  ]) {
+    assert.equal(validSiteSubject(subject), false, String(subject));
+  }
+});
+
+test("legacy or malformed site subjects cannot keep sessions or mint NAS grants", async () => {
+  const f = await fixture();
+  await f.login();
+  const name = "__Host-lantern-session";
+  const original = f.jar.get(name);
+  const bytes = Buffer.from(original, "base64url");
+  const key = await crypto.subtle.importKey(
+    "raw",
+    Buffer.from(await deriveSecret(f.env.SECRET_KEY, "lantern-dock:identity-cookies:v1:" + site), "hex"),
+    "AES-GCM",
+    false,
+    ["encrypt", "decrypt"],
+  );
+  const session = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: bytes.subarray(0, 12), additionalData: encoder.encode(name) },
+    key,
+    bytes.subarray(12),
+  )));
+  for (const sub of [
+    "ld_1KzSHPuTIpRkcYiSJTXRlCJhVX0uRCVptuP6f7tF0rM",
+    "upstream,subject",
+    "ld_" + "A".repeat(21) + "B",
+    expectedSiteSubject + "=",
+  ]) {
+    session.user.sub = sub;
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const encrypted = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv, additionalData: encoder.encode(name) },
+      key,
+      encoder.encode(JSON.stringify(session)),
+    );
+    f.jar.set(name, encode(Buffer.concat([iv, Buffer.from(encrypted)])));
+    assert.equal((await (await f.request("/api/auth/session")).json()).authenticated, false);
+    const grant = await f.grant();
+    assert.equal(grant.status, 400);
+    assert.equal((await grant.json()).error, "invalid_grant");
+  }
+  f.jar.set(name, original);
+  assert.equal((await (await f.request("/api/auth/session")).json()).authenticated, true);
+  assert.equal((await f.grant()).status, 200);
+});
+
+test("site subjects are canonical comma-free IDs even when upstream subjects contain delimiters", async () => {
+  const subjects = ["owner", "owner,other", 'owner"other', "owner other", "[owner]", "owner/other"];
+  const ids = await Promise.all(subjects.map((subject) => siteSubject(issuer, subject)));
+  for (const id of ids) {
+    assert.match(id, /^ld_[A-Za-z0-9_-]{22}$/);
+    assert.equal(validSiteSubject(id), true);
+    const bytes = Buffer.from(id.slice(3), "base64url");
+    assert.equal(bytes.length, 16);
+    assert.equal(bytes.toString("base64url"), id.slice(3));
+    assert.equal(id.split(",").length, 1);
+  }
+  assert.equal(new Set(ids).size, subjects.length);
+  assert.deepEqual(ids.join(",").split(","), ids);
 });
 
 test("a site session and NAS grant no longer depend on external login configuration or availability", async () => {

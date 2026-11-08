@@ -30,7 +30,7 @@ The NAS trusts the LanternDock site, not its external login provider. Configure 
 
 ```dotenv
 SITE_ORIGIN="https://nas.example.com"
-ADMIN_SUBJECTS='[]'
+ADMIN_SUBJECTS=
 ```
 
 Pull the updated image and recreate the NAS container with its new environment:
@@ -47,12 +47,30 @@ The NAS can continue serving plain HTTP privately behind the WebTransport bridge
 Open **我的账户**, sign in, and copy the displayed administrator configuration into the NAS `.env`, for example:
 
 ```dotenv
-ADMIN_SUBJECTS='["ld_your-site-sub"]'
+ADMIN_SUBJECTS=ld_AAAAAAAAAAAAAAAAAAAAAA
 ```
 
-Recreate the NAS service and choose **重新检测** on the account page. Multiple administrators use a JSON array of their exact **site subjects**. The NAS pairs each subject with the configured LanternDock origin; names and email addresses do not determine administrator status. An empty array grants nobody administrator access. There is no public first-user enrollment endpoint. Do not configure an SSO issuer, client ID or client secret on the NAS.
+Recreate the NAS service and choose **重新检测** on the account page. Multiple administrators use comma-separated exact **site subjects**, without brackets or inner quotes. For example (replace these example IDs with the subjects copied from each account):
+
+```dotenv
+ADMIN_SUBJECTS=ld_AAAAAAAAAAAAAAAAAAAAAA,ld_BBBBBBBBBBBBBBBBBBBBBQ
+```
+
+Each site subject is exactly 25 characters: `ld_` followed by the canonical, unpadded Base64URL encoding of 16 bytes (22 characters using letters, digits, `_` or `-`). Surrounding whitespace is ignored; empty list entries and trailing commas are rejected. The NAS pairs each subject with the configured LanternDock origin; names and email addresses do not determine administrator status. An empty or unset value grants nobody administrator access. There is no public first-user enrollment endpoint. Do not configure an SSO issuer, client ID or client secret on the NAS.
 
 Without NAS connectivity, the verified login still displays its site `sub` for copying. The page only reports whether administrators are configured after the NAS responds. Setting `SITE_ORIGIN` enables NAS identity verification. With no site origin or administrators configured, standalone public browsing/file drops continue to work without identity verification.
+
+## Migrate from JSON administrator lists and long IDs
+
+**Breaking change:** `ADMIN_SUBJECTS` accepts only comma-separated site subjects. The former JSON format, including `[]`, now prevents the NAS from starting. Use the current 25-character IDs, with only commas between them and no array brackets or quotes around individual IDs. Change `[]` to an empty value (`ADMIN_SUBJECTS=`) or unset the variable. The former 46-character IDs and raw upstream IDs are also rejected. Update Worker and NAS together, sign in again, and copy each current ID from the account page. Do not merely truncate an old ID string: the algorithm truncates the digest bytes before encoding. Old site sessions and access tokens are rejected rather than silently mapped to a new account.
+
+Update the NAS `.env` or deployment environment, then recreate the container so the new value takes effect:
+
+```sh
+docker compose -f compose.nas.yaml up -d --force-recreate nas
+```
+
+Restarting an existing container alone does not update its environment. The comma-separated configuration format applies only to `ADMIN_SUBJECTS`; Worker `AUTH_SIGNING_KEY_VERSIONS` still uses a JSON array.
 
 ## Sessions and request verification
 
@@ -64,7 +82,7 @@ Without NAS connectivity, the verified login still displays its site `sub` for c
 
 Only login needs the SSO service. The resulting site session and NAS grant renewal use the Worker's own identity and browser key; they keep working for the remaining site-session lifetime even if the upstream login service is unavailable or its configuration is removed. New login requires Worker `OIDC_ISSUER_URL`; NAS discovery/JWKS and existing site sessions do not. An expired grant alone cannot renew itself. The account page obtains a fresh grant when it checks the NAS; this release does not add a background renewal loop to public file browsing.
 
-The mapping uses a versioned SHA-256 digest of the upstream issuer and subject, without the site's signing secret. Repeated logins, restarts and signing-secret/key-version rotation keep the site ID stable. Different upstream identities produce different site IDs, even if their raw subjects match. Linking two external identities to one site account is not implemented; it must not happen implicitly based on a matching email or subject.
+The mapping hashes the UTF-8 JSON array `["lantern-dock:subject:v1", issuer, sub]` with SHA-256, takes the first 16 bytes, encodes those bytes as unpadded Base64URL, and adds `ld_`. The 128-bit result is an account identifier, not an authentication secret. Repeated logins, restarts and signing-secret/key-version rotation keep it stable. Different issuer/subject pairs have different inputs; the chance of an accidental collision is negligible at this project's scale, but not mathematically zero. The site origin and signing secret are not inputs, so the same external identity maps to the same ID across LanternDock deployments. This is deterministic pseudonymization, not encryption or anonymity: someone who knows a candidate issuer/subject pair can compute its ID. Linking two external identities to one site account is not implemented; it must not happen implicitly based on a matching email or subject.
 
 ## Upgrade from upstream subjects
 
@@ -96,6 +114,6 @@ This procedure is for routine signing-key rotation. A compromised `SECRET_KEY` c
 - Login returns an error: check Discovery/CIMD support, the provider's ability to fetch the client metadata URL, the exact callback, and HTTPS access from the Worker to the provider.
 - `OIDC_DISCOVERY_UNREACHABLE`, `OIDC_DISCOVERY_HTTP_ERROR` or `OIDC_DISCOVERY_INVALID`: the Worker could not connect to Discovery, received a non-success HTTP status, or received invalid metadata. Check the login service's network and access rules; being reachable in your browser does not guarantee Worker access. Responses report the failure category and HTTP status without returning upstream bodies or internal exception details. `OIDC_ISSUER_MISMATCH` requires the exact Discovery issuer, including its trailing-slash convention. `OIDC_CIMD_UNSUPPORTED` and `OIDC_PKCE_UNSUPPORTED` identify missing provider capabilities.
 - Login succeeds but the NAS check fails: update both Worker and NAS, configure NAS `SITE_ORIGIN`, allow `/api` in the bridge, and check NAS outbound HTTPS/DNS access to the Worker's Discovery/JWKS endpoints. For direct HTTPS, check `NAS_RESOURCE_ORIGIN` against the backend URL. The page keeps the site `sub` visible.
-- The role is still ordinary user: copy the exact `sub` into the NAS `ADMIN_SUBJECTS` JSON array, recreate the container so its environment changes, and recheck. Setting this variable only on the Worker does not grant NAS permissions.
+- The role is still ordinary user: copy the exact `sub` into the NAS `ADMIN_SUBJECTS` comma-separated list, recreate the container so its environment changes, and recheck. Setting this variable only on the Worker does not grant NAS permissions.
 
 `GET /api/account/config` reports NAS identity support without authentication. `GET /api/account` requires `Authorization: DPoP <grant>` plus its `DPoP` proof. Authentication errors return `401`; disabled NAS identity verification returns `503`.

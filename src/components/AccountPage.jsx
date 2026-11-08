@@ -237,13 +237,13 @@ export function AccountPage() {
                   id="account-admins"
                   readOnly
                   rows={2}
-                  value={JSON.stringify([session.user.sub])}
+                  value={session.user.sub}
                 />
                 <button
                   class="secondary-button"
                   onClick={() =>
                     copy(
-                      JSON.stringify([session.user.sub]),
+                      session.user.sub,
                       t("account.administratorCopied"),
                     )
                   }

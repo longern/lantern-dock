@@ -5,7 +5,7 @@ import { createHmac } from "node:crypto";
 
 export const identitySubject = "fixture-identity-user";
 export const siteIdentitySubject =
-  "ld_-TYdm_tjfPUQRGnIAmmSN-5RJ3r6OdTPtK4Q_nZcKG4";
+  "ld_-TYdm_tjfPUQRGnIAmmSNw";
 export async function startSSO(portalOrigin, metadata) {
   const source = resolve(process.env.SSO_SOURCE || "../workers-sso");
   const require = createRequire(resolve(source, "package.json"));

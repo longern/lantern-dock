@@ -109,10 +109,15 @@ func (k *rotatingKeys) discover(ctx context.Context) (string, error) {
 }
 func IdentityEnvironment(getenv func(string) string) (IdentityConfig, error) {
 	cfg := IdentityConfig{SiteOrigin: getenv("SITE_ORIGIN"), ResourceOrigin: getenv("NAS_RESOURCE_ORIGIN")}
-	if raw := getenv("ADMIN_SUBJECTS"); raw != "" {
-		if err := json.Unmarshal([]byte(raw), &cfg.AdminSubjects); err != nil || cfg.AdminSubjects == nil {
-			return cfg, fmt.Errorf("ADMIN_SUBJECTS must be a JSON array of site subject strings")
+	if raw := strings.TrimSpace(getenv("ADMIN_SUBJECTS")); raw != "" {
+		subjects := strings.Split(raw, ",")
+		for i, sub := range subjects {
+			subjects[i] = strings.TrimSpace(sub)
+			if !validSiteSubject(subjects[i]) {
+				return cfg, fmt.Errorf("ADMIN_SUBJECTS must be comma-separated site subject IDs (ld_ followed by 22 canonical Base64URL characters)")
+			}
 		}
+		cfg.AdminSubjects = subjects
 	}
 	if cfg.SiteOrigin == "" {
 		if len(cfg.AdminSubjects) > 0 {
@@ -129,16 +134,16 @@ func identityOrigin(value string) (string, error) {
 	}
 	return u.Scheme + "://" + u.Host, nil
 }
-func validSubject(sub string) bool {
-	if len(sub) == 0 || len(sub) > 255 {
+
+// Site sessions, access tokens and administrator configuration use the current
+// Worker-generated subject format. Upstream OIDC subjects never reach the NAS.
+func validSiteSubject(sub string) bool {
+	if len(sub) != 25 || !strings.HasPrefix(sub, "ld_") {
 		return false
 	}
-	for _, b := range []byte(sub) {
-		if b < 0x20 || b > 0x7e {
-			return false
-		}
-	}
-	return true
+	encoded := sub[3:]
+	digest, err := base64.RawURLEncoding.Strict().DecodeString(encoded)
+	return err == nil && len(digest) == 16 && base64.RawURLEncoding.EncodeToString(digest) == encoded
 }
 
 type limitedTransport struct{ base http.RoundTripper }
@@ -198,8 +203,8 @@ func (s *Server) ConfigureIdentity(cfg IdentityConfig) error {
 	}
 	admins := map[string]bool{}
 	for _, sub := range cfg.AdminSubjects {
-		if !validSubject(sub) {
-			return fmt.Errorf("ADMIN_SUBJECTS contains an invalid sub")
+		if !validSiteSubject(sub) {
+			return fmt.Errorf("ADMIN_SUBJECTS contains an invalid site subject ID")
 		}
 		admins[sub] = true
 	}
@@ -261,7 +266,7 @@ func (s *Server) identityUser(r *http.Request) (IdentityUser, error) {
 			JKT string `json:"jkt"`
 		} `json:"cnf"`
 	}
-	if err = json.Unmarshal(payload, &claims); err != nil || claims.Issuer != s.identity.config.SiteOrigin || !claims.Audience.Contains(s.identity.config.SiteOrigin+"/nas") || claims.LanternDock.ProtocolVersion != 2 || !validSubject(claims.Subject) || claims.ClientID == "" || len(claims.ClientID) > 2048 || claims.ID == "" || len(claims.ID) > 128 || claims.CNF.JKT == "" || claims.IssuedAt == nil || claims.Expiry == nil {
+	if err = json.Unmarshal(payload, &claims); err != nil || claims.Issuer != s.identity.config.SiteOrigin || !claims.Audience.Contains(s.identity.config.SiteOrigin+"/nas") || claims.LanternDock.ProtocolVersion != 2 || !validSiteSubject(claims.Subject) || claims.ClientID == "" || len(claims.ClientID) > 2048 || claims.ID == "" || len(claims.ID) > 128 || claims.CNF.JKT == "" || claims.IssuedAt == nil || claims.Expiry == nil {
 		return user, fault(401, "INVALID_IDENTITY", "errors.identityMismatch")
 	}
 	now := time.Now()

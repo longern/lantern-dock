@@ -10,7 +10,7 @@ import {
 } from "jose";
 import { deriveSecret, validateSecretKey } from "../shared/site-secret.js";
 import { signingKeys } from "./signing-keys.js";
-import { siteSubject } from "./site-identity.js";
+import { siteSubject, validSiteSubject } from "./site-identity.js";
 import {
   AUTHORIZATION_METADATA_PATH,
   SESSION_GRANT_TYPE,
@@ -182,7 +182,8 @@ async function siteSession(request, env, site) {
   );
   return session?.version === IDENTITY_PROTOCOL_VERSION &&
     session.issuer === site &&
-    session.user?.issuer === site
+    session.user?.issuer === site &&
+    validSiteSubject(session.user.sub)
     ? session
     : null;
 }

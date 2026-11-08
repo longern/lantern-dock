@@ -6,7 +6,7 @@ export default {
   "sessionRetryHint": "无法确认登录状态，请重试。",
   "subjectCopied": "已复制 sub",
   "administratorCopied": "已复制管理员配置",
-  "administratorInstructions": "把下面的值填入 NAS 服务的 ADMIN_SUBJECTS 环境变量，重启 NAS 服务后点击“重新检测”。",
+  "administratorInstructions": "把下面的值填入 NAS 服务的 ADMIN_SUBJECTS 环境变量；多个管理员的站点 sub 用英文逗号分隔。更新环境变量并重新创建 NAS 容器后，点击“重新检测”。",
   "webhookSavedInstructions": "将首次生成密钥时一并保存的 Webhook URL 填入 bridge 的 CERT_WEBHOOK_URL。",
   "webhookExistingInstructions": "在本地项目的 .env 中保留已部署的同一个 SECRET_KEY，运行以下命令：",
   "webhookBridgeInstructions": "将 URL 填入网关的 CERT_WEBHOOK_URL，启用 --auto-cert。",

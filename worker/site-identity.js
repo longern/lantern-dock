@@ -7,9 +7,19 @@ export async function siteSubject(issuer, subject) {
   );
   return (
     "ld_" +
-    btoa(String.fromCharCode(...hash))
+    btoa(String.fromCharCode(...hash.subarray(0, 16)))
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
       .replace(/=+$/, "")
+  );
+}
+
+// Sixteen bytes use 22 unpadded Base64URL characters. The final character has
+// only two data bits; restricting it rejects noncanonical encodings as well.
+export function validSiteSubject(subject) {
+  return (
+    typeof subject === "string" &&
+    subject.length === 25 &&
+    /^ld_[A-Za-z0-9_-]{21}[AQgw]$/.test(subject)
   );
 }

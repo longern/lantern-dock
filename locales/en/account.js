@@ -6,7 +6,7 @@ export default {
   "sessionRetryHint": "Could not check your sign-in status. Try again.",
   "subjectCopied": "Copied sub.",
   "administratorCopied": "Copied administrator configuration.",
-  "administratorInstructions": "Set the NAS service’s ADMIN_SUBJECTS environment variable to the value below, restart the NAS service, then select “Check again”.",
+  "administratorInstructions": "Set the NAS service’s ADMIN_SUBJECTS environment variable to the value below. For multiple administrators, separate their site subjects with commas. Recreate the NAS container with the updated environment, then select “Check again”.",
   "webhookSavedInstructions": "Set the bridge’s CERT_WEBHOOK_URL to the Webhook URL saved when the key was first generated.",
   "webhookExistingInstructions": "Keep the same deployed SECRET_KEY in your local project’s .env file, then run the following command:",
   "webhookBridgeInstructions": "Set the gateway’s CERT_WEBHOOK_URL to this URL and enable --auto-cert.",

@@ -5,6 +5,8 @@ import {
   identitySubject as upstreamSubject,
 } from "./sso-fixture.mjs";
 
+const otherSiteSubject = "ld_" + "A".repeat(22);
+
 let fixture;
 test.beforeAll(async () => {
   test.setTimeout(180000);
@@ -52,7 +54,7 @@ test("real workers-sso CIMD login uses HttpOnly cookies and shows a copyable adm
     page.getByRole("heading", { name: "尚未配置管理员", exact: true }),
   ).toBeVisible();
   await expect(page.getByLabel("ADMIN_SUBJECTS 的值")).toHaveValue(
-    JSON.stringify([identitySubject]),
+    identitySubject,
   );
   await expect(
     page.getByRole("heading", {
@@ -90,7 +92,7 @@ test("real workers-sso CIMD login uses HttpOnly cookies and shows a copyable adm
     .getByRole("button", { name: "复制管理员配置", exact: true })
     .click();
   expect(await page.evaluate(() => window.copiedIdentity)).toBe(
-    JSON.stringify([identitySubject]),
+    identitySubject,
   );
   await expect
     .poll(() =>
@@ -117,7 +119,7 @@ test("administrator subjects are enforced on the NAS and apply to an existing lo
   await expect(
     page.getByRole("heading", { name: "尚未配置管理员", exact: true }),
   ).toBeVisible();
-  await fixture.nas.administrators([identitySubject]);
+  await fixture.nas.administrators([otherSiteSubject, identitySubject]);
   await page.getByRole("button", { name: "重新检测", exact: true }).click();
   await expect(
     page.getByText("管理员权限已启用", { exact: false }),
@@ -125,7 +127,7 @@ test("administrator subjects are enforced on the NAS and apply to an existing lo
   await expect(
     page.getByRole("heading", { name: "尚未配置管理员", exact: true }),
   ).toHaveCount(0);
-  await fixture.nas.administrators(["some-other-user"]);
+  await fixture.nas.administrators([otherSiteSubject]);
   await page.getByRole("button", { name: "重新检测", exact: true }).click();
   await expect(page.getByText("普通用户", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "退出登录", exact: true }).click();
@@ -257,7 +259,9 @@ test("direct HTTPS identities bind the proof to the NAS public origin", async ({
 test("NAS sees only site identity and an existing session works without an upstream provider", async ({
   page,
 }) => {
-  await fixture.nas.administrators([upstreamSubject]);
+  // Raw upstream subjects are rejected at NAS startup; use another valid site ID.
+  expect(otherSiteSubject).not.toBe(identitySubject);
+  await fixture.nas.administrators([otherSiteSubject]);
   await login(page);
   await expect(page.getByText("普通用户", { exact: true })).toBeVisible();
   await expect(page.locator(".account-advanced")).not.toHaveAttribute("open");
@@ -286,11 +290,14 @@ test("NAS sees only site identity and an existing session works without an upstr
       sub: identitySubject,
     });
     expect(JSON.stringify(session)).not.toContain("sso.example");
+    expect(JSON.stringify(session)).not.toContain(upstreamSubject);
+
     const config = await (
       await fetch(fixture.nas.endpoint + "/api/account/config")
     ).json();
     expect(config).toMatchObject({ enabled: true, issuer: fixture.origin });
     expect(JSON.stringify(config)).not.toContain("sso.example");
+    expect(JSON.stringify(config)).not.toContain(upstreamSubject);
   } finally {
     Object.assign(fixture.env, previous);
   }
