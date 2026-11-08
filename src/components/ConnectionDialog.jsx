@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { Dialog } from "./Dialog.jsx";
@@ -40,9 +41,7 @@ export function ConnectionDialog({
       open={open}
       onClose={onClose}
       onExited={onExited}
-      fallbackFocus={mobile
-        ? '.topbar button[aria-label="打开导航"]'
-        : '#sidebar button[aria-label="连接设置"]'}
+      fallbackFocus={mobile ? "#navigation-toggle" : "#connection-settings"}
       class="settings-dialog"
       aria-labelledby="settings-title"
     >
@@ -57,11 +56,11 @@ export function ConnectionDialog({
         }}
       >
         <div class="dialog-heading">
-          <h2 id="settings-title">连接设置</h2>
+          <h2 id="settings-title">{t("library.connectionSettings")}</h2>
           <button
             type="button"
             class="icon-button"
-            aria-label="关闭设置"
+            aria-label={t("library.closeSettings")}
             onClick={onClose}
           >
             <Icon name="x" />
@@ -70,43 +69,43 @@ export function ConnectionDialog({
         <div class="endpoint-box">
           <span class="mini-chip">
             {backend?.transport === "demo"
-              ? "演示空间"
+              ? t("library.demoSpace")
               : backend?.transport === "webtransport"
                 ? "WebTransport"
                 : "HTTP / HTTPS"}
           </span>
-          <strong>{backend?.endpoint || "演示文件空间"}</strong>
-          <span>{backend && `根目录 ${backend.rootPath}`}</span>
+          <strong>{backend?.endpoint || t("library.demoFileSpace")}</strong>
+          <span>{backend && t("library.rootPath", { path: backend.rootPath })}</span>
         </div>
         <label class="form-label" for="auth-mode">
-          访问方式
+          {t("library.authentication")}
         </label>
         <select
           id="auth-mode"
           value={form.mode}
           onChange={(event) => field("mode", event.currentTarget.value)}
         >
-          <option value="none">无需认证</option>
-          <option value="basic">用户名与密码（Basic）</option>
-          <option value="bearer">访问令牌（Bearer）</option>
+          <option value="none">{t("library.noAuthentication")}</option>
+          <option value="basic">{t("library.basicAuthentication")}</option>
+          <option value="bearer">{t("library.bearerAuthentication")}</option>
         </select>
         {form.mode === "basic" && (
           <>
-            {input("username", "用户名", "text", "username")}
-            {input("password", "密码", "password", "current-password")}
+            {input("username", t("library.username"), "text", "username")}
+            {input("password", t("library.password"), "password", "current-password")}
           </>
         )}
-        {form.mode === "bearer" && input("bearer", "访问令牌")}
-        {backend?.gatewayAuth && input("gatewayToken", "网关令牌")}
-        <p class="field-note">凭据仅用于当前页面，刷新后清除。</p>
+        {form.mode === "bearer" && input("bearer", t("library.accessToken"))}
+        {backend?.gatewayAuth && input("gatewayToken", t("library.gatewayToken"))}
+        <p class="field-note">{t("library.credentialsNote")}</p>
         <details class="connection-help">
-          <summary>连接帮助</summary>
+          <summary>{t("library.connectionHelp")}</summary>
           <p class="field-note">
             {backend?.transport === "webtransport"
-              ? "请确认 UDP 隧道可用、网关允许当前站点来源，且证书已更新。"
+              ? t("library.webTransportHelp")
               : backend?.transport === "demo"
-                ? "连接真实文件服务后，即可浏览和下载你的文件。"
-                : "WebDAV 服务需允许当前站点的 CORS 请求，以及 PROPFIND、Depth 和 Authorization。"}
+                ? t("library.demoConnectionHelp")
+                : t("library.webDavHelp")}
           </p>
         </details>
         <div class="dialog-actions">
@@ -118,11 +117,11 @@ export function ConnectionDialog({
               onForget();
             }}
           >
-            清除登录信息
+            {t("library.clearCredentials")}
           </button>
           <button type="submit" class="primary-button">
             <Icon name="plug" />
-            连接
+            {t("library.connect")}
           </button>
         </div>
       </form>

@@ -7,6 +7,7 @@ export default defineConfig({
     baseURL: "http://127.0.0.1:8788",
     channel: process.env.PLAYWRIGHT_CHANNEL,
     trace: "retain-on-failure",
+    locale: "zh-CN",
   },
   webServer: {
     command: "npm run dev -- --port 8788",

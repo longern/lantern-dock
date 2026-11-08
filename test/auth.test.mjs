@@ -733,3 +733,98 @@ test("login identifies Discovery failures without returning upstream bodies or e
     assert.ok(!JSON.stringify(value).includes("private-canary"));
   }
 });
+
+test("authentication localizes display messages but keeps OAuth identifiers stable", async () => {
+  const f = await fixture();
+  for (const [language, expected] of [
+    ["en", "This endpoint requires a POST request."],
+    ["zh-CN", "此接口需要 POST 请求。"],
+  ]) {
+    const response = await f.request("/api/auth/token", {
+      headers: { "Accept-Language": language },
+    });
+    assert.equal(response.status, 405);
+    assert.equal(response.headers.get("Allow"), "POST");
+    assert.equal(response.headers.get("Content-Language"), language);
+    assert.equal(response.headers.get("Vary"), "Cookie, Accept-Language");
+    assert.equal(response.headers.get("Cache-Control"), "no-store");
+    const value = await response.json();
+    assert.equal(value.error, "invalid_request");
+    assert.equal(value.code, "invalid_request");
+    assert.equal(value.error_description, "Use POST for token requests.");
+    assert.equal(value.message, expected);
+  }
+  for (const path of [AUTHORIZATION_METADATA_PATH, "/api/auth/jwks.json"]) {
+    const metadata = await f.request(path, {
+      headers: { "Accept-Language": "zh-CN" },
+    });
+    assert.equal(metadata.headers.get("Content-Language"), null);
+    assert.equal(metadata.headers.get("Vary"), null);
+    assert.equal(metadata.headers.get("Cache-Control"), "public, max-age=300");
+  }
+});
+
+test("concurrent OIDC discovery failures retain the request language and privacy", async () => {
+  const f = await fixture();
+  const pending = [];
+  f.env.SSO_SERVICE.fetch = () =>
+    new Promise((resolve) => {
+      pending.push(resolve);
+      if (pending.length === 2)
+        for (const complete of pending.reverse())
+          complete(new Response("private-canary", { status: 403 }));
+    });
+  const requests = await Promise.all(
+    ["zh-CN", "en"].map(async (language) =>
+      f.request("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Accept-Language": language,
+          DPoP: await f.proof("/api/auth/login"),
+        },
+      }),
+    ),
+  );
+  for (const [index, response] of requests.entries()) {
+    assert.equal(response.status, 503);
+    const value = await response.json();
+    assert.equal(value.code, "OIDC_DISCOVERY_HTTP_ERROR");
+    assert.match(
+      value.error,
+      index === 0 ? /登录服务.*HTTP 403/ : /sign-in service.*HTTP 403/,
+    );
+    assert.ok(!JSON.stringify(value).includes("private-canary"));
+    assert.equal(
+      response.headers.get("Content-Language"),
+      index === 0 ? "zh-CN" : "en",
+    );
+  }
+});
+
+test("callback errors use the browser language and remain encoded in a private redirect", async () => {
+  const f = await fixture();
+  for (const [language, expected] of [
+    [
+      "en",
+      "The sign-in request expired or was replaced. Please sign in again.",
+    ],
+    ["zh-CN", "登录请求已过期或已更新，请重新登录。"],
+  ]) {
+    const response = await f.request("/auth/callback?error=private-canary", {
+      headers: { "Accept-Language": language },
+    });
+    assert.equal(response.status, 303);
+    assert.equal(response.headers.get("Content-Language"), language);
+    assert.equal(response.headers.get("Referrer-Policy"), "no-referrer");
+    assert.equal(response.headers.get("Cache-Control"), "no-store");
+    assert.equal(
+      response.headers.get("Location"),
+      site + "/#/account?error=" + encodeURIComponent(expected),
+    );
+    assert.ok(
+      response.headers
+        .getSetCookie()
+        .some((cookie) => cookie.includes("Max-Age=0")),
+    );
+  }
+});

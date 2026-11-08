@@ -21,10 +21,10 @@ test('HEAD and 204 do not wait for a body',async()=>{
  const empty=await readResponse(wire(['HTTP/1.1 204 No Content\r\n\r\n']));assert.equal(empty.status,204);assert.equal(empty.body,null);
 });
 test('ambiguous framing and truncated bodies fail',async()=>{
- await assert.rejects(readResponse(wire(['HTTP/1.1 200 OK\r\nContent-Length: 1\r\nTransfer-Encoding: chunked\r\n\r\n'])),/ambiguous/);
- await assert.rejects(readResponse(wire(['HTTP/1.1 200 OK\r\nContent-Length: 1\r\nContent-Length: 1\r\n\r\n'])),/Duplicate/);
- const r=await readResponse(wire(['HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nabc']));await assert.rejects(r.arrayBuffer(),/Truncated/);
- const chunked=await readResponse(wire(['HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nab']));await assert.rejects(chunked.arrayBuffer(),/Truncated/);
+ await assert.rejects(readResponse(wire(['HTTP/1.1 200 OK\r\nContent-Length: 1\r\nTransfer-Encoding: chunked\r\n\r\n'])),{code:"HTTP_FRAMING_INVALID"});
+ await assert.rejects(readResponse(wire(['HTTP/1.1 200 OK\r\nContent-Length: 1\r\nContent-Length: 1\r\n\r\n'])),{code:"HTTP_CONTENT_LENGTH_DUPLICATE"});
+ const r=await readResponse(wire(['HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\nabc']));await assert.rejects(r.arrayBuffer(),{code:"HTTP_BODY_TRUNCATED"});
+ const chunked=await readResponse(wire(['HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n3\r\nab']));await assert.rejects(chunked.arrayBuffer(),{code:"HTTP_CHUNK_TRUNCATED"});
 });
 test('close-delimited bodies and gzip decode without buffering full response',async()=>{
  const r=await readResponse(wire(['HTTP/1.1 200 OK\r\n\r\nhello']));assert.equal(await r.text(),'hello');
@@ -32,7 +32,7 @@ test('close-delimited bodies and gzip decode without buffering full response',as
 });
 test('request serialization preserves separate backend and gateway credentials',()=>{
  const data=requestBytes('PROPFIND','/dav/a%20b/',{'Authorization':'Basic abc','Proxy-Authorization':'Bearer gateway',Depth:'1'},encode('é'));
- const raw=new TextDecoder().decode(data);assert.match(raw,/authorization: Basic abc/);assert.match(raw,/proxy-authorization: Bearer gateway/);assert.match(raw,/content-length: 2/);assert.throws(()=>requestBytes('GET','/x\r\nX-Bad: yes',{}),/Invalid/);
+ const raw=new TextDecoder().decode(data);assert.match(raw,/authorization: Basic abc/);assert.match(raw,/proxy-authorization: Bearer gateway/);assert.match(raw,/content-length: 2/);assert.throws(()=>requestBytes('GET','/x\r\nX-Bad: yes',{}),{code:"HTTP_TARGET_INVALID"});
 });
 test('cancelling a response cancels its WebTransport reader',async()=>{
  let cancelled=false;const source=new ReadableStream({start(c){c.enqueue(encode('HTTP/1.1 200 OK\r\n\r\n'));},cancel(){cancelled=true;}});const r=await readResponse(new WireReader(source.getReader()));await r.body.cancel();assert.ok(cancelled);

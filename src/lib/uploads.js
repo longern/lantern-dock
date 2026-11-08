@@ -1,3 +1,5 @@
+import { t, locale } from "../../shared/i18n.js";
+import { coreError } from "./errors.js";
 import { DirectTransport } from "./transport.js";
 import { backendPaths } from "../../shared/backend-paths.js";
 
@@ -7,8 +9,8 @@ export async function uploadResponse(response) {
     const error = new Error(
       value.error ||
         (response.status === 407
-          ? "收件网关需要认证，请联系收件人检查配置。"
-          : `收件服务返回 ${response.status}，请稍后重试。`),
+          ? t("core.error.UPLOAD_GATEWAY_AUTH")
+          : t("core.error.UPLOAD_SERVICE_ERROR", { status: response.status })),
     );
     error.code = value.code;
     error.status = response.status;
@@ -34,7 +36,7 @@ export class UploadClient {
     return this.request(backendPaths.inbox, { signal });
   }
   async request(path, options) {
-    if (this.closed) throw new DOMException("连接已关闭", "AbortError");
+    if (this.closed) throw new DOMException(t("core.connectionClosed"), "AbortError");
     return uploadResponse(await this.transport.request(path, options));
   }
   async sendHTTP(path, file, signal, onProgress) {
@@ -45,13 +47,14 @@ export class UploadClient {
       endpoint.protocol !== "https:" &&
       !["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname)
     )
-      throw new Error("HTTPS 网页需要通过 HTTPS 或 WebTransport 上传文件。");
+      throw coreError("UPLOAD_HTTPS_REQUIRED");
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const abort = () => xhr.abort();
       const finish = () => signal?.removeEventListener("abort", abort);
       xhr.open("PUT", endpoint);
       xhr.setRequestHeader("Authorization", "Bearer " + this.token);
+      xhr.setRequestHeader("Accept-Language", locale);
       xhr.setRequestHeader("Content-Type", "application/octet-stream");
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) onProgress?.(event.loaded, event.total);
@@ -62,11 +65,11 @@ export class UploadClient {
       };
       xhr.onerror = () => {
         finish();
-        reject(new Error("上传连接中断，请检查网络后重试。"));
+        reject(coreError("UPLOAD_CONNECTION_INTERRUPTED"));
       };
       xhr.onabort = () => {
         finish();
-        reject(new DOMException("已取消上传", "AbortError"));
+        reject(new DOMException(t("core.uploadCancelled"), "AbortError"));
       };
       signal?.addEventListener("abort", abort, { once: true });
       xhr.send(file);

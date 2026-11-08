@@ -33,7 +33,7 @@ func (s *Server) serveCapabilities(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method != "GET" && r.Method != "HEAD" {
-		writeError(w, fault(405, "METHOD_NOT_ALLOWED", "功能信息仅支持读取。"))
+		writeError(w, r, fault(405, "METHOD_NOT_ALLOWED", "errors.capabilitiesReadOnly"))
 		return
 	}
 	// Only deployment capabilities are public. This is never a permission grant

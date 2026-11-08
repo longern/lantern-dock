@@ -1,13 +1,15 @@
+import { t } from "../../shared/i18n.js";
+
 export const fileCategories = [
-  { kind: "album", label: "相册", icon: "album" },
-  { kind: "video", label: "视频", icon: "camera" },
-  { kind: "text", label: "文档", icon: "text" },
-  { kind: "book", label: "图书", icon: "book" },
-  { kind: "audio", label: "音频", icon: "music" },
+  { kind: "album", get label() { return t("core.category.album"); }, icon: "album" },
+  { kind: "video", get label() { return t("core.category.video"); }, icon: "camera" },
+  { kind: "text", get label() { return t("core.category.text"); }, icon: "text" },
+  { kind: "book", get label() { return t("core.category.book"); }, icon: "book" },
+  { kind: "audio", get label() { return t("core.category.audio"); }, icon: "music" },
 ];
 
 export function categoryLabel(kind) {
-  return kind === "image" ? "图片" : fileCategories.find((category) => category.kind === kind)?.label;
+  return kind === "image" ? t("core.category.image") : fileCategories.find((category) => category.kind === kind)?.label;
 }
 
 const documentExtensions = new Set([

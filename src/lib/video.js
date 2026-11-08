@@ -1,12 +1,13 @@
+import { t } from "../../shared/i18n.js";
+import { coreError } from "./errors.js";
 import { normalizePath, withinRoot } from "./dav.js";
 import { authorization } from "./transport.js";
 
-export const unsupportedVideo =
-  "浏览器不支持此视频的格式或编码，请下载后播放。";
+export const unsupportedVideo = t("core.error.VIDEO_UNSUPPORTED");
 export async function createVideoSource(client, item, signal) {
   signal?.throwIfAborted();
   const path = normalizePath(item.path);
-  if (!withinRoot(path, client.root)) throw new Error("不能离开配置的根目录");
+  if (!withinRoot(path, client.root)) throw coreError("OUTSIDE_ROOT");
   const transport = client.transport;
   if (
     transport?.config.transport === "http" &&
@@ -20,7 +21,7 @@ export async function createVideoSource(client, item, signal) {
         ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
       )
     )
-      throw new Error("视频直连需要 HTTPS 地址。");
+      throw coreError("VIDEO_HTTPS_REQUIRED");
     return {
       mode: "direct",
       attach(video) {
@@ -35,7 +36,7 @@ export async function createVideoSource(client, item, signal) {
     !globalThis.MediaSource ||
     !client.read
   )
-    throw new Error(unsupportedVideo);
+    throw coreError("VIDEO_UNSUPPORTED");
   // Load the parser only when a video needs page-local fragmentation.
   const { MP4MediaSource } = await import("./video-mp4.js");
   signal?.throwIfAborted();

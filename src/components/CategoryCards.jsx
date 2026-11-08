@@ -1,9 +1,10 @@
+import { t } from "../../shared/i18n.js";
 import { Icon } from "./Icon.jsx";
 import { fileCategories } from "../lib/categories.js";
 
 export function CategoryCards({ library }) {
   return (
-    <nav class="category-cards" aria-label="文件分类" title="筛选当前文件夹">
+    <nav class="category-cards" aria-label={t("library.fileCategories")} title={t("library.filterCurrentFolder")}>
       {fileCategories.map(({ kind, label, icon }) => (
         <button
           key={kind}

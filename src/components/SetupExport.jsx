@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { useRef, useState } from "preact/hooks";
 import { setupSnippet } from "../lib/setup.js";
 import { CertificateWebhook } from "./CertificateWebhook.jsx";
@@ -11,14 +12,14 @@ export function SetupExport({ wizard, setup, notify }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(snippet);
-      notify("已复制配置。");
+      notify(t("account.configurationCopied"));
     } catch {
       setRevealed(true);
       requestAnimationFrame(() => {
         code.current?.focus();
         code.current?.select();
       });
-      notify("请复制已选中的配置文本。");
+      notify(t("account.configurationCopyManually"));
     }
   };
   const download = (content, name) => {
@@ -35,13 +36,17 @@ export function SetupExport({ wizard, setup, notify }) {
   };
   return (
     <>
-      <div class="setup-targets" role="group" aria-label="部署环境">
+      <div
+        class="setup-targets"
+        role="group"
+        aria-label={t("account.deploymentEnvironment")}
+      >
         <button
           aria-pressed={target === "local"}
           class={target === "local" ? "active" : ""}
           onClick={() => wizard.selectTarget("local")}
         >
-          本地开发
+          {t("account.localDevelopment")}
         </button>
         <button
           aria-pressed={target === "worker"}
@@ -54,7 +59,7 @@ export function SetupExport({ wizard, setup, notify }) {
       {wizard.isLocal && target === "worker" && (
         <div class="setup-deployment-address">
           <label class="form-label" for="deployment-origin">
-            LanternDock 部署地址
+            {t("account.deploymentAddress")}
           </label>
           <input
             id="deployment-origin"
@@ -65,23 +70,16 @@ export function SetupExport({ wizard, setup, notify }) {
             spellCheck={false}
           />
           {wizard.origin && !wizard.deploymentUrl && (
-            <p class="field-note">请填写不含路径或参数的 HTTPS 站点地址。</p>
+            <p class="field-note">{t("account.deploymentAddressInvalid")}</p>
           )}
         </div>
       )}
-      <section class="setup-export" aria-label="站点配置">
-        <h3>LanternDock 配置</h3>
+      <section class="setup-export" aria-label={t("account.siteConfiguration")}>
+        <h3>{t("account.lanternDockConfiguration")}</h3>
         <p class="setup-instructions">
-          {target === "local" ? (
-            <>
-              合入项目的 <code>.env</code>，然后重启开发服务。
-            </>
-          ) : (
-            <>
-              粘贴到控制台「变量和密钥」，将 <code>SECRET_KEY</code> 手动勾选为{" "}
-              <strong>Secret</strong>，再部署。
-            </>
-          )}
+          {target === "local"
+            ? t("account.localExportInstructions")
+            : t("account.workerExportInstructions")}
         </p>
         <div class="setup-code-heading">
           <span>.env</span>
@@ -91,24 +89,24 @@ export function SetupExport({ wizard, setup, notify }) {
                 class="text-button"
                 onClick={() => setRevealed((value) => !value)}
               >
-                {revealed ? "隐藏密钥" : "显示密钥"}
+                {revealed ? t("account.hideKey") : t("account.showKey")}
               </button>
             )}
             <button
               class="text-button"
               onClick={() => download(snippet, "lantern-dock.env")}
             >
-              下载配置
+              {t("account.downloadConfiguration")}
             </button>
             <button class="text-button" onClick={copy}>
-              复制配置
+              {t("account.copyConfiguration")}
             </button>
           </div>
         </div>
         <textarea
           ref={code}
           class="setup-code"
-          aria-label="生成的配置"
+          aria-label={t("account.generatedConfiguration")}
           readOnly
           spellCheck={false}
           value={
@@ -117,9 +115,7 @@ export function SetupExport({ wizard, setup, notify }) {
           rows={Math.min(8, Math.max(3, snippet.trim().split("\n").length))}
         />
         <p class="field-note">
-          {key
-            ? "已生成随机密钥；复制和下载包含完整值，请保存配置。"
-            : "保留站点现有的 SECRET_KEY，导出内容不会替换它。"}
+          {key ? t("account.newKeyHelp") : t("account.existingKeyHelp")}
         </p>
       </section>
       {form.transport === "webtransport" &&
@@ -133,13 +129,11 @@ export function SetupExport({ wizard, setup, notify }) {
           />
         )}
       <details class="setup-advanced setup-other">
-        <summary>其他部署方式</summary>
-        <p class="field-note">
-          Wrangler 的 vars 只包含普通变量，密钥仍需设置为 Worker Secret。
-        </p>
+        <summary>{t("account.otherDeploymentMethods")}</summary>
+        <p class="field-note">{t("account.wranglerSecretsHelp")}</p>
         <textarea
           class="setup-code"
-          aria-label="Wrangler 配置"
+          aria-label={t("account.wranglerConfiguration")}
           readOnly
           value={wrangler}
           rows="5"
@@ -149,40 +143,31 @@ export function SetupExport({ wizard, setup, notify }) {
           class="text-button"
           onClick={() => download(wrangler, "lantern-dock.vars.json")}
         >
-          下载 Wrangler JSON
+          {t("account.downloadWranglerJson")}
         </button>
         {!key && setup.hasSecretKey && (
           <button class="text-button" onClick={wizard.newDeployment}>
-            为新部署生成密钥
+            {t("account.generateDeploymentKey")}
           </button>
         )}
       </details>
       <details class="setup-checklist">
-        <summary>连接要求与排查</summary>
+        <summary>{t("account.connectionTroubleshooting")}</summary>
         <ul>
           {form.transport === "http" ? (
             <li>
-              WebDAV 支持 PROPFIND、GET 和 HEAD，CORS 允许{" "}
-              <code>{location.origin}</code>。
+              {t("account.webdavRequirements", { origin: location.origin })}
             </li>
           ) : (
             <>
               <li>
-                网关允许 <code>{location.origin}</code>，开放 UDP，并允许
-                GET、HEAD 和 PROPFIND。
+                {t("account.gatewayRequirements", { origin: location.origin })}
               </li>
               {form.certificateMode === "pinned" && (
                 <li>
-                  {target === "local" ? (
-                    <>
-                      本地在 .env 中配置 <code>CERTIFICATES_JSON</code>。
-                    </>
-                  ) : (
-                    <>
-                      Worker 的 KV 绑定名设为 <code>KV</code>，bridge 启用{" "}
-                      <code>--auto-cert</code> 发布证书。
-                    </>
-                  )}
+                  {target === "local"
+                    ? t("account.localCertificateRequirements")
+                    : t("account.workerCertificateRequirements")}
                 </li>
               )}
             </>

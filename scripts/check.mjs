@@ -16,6 +16,7 @@ async function walk(path) {
 }
 await walk("src");
 await walk("shared");
+await walk("locales");
 await walk("worker");
 await walk("scripts");
 await walk("test");

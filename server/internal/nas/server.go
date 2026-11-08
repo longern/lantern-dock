@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/longern/lantern-dock/server/internal/i18n"
 	"golang.org/x/net/webdav"
 	"golang.org/x/sys/unix"
 )
@@ -148,15 +149,22 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(value)
 }
-func writeError(w http.ResponseWriter, err error) {
+func responseTranslator(w http.ResponseWriter, r *http.Request) i18n.Translator {
+	t := i18n.New(strings.Join(r.Header.Values("Accept-Language"), ","))
+	w.Header().Set("Content-Language", t.Locale())
+	w.Header().Add("Vary", "Accept-Language")
+	return t
+}
+func writeError(w http.ResponseWriter, r *http.Request, err error) {
+	t := responseTranslator(w, r)
 	var f *Fault
 	if !errors.As(err, &f) {
-		f = &Fault{503, "STORAGE_UNAVAILABLE", "收件服务暂不可用，请稍后重试。"}
+		f = &Fault{503, "STORAGE_UNAVAILABLE", "errors.storageUnavailable"}
 	}
 	if f.Status == 401 {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="lantern-dock-uploads"`)
 	}
-	writeJSON(w, f.Status, map[string]string{"error": f.Message, "code": f.Code})
+	writeJSON(w, f.Status, map[string]string{"error": t.T(f.MessageKey), "code": f.Code})
 }
 func validRequestPath(value string) bool {
 	if strings.ContainsAny(value, "\\\x00\r\n") {
@@ -174,18 +182,18 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	if !validRequestPath(r.URL.Path) {
-		writeError(w, fault(400, "INVALID_PATH", "请求路径无效。"))
+		writeError(w, r, fault(400, "INVALID_PATH", "errors.invalidPath"))
 		return
 	}
 	w.Header().Add("Vary", "Origin")
 	if origin := r.Header.Get("Origin"); origin != "" {
 		if !s.origins[origin] {
-			writeError(w, fault(403, "ORIGIN_DENIED", "此网页来源未获允许。"))
+			writeError(w, r, fault(403, "ORIGIN_DENIED", "errors.originDenied"))
 			return
 		}
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PROPFIND, POST, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Depth, DPoP, If-None-Match")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept-Language, Authorization, Content-Type, Depth, DPoP, If-None-Match")
 		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, ETag, Link, WWW-Authenticate, DPoP-Nonce")
 	}
 	switch {
@@ -202,7 +210,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case r.URL.Path == inboxPath || strings.HasPrefix(r.URL.Path, inboxPath+"/"):
 		s.serveUploads(w, r)
 	default:
-		writeError(w, fault(404, "NOT_FOUND", "找不到这个地址。"))
+		writeError(w, r, fault(404, "NOT_FOUND", "errors.notFound"))
 	}
 }
 func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
@@ -220,7 +228,7 @@ func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 	}
 	l, err := s.Store.Authenticate(r.Context(), token)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	id := strings.TrimPrefix(r.URL.Path, inboxPath)
@@ -228,7 +236,7 @@ func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
 			if err = s.Store.Usage(r.Context(), &l); err != nil {
-				writeError(w, err)
+				writeError(w, r, err)
 				return
 			}
 			writeJSON(w, 200, l)
@@ -241,33 +249,33 @@ func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 			decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 			decoder.DisallowUnknownFields()
 			if err = decoder.Decode(&input); err != nil || input.Size == nil {
-				writeError(w, fault(400, "INVALID_FILE", "请提供文件名和文件大小。"))
+				writeError(w, r, fault(400, "INVALID_FILE", "errors.fileDetailsRequired"))
 				return
 			}
 			if err = decoder.Decode(new(any)); err != io.EOF {
-				writeError(w, fault(400, "INVALID_FILE", "请求必须是单个 JSON 对象。"))
+				writeError(w, r, fault(400, "INVALID_FILE", "errors.singleJsonObjectRequired"))
 				return
 			}
 			u, err := s.Store.Reserve(r.Context(), l.ID, input.Name, *input.Size)
 			if err != nil {
-				writeError(w, err)
+				writeError(w, r, err)
 				return
 			}
 			writeJSON(w, 201, u)
 		default:
 			w.Header().Set("Allow", "GET, POST, OPTIONS")
-			writeError(w, fault(405, "METHOD_NOT_ALLOWED", "此接口不支持该请求方法。"))
+			writeError(w, r, fault(405, "METHOD_NOT_ALLOWED", "errors.methodNotAllowed"))
 		}
 		return
 	}
 	id = strings.TrimPrefix(id, "/")
 	if len(id) != 32 || strings.Trim(id, "0123456789abcdef") != "" {
-		writeError(w, fault(404, "UPLOAD_NOT_FOUND", "找不到这个上传任务。"))
+		writeError(w, r, fault(404, "UPLOAD_NOT_FOUND", "errors.uploadNotFound"))
 		return
 	}
 	u, err := s.Store.GetUpload(r.Context(), id, l.ID)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	switch r.Method {
@@ -277,7 +285,7 @@ func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 		s.receive(w, r, u, l)
 	case "DELETE":
 		if err = s.Store.Cancel(r.Context(), u); err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		s.mu.Lock()
@@ -289,7 +297,7 @@ func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(204)
 	default:
 		w.Header().Set("Allow", "GET, PUT, DELETE, OPTIONS")
-		writeError(w, fault(405, "METHOD_NOT_ALLOWED", "此接口不支持该请求方法。"))
+		writeError(w, r, fault(405, "METHOD_NOT_ALLOWED", "errors.methodNotAllowed"))
 	}
 }
 func staging(u Upload) string     { return "inbox/.staging/" + u.ID + ".part" }
@@ -316,18 +324,18 @@ func (b progressBody) Read(p []byte) (int, error) {
 
 func (s *Server) receive(w http.ResponseWriter, r *http.Request, u Upload, l Link) {
 	if r.ContentLength >= 0 && r.ContentLength != u.Size {
-		writeError(w, fault(400, "SIZE_MISMATCH", "文件大小与上传任务不一致。"))
+		writeError(w, r, fault(400, "SIZE_MISMATCH", "errors.sizeMismatch"))
 		return
 	}
 	select {
 	case s.slots <- struct{}{}:
 		defer func() { <-s.slots }()
 	default:
-		writeError(w, fault(503, "UPLOAD_BUSY", "同时上传的文件过多，请稍后重试。"))
+		writeError(w, r, fault(503, "UPLOAD_BUSY", "errors.uploadBusy"))
 		return
 	}
 	if err := s.Store.Start(r.Context(), u, l); err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	ctx, cancel := context.WithDeadline(r.Context(), l.ExpiresAt)
@@ -348,7 +356,7 @@ func (s *Server) receive(w http.ResponseWriter, r *http.Request, u Upload, l Lin
 	if s.ctx.Err() != nil {
 		s.mu.Unlock()
 		_ = s.Store.Fail(context.Background(), u.ID)
-		writeError(w, fault(503, "SHUTTING_DOWN", "服务正在关闭。"))
+		writeError(w, r, fault(503, "SHUTTING_DOWN", "errors.shuttingDown"))
 		return
 	}
 	s.active[u.ID] = cancel
@@ -373,59 +381,59 @@ func (s *Server) receive(w http.ResponseWriter, r *http.Request, u Upload, l Lin
 	}()
 	f, err := s.private.OpenFile(staging(u), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	n, copyErr := io.Copy(f, progressBody{ctx, http.MaxBytesReader(w, r.Body, u.Size), w, l.ExpiresAt})
 	syncErr := f.Sync()
 	closeErr := f.Close()
 	if copyErr != nil || n != u.Size || ctx.Err() != nil {
-		writeError(w, fault(400, "UPLOAD_INTERRUPTED", "上传未完成，请重试。"))
+		writeError(w, r, fault(400, "UPLOAD_INTERRUPTED", "errors.uploadInterrupted"))
 		return
 	}
 	if syncErr != nil {
-		writeError(w, syncErr)
+		writeError(w, r, syncErr)
 		return
 	}
 	if closeErr != nil {
-		writeError(w, closeErr)
+		writeError(w, r, closeErr)
 		return
 	}
 	if err = s.private.MkdirAll(path.Join("inbox", u.LinkID), 0700); err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	tx, err := s.Store.DB.BeginTx(ctx, nil)
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	defer tx.Rollback()
 	result, err := tx.ExecContext(ctx, `UPDATE uploads SET status='complete' WHERE id=? AND status='receiving' AND EXISTS(SELECT 1 FROM links WHERE id=? AND revoked=0 AND expires_at>?)`, u.ID, l.ID, time.Now().Unix())
 	if err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	count, _ := result.RowsAffected()
 	if count != 1 {
-		writeError(w, fault(410, "UPLOAD_CANCELLED", "上传已取消或收件链接已失效。"))
+		writeError(w, r, fault(410, "UPLOAD_CANCELLED", "errors.uploadCancelled"))
 		return
 	}
 	if err = s.private.Rename(staging(u), destination(u)); err != nil {
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	// Persist the new directory entry before committing the SQLite completion.
 	for _, name := range []string{path.Dir(destination(u)), "inbox/.staging", "inbox", "."} {
 		dir, err := s.private.Open(name)
 		if err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 		err = dir.Sync()
 		_ = dir.Close()
 		if err != nil {
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 	}
@@ -436,7 +444,7 @@ func (s *Server) receive(w http.ResponseWriter, r *http.Request, u Upload, l Lin
 			writeJSON(w, 201, current)
 			return
 		}
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	complete = true

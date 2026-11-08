@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { createVideoSource, unsupportedVideo } from "../lib/video.js";
 import { Icon } from "./Icon.jsx";
@@ -64,7 +65,7 @@ export function VideoPreview({ item, client, open, onDimensions, onError }) {
       {(error || !ready) && (
         <div class="preview-placeholder">
           <Icon name="video" />
-          <p role="status">{error || "正在加载视频…"}</p>
+          <p role="status">{error || t("library.loadingVideo")}</p>
         </div>
       )}
       <video
@@ -74,7 +75,7 @@ export function VideoPreview({ item, client, open, onDimensions, onError }) {
         controls
         playsInline
         preload="metadata"
-        aria-label={`${item.name} 视频预览`}
+        aria-label={t("library.videoPreviewNamed", { name: item.name })}
         onLoadedMetadata={(event) =>
           onDimensions(
             event.currentTarget.videoWidth,
@@ -88,7 +89,7 @@ export function VideoPreview({ item, client, open, onDimensions, onError }) {
             new Error(
               code === 3 || code === 4
                 ? unsupportedVideo
-                : "视频加载失败，请重试或下载后播放。",
+                : t("library.videoLoadFailed"),
             ),
           );
         }}

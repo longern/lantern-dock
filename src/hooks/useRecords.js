@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { useMemo, useState } from "preact/hooks";
 import { readRecords } from "../lib/records.js";
 
@@ -20,7 +21,7 @@ export function useRecords(key, toast) {
       setRevision((value) => value + 1);
       return true;
     } catch {
-      toast("浏览器未允许保存本机记录。", true);
+      toast(t("core.recordsSaveDenied"), true);
       return false;
     }
   };
@@ -46,7 +47,7 @@ export function useRecords(key, toast) {
           ? current.items.filter((entry) => entry.path !== item.path)
           : [item, ...current.items],
       );
-      if (saved) toast(exists ? "已取消收藏" : "已收藏");
+      if (saved) toast(exists ? t("core.favoriteRemoved") : t("core.favoriteAdded"));
     },
     remember(item) {
       const current = readRecords(key, "recent");

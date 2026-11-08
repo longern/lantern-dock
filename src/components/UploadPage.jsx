@@ -1,3 +1,4 @@
+import { t, locale } from "../../shared/i18n.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { UploadClient } from "../lib/uploads.js";
@@ -26,9 +27,10 @@ export function UploadPage({ token }) {
     (async () => {
       try {
         if (!/^[A-Za-z0-9_-]{43}$/.test(token))
-          throw new Error("收件链接无效，请向收件人索取完整链接。");
+          throw new Error(t("account.invalidUploadLink"));
         const response = await fetch("/api/config", {
           cache: "no-store",
+          headers: { "Accept-Language": locale },
           signal: controller.signal,
         });
         const config = await response.json();
@@ -38,7 +40,7 @@ export function UploadPage({ token }) {
           !config.backend ||
           config.backend.transport === "demo"
         )
-          throw new Error("站点尚未连接收件服务，请联系收件人完成配置。");
+          throw new Error(t("account.uploadServiceUnavailable"));
         if (controller.signal.aborted) return;
         const connection = new UploadClient(config.backend, token);
         client.current = connection;
@@ -128,31 +130,33 @@ export function UploadPage({ token }) {
       </a>
       <section class="setup-card" aria-labelledby="upload-title">
         <div class="setup-intro">
-          <span class="setup-eyebrow">临时收件箱</span>
-          <h1 id="upload-title">{link?.title || "接收文件"}</h1>
-          <p>文件仅对收件人可见。</p>
+          <span class="setup-eyebrow">{t("account.temporaryInbox")}</span>
+          <h1 id="upload-title">{link?.title || t("account.receiveFiles")}</h1>
+          <p>{t("account.uploadPrivacy")}</p>
         </div>
         {!link && !error && (
           <p class="upload-message" role="status">
-            正在连接收件箱…
+            {t("account.connectingInbox")}
           </p>
         )}
         {link && (
           <dl class="upload-limits">
             <div>
-              <dt>单文件上限</dt>
+              <dt>{t("account.fileSizeLimit")}</dt>
               <dd>{bytes(link.maxFileBytes)}</dd>
             </div>
             <div>
-              <dt>剩余容量</dt>
+              <dt>{t("account.remainingCapacity")}</dt>
               <dd>{bytes(remaining)}</dd>
             </div>
             <div>
-              <dt>剩余文件数</dt>
-              <dd>{Math.max(0, link.maxFiles - link.usedFiles)}</dd>
+              <dt>{t("account.remainingFiles")}</dt>
+              <dd>
+                {Math.max(0, link.maxFiles - link.usedFiles).toLocaleString(locale)}
+              </dd>
             </div>
             <div>
-              <dt>有效期至</dt>
+              <dt>{t("account.expiresAt")}</dt>
               <dd>{date(link.expiresAt, true)}</dd>
             </div>
           </dl>
@@ -165,7 +169,7 @@ export function UploadPage({ token }) {
               disabled={working}
               onClick={() => setRevision((value) => value + 1)}
             >
-              重新检测
+              {t("account.checkAgain")}
             </button>
           </div>
         )}
@@ -181,17 +185,17 @@ export function UploadPage({ token }) {
             <Icon name="upload" />
             <strong>
               {working
-                ? "正在上传文件"
+                ? t("account.uploadingFiles")
                 : available
-                  ? "选择文件或拖放到这里"
-                  : "收件箱已达到限额或已过期"}
+                  ? t("account.chooseOrDropFiles")
+                  : t("account.inboxUnavailable")}
             </strong>
-            <span>{working ? "请保持页面打开" : "支持选择多个文件"}</span>
+            <span>{working ? t("account.keepPageOpen") : t("account.multipleFilesHelp")}</span>
             <input
               type="file"
               multiple
               disabled={working || !available}
-              aria-label="选择上传文件"
+              aria-label={t("account.chooseUploadFiles")}
               onChange={(event) => {
                 const files = event.currentTarget.files;
                 if (files?.length) void receive(files);
@@ -201,7 +205,7 @@ export function UploadPage({ token }) {
           </label>
         )}
         {!!rows.length && (
-          <ul class="upload-results" aria-label="本次上传">
+          <ul class="upload-results" aria-label={t("account.currentUploads")}>
             {rows.map((row) => (
               <li key={row.id}>
                 <div class="upload-file-heading">
@@ -213,40 +217,43 @@ export function UploadPage({ token }) {
                     <progress
                       value={row.loaded}
                       max={row.file.size || 1}
-                      aria-label={`${row.file.name} 上传进度`}
+                      aria-label={t("account.uploadProgress", { name: row.file.name })}
                     />
                     <div class="upload-file-status">
                       <span>
                         {row.loaded >= row.file.size
-                          ? "正在确认接收…"
-                          : `${bytes(row.loaded)} / ${bytes(row.file.size)}`}
+                          ? t("account.confirmingReceipt")
+                          : t("account.uploadBytes", {
+                              loaded: bytes(row.loaded),
+                              total: bytes(row.file.size),
+                            })}
                       </span>
                       <button
                         class="text-button"
                         onClick={() => active.current?.abort()}
                       >
-                        取消上传
+                        {t("account.cancelUpload")}
                       </button>
                     </div>
                   </>
                 )}
                 <span class={`upload-result ${row.status}`} role="status">
                   {row.status === "complete"
-                    ? "已接收"
+                    ? t("account.received")
                     : row.status === "queued"
-                      ? "等待上传"
+                      ? t("account.queuedUpload")
                       : row.status === "cancelled"
-                        ? "已取消"
+                        ? t("account.cancelledUpload")
                         : row.status === "failed"
                           ? row.error
-                          : "上传中"}
+                          : t("account.uploading")}
                 </span>
               </li>
             ))}
           </ul>
         )}
         <a class="upload-back" href="/">
-          返回公开文件
+          {t("account.backToPublicFiles")}
         </a>
       </section>
     </main>

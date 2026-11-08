@@ -20,6 +20,7 @@ func TestLinkCLI(t *testing.T) {
 	var result struct {
 		Link struct {
 			ID           string `json:"id"`
+			Title        string `json:"title"`
 			MaxFileBytes int64  `json:"maxFileBytes"`
 		}
 		URL string `json:"url"`
@@ -28,7 +29,7 @@ func TestLinkCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 	u, _ := url.Parse(result.URL)
-	if !strings.HasPrefix(u.Fragment, "/upload/") || result.Link.MaxFileBytes != 1<<20 {
+	if !strings.HasPrefix(u.Fragment, "/upload/") || result.Link.MaxFileBytes != 1<<20 || result.Link.Title != "Temporary inbox" {
 		t.Fatal("bad link")
 	}
 	secret := strings.TrimPrefix(u.Fragment, "/upload/")

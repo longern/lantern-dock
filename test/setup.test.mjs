@@ -4,6 +4,7 @@ import { setupVariables, setupSnippet } from "../src/lib/setup.js";
 import { parseLocalVariables } from "../scripts/local-env.mjs";
 import { configuration } from "../worker/index.js";
 import { generateSecretKey } from "../shared/site-secret.js";
+import { createTranslator } from "../shared/i18n.js";
 
 const base = {
   name: "我的文件",
@@ -100,7 +101,8 @@ test("a default WebDAV setup generates just one variable and resolves its root",
   const { backend } = await configuration(vars);
   assert.equal(backend.endpoint, "https://files.example.com");
   assert.equal(backend.rootPath, "/dav/public/");
-  assert.equal(backend.name, "我的文件");
+  assert.equal(backend.name, "My files");
+  assert.equal((await configuration(vars, createTranslator("zh-CN"))).backend.name, "我的文件");
   assert.equal(backend.auth, "none");
 });
 
@@ -134,7 +136,7 @@ test("explicit resets clear the other URL and old overrides when applying genera
   assert.equal(vars.WEBTRANSPORT_URL, "");
   assert.equal(vars.BACKEND_ROOT, "");
   assert.equal(vars.BACKEND_AUTH, "none");
-  assert.equal(vars.BACKEND_NAME, "我的文件");
+  assert.equal(vars.BACKEND_NAME, "");
   const { backend } = await configuration({ ...previous, ...vars });
   assert.equal(backend.transport, "http");
   assert.equal(backend.rootPath, "/public/");

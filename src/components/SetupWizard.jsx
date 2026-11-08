@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { useLayoutEffect, useRef } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { useSetupWizard } from "../hooks/useSetupWizard.js";
@@ -6,9 +7,9 @@ import { SetupExport } from "./SetupExport.jsx";
 import { SetupCertificates } from "./SetupCertificates.jsx";
 
 const reasons = {
-  "missing-backend": "填写文件服务地址，即可生成部署配置。",
-  "invalid-configuration": "请检查并完善后端连接信息。",
-  "conflicting-backends": "检测到两种连接地址，请选择保留其中一种。",
+  "missing-backend": "account.missingBackendReason",
+  "invalid-configuration": "account.invalidConfigurationReason",
+  "conflicting-backends": "account.conflictingBackendsReason",
 };
 
 export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
@@ -21,12 +22,20 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
     heading.current?.focus({ preventScroll: true });
     window.scrollTo(0, 0);
   }, [stage]);
-  const steps = ["连接后端", certificates ? "连接证书" : "保存并部署"];
+  const steps = [
+    { id: "connection", label: t("account.connectBackend") },
+    {
+      id: certificates ? "certificates" : "export",
+      label: certificates
+        ? t("account.connectCertificates")
+        : t("account.saveAndDeploy"),
+    },
+  ];
   const description = connection
-    ? reasons[setup.reason] || reasons["missing-backend"]
+    ? t(reasons[setup.reason] || reasons["missing-backend"])
     : certificates
-      ? "站点配置已保存，等待网关发布证书。"
-      : "保存配置并应用到运行环境，然后重新检测。";
+      ? t("account.waitingForCertificate")
+      : t("account.saveDeploymentDescription");
   return (
     <main class="setup-page">
       <header class="setup-brand">
@@ -37,14 +46,14 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
       </header>
       <section class="setup-card" aria-labelledby="setup-title">
         <div class="setup-intro">
-          <span class="setup-eyebrow">设置 LanternDock</span>
-          <h1 id="setup-title">连接你的文件空间</h1>
+          <span class="setup-eyebrow">{t("account.setupEyebrow")}</span>
+          <h1 id="setup-title">{t("account.setupTitle")}</h1>
           <p>{description}</p>
         </div>
-        <ol class="setup-steps" aria-label="配置步骤">
-          {steps.map((label, index) => (
+        <ol class="setup-steps" aria-label={t("account.setupSteps")}>
+          {steps.map((step, index) => (
             <li
-              key={label}
+              key={step.id}
               class={
                 connection
                   ? index === 0
@@ -59,16 +68,16 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
               }
             >
               <span>{index + 1}</span>
-              <span>{label}</span>
+              <span>{step.label}</span>
             </li>
           ))}
         </ol>
         <h2 ref={heading} tabIndex="-1">
           {connection
-            ? "连接后端"
+            ? t("account.connectBackend")
             : certificates
-              ? "配置网关证书"
-              : "保存并部署"}
+              ? t("account.configureGatewayCertificates")
+              : t("account.saveAndDeploy")}
         </h2>
         {connection ? (
           <SetupConnection wizard={wizard} />
@@ -86,13 +95,15 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
             {setup.checked && !checking && (
               <p class="setup-hint" role="status">
                 {setup.reason === "missing-certificates"
-                  ? "尚未检测到有效网关证书，请确认网关已发布。"
-                  : "尚未检测到有效后端配置，请应用配置并重启或重新部署。"}
+                  ? t("account.missingCertificates")
+                  : t("account.missingBackendConfiguration")}
               </p>
             )}
             <div class="setup-actions">
               <button class="secondary-button" onClick={wizard.edit}>
-                {certificates ? "修改连接" : "上一步"}
+                {certificates
+                  ? t("account.editConnection")
+                  : t("account.previousStep")}
               </button>
               {!certificates && wizard.externalDeployment ? (
                 wizard.deploymentUrl ? (
@@ -102,12 +113,12 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    打开已部署站点
+                    {t("account.openDeployedSite")}
                     <Icon name="arrow-up-right" />
                   </a>
                 ) : (
                   <button class="primary-button" disabled>
-                    打开已部署站点
+                    {t("account.openDeployedSite")}
                   </button>
                 )
               ) : (
@@ -117,7 +128,7 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
                   onClick={onRetry}
                 >
                   <Icon name="refresh" />
-                  {checking ? "正在检测…" : "重新检测"}
+                  {checking ? t("account.checking") : t("account.checkAgain")}
                 </button>
               )}
             </div>
@@ -130,10 +141,10 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
           target="_blank"
           rel="noreferrer"
         >
-          配置文档
+          {t("account.configurationDocumentation")}
         </a>
         <button class="text-button" onClick={onDemo}>
-          先体验演示
+          {t("account.tryDemo")}
         </button>
       </footer>
     </main>

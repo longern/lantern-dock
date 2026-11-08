@@ -1,3 +1,5 @@
+import { t } from "../../shared/i18n.js";
+import { coreError } from "./errors.js";
 import { createFile } from "mp4box";
 import { limitedBytes } from "./content.js";
 import { checkResponse } from "./dav.js";
@@ -5,7 +7,6 @@ import { checkResponse } from "./dav.js";
 const chunkSize = 1024 * 1024;
 const metadataLimit = 16 * 1024 * 1024;
 const queueLimit = 16 * 1024 * 1024;
-const unsupported = "浏览器不支持此视频的格式或编码，请下载后播放。";
 
 // Do not surface raw parser messages: metadata can contain private text. Keep
 // only known parser/box names and a numeric byte offset for useful diagnostics.
@@ -27,10 +28,9 @@ export function mp4ParseError(module, detail = "", offset) {
   const value = position ? Number(position[1]) : offset;
   if (Number.isSafeInteger(value) && value >= 0) diagnostic.offset = value;
   const context = [diagnostic.parser, diagnostic.box,
-    diagnostic.offset === undefined ? null : `字节 ${diagnostic.offset}`,
-  ].filter(Boolean).join("，");
-  const error = new Error(`视频文件无法解析（${context}），请下载后播放。`);
-  error.code = "MP4_PARSE_ERROR";
+    diagnostic.offset === undefined ? null : t("core.diagnosticByte", { offset: diagnostic.offset }),
+  ].filter(Boolean).join(t("core.diagnosticSeparator"));
+  const error = coreError("MP4_PARSE_ERROR", { context });
   error.diagnostic = Object.freeze(diagnostic);
   return error;
 }
@@ -96,7 +96,7 @@ export class MP4MediaSource {
       !Number.isFinite(info.duration / info.timescale) ||
       info.duration <= 0
     )
-      throw new Error(unsupported);
+      throw coreError("VIDEO_UNSUPPORTED");
     const bitrate = tracks.reduce(
       (sum, track) => sum + (track.bitrate || 0),
       0,
@@ -107,7 +107,7 @@ export class MP4MediaSource {
         : 10;
     for (const track of tracks) {
       const mime = `${track.video ? "video" : "audio"}/mp4; codecs="${track.codec}"`;
-      if (!MediaSource.isTypeSupported(mime)) throw new Error(unsupported);
+      if (!MediaSource.isTypeSupported(mime)) throw coreError("VIDEO_UNSUPPORTED");
       const source = this.media.addSourceBuffer(mime);
       const buffer = { id: track.id, source, queue: [], current: null };
       buffer.updated = () => {
@@ -121,7 +121,7 @@ export class MP4MediaSource {
         this.pump(buffer);
         this.notify();
       };
-      buffer.error = () => this.fail(new Error(unsupported));
+      buffer.error = () => this.fail(coreError("VIDEO_UNSUPPORTED"));
       source.addEventListener("updateend", buffer.updated);
       source.addEventListener("error", buffer.error);
       this.buffers.push(buffer);
@@ -250,10 +250,10 @@ export class MP4MediaSource {
         !Number.isSafeInteger(Number(match[3]))
       ) {
         await response.body?.cancel();
-        throw new Error(
+        throw coreError(
           response.status === 200 && this.etag
-            ? "视频已更新，请刷新后重试。"
-            : "后端未提供有效的 Range 响应，请下载后播放。",
+            ? "VIDEO_CHANGED"
+            : "VIDEO_RANGE_INVALID",
         );
       }
       if (
@@ -261,7 +261,7 @@ export class MP4MediaSource {
         (this.size !== Infinity && this.size !== Number(match[3]))
       ) {
         await response.body?.cancel();
-        throw new Error("视频已更新，请刷新后重试。");
+        throw coreError("VIDEO_CHANGED");
       }
       this.size = Number(match[3]);
       if (!this.etag) {
@@ -270,7 +270,7 @@ export class MP4MediaSource {
       }
       const bytes = await limitedBytes(response, chunkSize, request.signal);
       if (bytes.byteLength !== Number(match[2]) - offset + 1)
-        throw new Error("视频数据不完整，请重试。");
+        throw coreError("VIDEO_INCOMPLETE");
       const data = bytes.buffer.slice(
         bytes.byteOffset,
         bytes.byteOffset + bytes.byteLength,
@@ -291,7 +291,7 @@ export class MP4MediaSource {
         this.nextSeek = undefined;
       }
       if (!this.eof && this.offset >= this.size) {
-        if (!this.info) throw new Error("无法读取视频索引，请下载后播放。");
+        if (!this.info) throw coreError("VIDEO_INDEX_UNREADABLE");
         this.file.flush();
         this.eof = true;
       }
@@ -322,7 +322,7 @@ export class MP4MediaSource {
       if (!this.info) {
         this.metadataBytes += data.byteLength;
         if (this.metadataBytes > metadataLimit)
-          throw new Error("视频索引超过预览处理限制，请下载后播放。");
+          throw coreError("VIDEO_INDEX_LIMIT");
       }
       let next;
       try {
@@ -340,13 +340,13 @@ export class MP4MediaSource {
         throw error;
       }
       if (this.file.getAllocatedSampleDataSize() > 2 * queueLimit)
-        throw new Error("视频片段超过预览处理限制，请下载后播放。");
+        throw coreError("VIDEO_SEGMENT_LIMIT");
       if (this.failed) return;
       if (!Number.isSafeInteger(next) || next < 0 || next > this.size)
-        throw new Error("视频索引无效，请下载后播放。");
+        throw coreError("VIDEO_INDEX_INVALID");
       this.offset = next;
       if (this.nextSeek === undefined && this.offset >= this.size) {
-        if (!this.info) throw new Error("无法读取视频索引，请下载后播放。");
+        if (!this.info) throw coreError("VIDEO_INDEX_UNREADABLE");
         this.file.flush();
         this.eof = true;
       }
@@ -358,7 +358,7 @@ export class MP4MediaSource {
     this.controller.abort();
     this.file.stop();
     this.notify();
-    this.onError?.(error instanceof Error ? error : new Error(unsupported));
+    this.onError?.(error instanceof Error ? error : coreError("VIDEO_UNSUPPORTED"));
   }
   dispose() {
     if (this.disposed) return;

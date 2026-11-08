@@ -1,3 +1,4 @@
+import { coreError } from "./errors.js";
 export function readRecords(key, suffix, storage) {
   // The backend determines the namespace. No key means it is not known yet,
   // not that this backend has an empty history.
@@ -13,7 +14,7 @@ export function readRecords(key, suffix, storage) {
     return {
       status: "error",
       items: [],
-      error: new Error("无法读取本机记录，请检查浏览器权限或稍后重试。"),
+      error: coreError("RECORDS_UNAVAILABLE"),
     };
   }
 }

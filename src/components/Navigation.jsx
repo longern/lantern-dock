@@ -1,19 +1,20 @@
+import { t } from "../../shared/i18n.js";
 import { Icon } from "./Icon.jsx";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { Dialog } from "./Dialog.jsx";
 import { useEffect } from "preact/hooks";
 
 const modes = [
-  ["home", "home", "首页"],
-  ["all", "folder", "文件"],
-  ["favorites", "star", "收藏"],
+  ["home", "home", "library.home"],
+  ["all", "folder", "library.files"],
+  ["favorites", "star", "library.favorites"],
 ];
 const kinds = [
-  ["image", "图片"],
-  ["text", "文档"],
-  ["video", "视频"],
-  ["book", "图书"],
-  ["audio", "音乐"],
+  ["image", "library.images"],
+  ["text", "library.documents"],
+  ["video", "library.videos"],
+  ["book", "library.books"],
+  ["audio", "library.music"],
 ];
 
 export function Sidebar({ library, records, open, onClose, onSettings }) {
@@ -43,12 +44,12 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
           <span>LanternDock</span>
         </a>
         {mobile && (
-          <button class="icon-button" aria-label="关闭导航" onClick={onClose}>
+          <button class="icon-button" aria-label={t("library.closeNavigation")} onClick={onClose}>
             <Icon name="x" />
           </button>
         )}
       </div>
-      <nav class="main-nav" aria-label="资源导航">
+      <nav class="main-nav" aria-label={t("library.resourceNavigation")}>
         {modes.map(([mode, icon, label]) => (
           <button
             key={mode}
@@ -57,7 +58,7 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
             onClick={() => select(mode)}
           >
             <Icon name={icon} />
-            {label}
+            {t(label)}
             {((mode === "all" && library.entries.length > 0) ||
               (mode === "favorites" && records.favorites.length > 0)) && (
               <span class="nav-count">
@@ -69,10 +70,10 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
           </button>
         ))}
       </nav>
-      <div class="nav-label" title="筛选当前文件夹">
-        文件类型
+      <div class="nav-label" title={t("library.filterCurrentFolder")}>
+        {t("library.fileTypes")}
       </div>
-      <nav class="type-nav" aria-label="文件类型">
+      <nav class="type-nav" aria-label={t("library.fileTypes")}>
         {kinds.map(([kind, label]) => (
           <button
             key={kind}
@@ -81,22 +82,23 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
             onClick={() => select("all", kind)}
           >
             <Icon name={kind} />
-            {label}
+            {t(label)}
           </button>
         ))}
       </nav>
       <div class="sidebar-spacer" />
       <div class="sidebar-bottom">
-        <a class="icon-button" href="#/account" aria-label="我的账户">
+        <a class="icon-button" href="#/account" aria-label={t("library.myAccount")}>
           <Icon name="user" />
         </a>
         <button
+          id="connection-settings"
           class="sidebar-settings"
-          aria-label="连接设置"
+          aria-label={t("library.connectionSettings")}
           onClick={onSettings}
         >
           <Icon name="settings" />
-          <span>连接设置</span>
+          <span>{t("library.connectionSettings")}</span>
         </button>
       </div>
     </>
@@ -105,14 +107,14 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
     <Dialog
       id="sidebar"
       class="sidebar sidebar-drawer"
-      aria-label="主导航"
+      aria-label={t("library.mainNavigation")}
       open={open}
       onClose={onClose}
     >
       {content}
     </Dialog>
   ) : (
-    <aside id="sidebar" class="sidebar" aria-label="主导航">
+    <aside id="sidebar" class="sidebar" aria-label={t("library.mainNavigation")}>
       {content}
     </aside>
   );
@@ -124,12 +126,12 @@ export function Topbar({ library, menuOpen, onMenu }) {
   const root = library.connection?.client.root || "/";
   const crumbs = [
     {
-      label: library.mode === "favorites" ? "收藏" : "文件",
+      label: library.mode === "favorites" ? t("library.favorites") : t("library.files"),
       path: root,
     },
   ];
   if (library.mode === "all") {
-    crumbs.push({ label: library.backend?.name || "资源", path: root });
+    crumbs.push({ label: library.backend?.name || t("library.resources"), path: root });
     let path = root;
     for (const part of library.path
       .slice(root.length)
@@ -140,7 +142,7 @@ export function Topbar({ library, menuOpen, onMenu }) {
     }
   }
   const breadcrumbs = (
-    <nav class="breadcrumbs" aria-label="文件路径">
+    <nav class="breadcrumbs" aria-label={t("library.filePath")}>
       {crumbs.map((crumb, index) => (
         <span class="breadcrumb" key={`${index}:${crumb.path}`}>
           {index > 0 && <Icon name="chevron-right" />}
@@ -162,14 +164,14 @@ export function Topbar({ library, menuOpen, onMenu }) {
         type="search"
         value={library.query}
         onInput={(event) => library.setQuery(event.currentTarget.value)}
-        placeholder="搜索文件"
-        aria-label="搜索文件"
+        placeholder={t("library.searchFiles")}
+        aria-label={t("library.searchFiles")}
       />
       {library.query && (
         <button
           type="button"
           class="search-clear icon-button"
-          aria-label="清除搜索"
+          aria-label={t("library.clearSearch")}
           onClick={() => {
             library.setQuery("");
             document.getElementById("search")?.focus();
@@ -184,8 +186,9 @@ export function Topbar({ library, menuOpen, onMenu }) {
     <div class="browser-header">
       <header class="topbar">
         <button
+          id="navigation-toggle"
           class="icon-button mobile-menu"
-          aria-label="打开导航"
+          aria-label={t("library.openNavigation")}
           aria-expanded={menuOpen}
           aria-controls="sidebar"
           aria-haspopup="dialog"
@@ -209,8 +212,8 @@ export function Topbar({ library, menuOpen, onMenu }) {
           <button
             id="refresh-button"
             class="icon-button"
-            aria-label="刷新目录"
-            title="刷新"
+            aria-label={t("library.refreshDirectory")}
+            title={t("library.refresh")}
             aria-busy={library.loading}
             disabled={library.loading}
             onClick={library.refresh}
@@ -220,8 +223,8 @@ export function Topbar({ library, menuOpen, onMenu }) {
           <a
             class="account-entry icon-button"
             href="#/account"
-            aria-label="我的账户"
-            title="我的账户"
+            aria-label={t("library.myAccount")}
+            title={t("library.myAccount")}
           >
             <Icon name="user" />
           </a>
@@ -239,7 +242,7 @@ export function Topbar({ library, menuOpen, onMenu }) {
 
 export function MobileTabs({ library, onCloseMenu }) {
   return (
-    <nav class="mobile-tabs" aria-label="移动端资源导航">
+    <nav class="mobile-tabs" aria-label={t("library.mobileResourceNavigation")}>
       {modes.map(([mode, icon, label]) => (
         <button
           key={mode}
@@ -251,7 +254,7 @@ export function MobileTabs({ library, onCloseMenu }) {
           }}
         >
           <Icon name={icon} />
-          {label}
+          {t(label)}
         </button>
       ))}
     </nav>

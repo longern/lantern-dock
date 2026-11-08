@@ -1,3 +1,4 @@
+import { t, locale } from "../../shared/i18n.js";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { DirectTransport } from "../lib/transport.js";
 import { DAVClient } from "../lib/dav.js";
@@ -49,7 +50,7 @@ export function useLibrary() {
       try {
         if (demoPreview) {
           connect({
-            name: "公开资源库",
+            name: t("core.publicLibraryName"),
             transport: "demo",
             endpoint: "",
             rootPath: "/",
@@ -61,11 +62,12 @@ export function useLibrary() {
         }
         const response = await fetch("/api/config", {
           cache: "no-store",
+          headers: { "Accept-Language": locale },
           signal: controller.signal,
         });
         const config = await response.json();
         if (controller.signal.aborted) return;
-        if (!response.ok) throw new Error(config.error || "服务配置暂不可用");
+        if (!response.ok) throw new Error(config.error || t("core.configurationUnavailable"));
         if (config.setupRequired) {
           setSetup({ ...config.setup, checked: revision > 0 });
           return;

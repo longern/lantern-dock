@@ -1,8 +1,9 @@
+import { coreError } from "./errors.js";
 export async function limitedBytes(response, limit, signal) {
   const declared = Number(response.headers.get("Content-Length"));
   if (declared > limit) {
     await response.body?.cancel();
-    throw new Error("文件超过此浏览器的预览 / 内存下载限制。");
+    throw coreError("MEMORY_LIMIT");
   }
   if (!response.body) return new Uint8Array();
   const reader = response.body.getReader();
@@ -15,7 +16,7 @@ export async function limitedBytes(response, limit, signal) {
       if (done) break;
       total += value.length;
       if (total > limit)
-        throw new Error("文件超过此浏览器的预览 / 内存下载限制。");
+        throw coreError("MEMORY_LIMIT");
       chunks.push(value);
     }
   } catch (error) {

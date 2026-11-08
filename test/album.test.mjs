@@ -76,7 +76,7 @@ test("equal timestamps sort deterministically and non-media entries are excluded
 });
 
 test("day grouping follows the browser-local timezone including daylight-saving boundaries", () => {
-  const run = (zone, dates, current) => JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", `
+  const run = (zone, dates, current) => JSON.parse(execFileSync(process.execPath, ["--import", "./test/helpers/locale.mjs", "--input-type=module", "-e", `
     import { groupMediaByDate } from './src/lib/album.js';
     const photos = ${JSON.stringify(dates)}.map((modified, index) => ({ name: String(index), path: '/' + index, kind: 'image', modified }));
     console.log(JSON.stringify(groupMediaByDate(photos, new Date(${JSON.stringify(current)})).map(({key,label}) => ({key,label}))));

@@ -71,11 +71,11 @@ func sourceImageMetadata(file *os.File) (imageMetadata, error) {
 	}
 	config, format, err := image.DecodeConfig(io.LimitReader(file, maxImageBytes+1))
 	if err != nil {
-		return imageMetadata{}, fault(415, "IMAGE_UNSUPPORTED", "此图片格式暂不支持生成预览。")
+		return imageMetadata{}, fault(415, "IMAGE_UNSUPPORTED", "errors.imageUnsupported")
 	}
 	m := imageMetadata{Width: config.Width, Height: config.Height, Orientation: 1}
 	if !m.valid() {
-		return m, fault(413, "IMAGE_TOO_LARGE", "图片尺寸超过预览处理限制。")
+		return m, fault(413, "IMAGE_TOO_LARGE", "errors.imageDimensionsTooLarge")
 	}
 	if format == "jpeg" || format == "tiff" {
 		_, _ = file.Seek(0, io.SeekStart)
@@ -138,7 +138,7 @@ func (s *Server) imageMetadata(ctx context.Context, file *os.File, name, version
 		return m, err
 	}
 	if !s.currentImage(name, version) {
-		return m, fault(409, "IMAGE_CHANGED", "文件已更新，请刷新后重试。")
+		return m, fault(409, "IMAGE_CHANGED", "errors.imageChanged")
 	}
 	data, _ := json.Marshal(m)
 	s.images.put(key, data)
@@ -167,7 +167,7 @@ func (s *Server) imageRendition(ctx context.Context, file *os.File, name, versio
 			return nil, err
 		}
 		if !s.currentImage(name, version) {
-			return nil, fault(409, "IMAGE_CHANGED", "文件已更新，请刷新后重试。")
+			return nil, fault(409, "IMAGE_CHANGED", "errors.imageChanged")
 		}
 		s.images.put(key, data)
 		return data, nil
@@ -177,23 +177,23 @@ func (s *Server) imageRendition(ctx context.Context, file *os.File, name, versio
 	}
 	source, err := io.ReadAll(io.LimitReader(file, maxImageBytes+1))
 	if err != nil || len(source) > maxImageBytes {
-		return nil, fault(413, "IMAGE_TOO_LARGE", "图片大小超过预览处理限制。")
+		return nil, fault(413, "IMAGE_TOO_LARGE", "errors.imageTooLarge")
 	}
 	config, _, err := image.DecodeConfig(bytes.NewReader(source))
 	if err != nil || config.Width <= 0 || config.Height <= 0 || int64(config.Width)*int64(config.Height) > maxImagePixels {
-		return nil, fault(415, "IMAGE_UNSUPPORTED", "无法解码此图片。")
+		return nil, fault(415, "IMAGE_UNSUPPORTED", "errors.imageDecodeFailed")
 	}
 	img, err := imaging.Decode(bytes.NewReader(source))
 	if err != nil {
-		return nil, fault(415, "IMAGE_UNSUPPORTED", "无法解码此图片。")
+		return nil, fault(415, "IMAGE_UNSUPPORTED", "errors.imageDecodeFailed")
 	}
 	// Do not trust a header check if a file was replaced or edited during decode.
 	if img.Bounds().Dx() <= 0 || img.Bounds().Dy() <= 0 || int64(img.Bounds().Dx())*int64(img.Bounds().Dy()) > maxImagePixels {
-		return nil, fault(413, "IMAGE_TOO_LARGE", "图片尺寸超过预览处理限制。")
+		return nil, fault(413, "IMAGE_TOO_LARGE", "errors.imageDimensionsTooLarge")
 	}
 	img = orientImage(img, m.Orientation)
 	if img.Bounds().Dx() != m.Width || img.Bounds().Dy() != m.Height {
-		return nil, fault(409, "IMAGE_CHANGED", "文件已更新，请刷新后重试。")
+		return nil, fault(409, "IMAGE_CHANGED", "errors.imageChanged")
 	}
 	img = imaging.Resize(img, size.Width, size.Height, imaging.Box)
 	// Re-encoding drops source metadata; flatten transparency on white for JPG.
@@ -208,7 +208,7 @@ func (s *Server) imageRendition(ctx context.Context, file *os.File, name, versio
 		return nil, err
 	}
 	if !s.currentImage(name, version) {
-		return nil, fault(409, "IMAGE_CHANGED", "文件已更新，请刷新后重试。")
+		return nil, fault(409, "IMAGE_CHANGED", "errors.imageChanged")
 	}
 	data := output.Bytes()
 	s.images.put(key, data)
@@ -222,44 +222,44 @@ func (s *Server) serveImage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method != "GET" && r.Method != "HEAD" {
-		writeError(w, fault(405, "METHOD_NOT_ALLOWED", "图片服务仅支持读取。"))
+		writeError(w, r, fault(405, "METHOD_NOT_ALLOWED", "errors.imagesReadOnly"))
 		return
 	}
 	parts := strings.Split(strings.TrimPrefix(r.URL.Path, imagesPath+"/"), "/")
 	if len(parts) != 1 && len(parts) != 2 && len(parts) != 5 {
-		writeError(w, fault(404, "NOT_FOUND", "找不到这个地址。"))
+		writeError(w, r, fault(404, "NOT_FOUND", "errors.notFound"))
 		return
 	}
 	raw, err := base64.RawURLEncoding.DecodeString(parts[0])
 	name := string(raw)
 	if err != nil || len(name) == 0 || len(name) > 8192 || !utf8.ValidString(name) || strings.HasPrefix(name, "/") || !publicPathAllowed(name) || base64.RawURLEncoding.EncodeToString(raw) != parts[0] {
-		writeError(w, fault(404, "NOT_FOUND", "找不到这个地址。"))
+		writeError(w, r, fault(404, "NOT_FOUND", "errors.notFound"))
 		return
 	}
 	if len(parts) == 2 && parts[1] != "info.json" {
-		writeError(w, fault(404, "NOT_FOUND", "找不到这个地址。"))
+		writeError(w, r, fault(404, "NOT_FOUND", "errors.notFound"))
 		return
 	}
 	file, err := (publicFS{s.public}).open(name)
 	if err != nil {
-		writeError(w, fault(404, "NOT_FOUND", "找不到这个地址。"))
+		writeError(w, r, fault(404, "NOT_FOUND", "errors.notFound"))
 		return
 	}
 	defer file.Close()
 	info, err := file.Stat()
 	if err != nil || !info.Mode().IsRegular() {
-		writeError(w, fault(404, "NOT_FOUND", "找不到这个地址。"))
+		writeError(w, r, fault(404, "NOT_FOUND", "errors.notFound"))
 		return
 	}
 	if !videoSource(name) && info.Size() > maxImageBytes {
-		writeError(w, fault(413, "IMAGE_TOO_LARGE", "图片大小超过预览处理限制。"))
+		writeError(w, r, fault(413, "IMAGE_TOO_LARGE", "errors.imageTooLarge"))
 		return
 	}
 	select {
 	case s.images.requests <- struct{}{}:
 	default:
 		w.Header().Set("Retry-After", "1")
-		writeError(w, fault(503, "IMAGE_BUSY", "图片处理繁忙，请稍后重试。"))
+		writeError(w, r, fault(503, "IMAGE_BUSY", "errors.imageBusy"))
 		return
 	}
 	defer func() { <-s.images.requests }()
@@ -270,9 +270,9 @@ func (s *Server) serveImage(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			w.Header().Set("Retry-After", "1")
-			err = fault(503, "IMAGE_BUSY", "视频封面处理超时，请稍后重试。")
+			err = fault(503, "IMAGE_BUSY", "errors.videoTimeout")
 		}
-		writeError(w, err)
+		writeError(w, r, err)
 		return
 	}
 	scheme := "http"
@@ -314,7 +314,7 @@ func (s *Server) serveImage(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		if parts[1] != "full" || parts[3] != "0" || parts[4] != "default.jpg" {
-			writeError(w, fault(400, "IMAGE_REQUEST_UNSUPPORTED", "此图片服务支持完整画面的固定尺寸 JPG 预览。"))
+			writeError(w, r, fault(400, "IMAGE_REQUEST_UNSUPPORTED", "errors.imageRequestUnsupported"))
 			return
 		}
 		sizes := m.sizes()
@@ -329,7 +329,7 @@ func (s *Server) serveImage(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if !matched {
-				writeError(w, fault(400, "IMAGE_SIZE_UNSUPPORTED", "请使用 info.json 中列出的预览尺寸。"))
+				writeError(w, r, fault(400, "IMAGE_SIZE_UNSUPPORTED", "errors.imageSizeUnsupported"))
 				return
 			}
 		}
@@ -337,14 +337,14 @@ func (s *Server) serveImage(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				w.Header().Set("Retry-After", "1")
-				err = fault(503, "IMAGE_BUSY", "图片处理超时，请稍后重试。")
+				err = fault(503, "IMAGE_BUSY", "errors.imageTimeout")
 			}
-			writeError(w, err)
+			writeError(w, r, err)
 			return
 		}
 	}
 	if !s.currentImage(name, version) {
-		writeError(w, fault(404, "NOT_FOUND", "找不到这个地址。"))
+		writeError(w, r, fault(404, "NOT_FOUND", "errors.notFound"))
 		return
 	}
 	w.Header().Set("Content-Type", contentType)

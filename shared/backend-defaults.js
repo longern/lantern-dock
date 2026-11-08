@@ -1,7 +1,7 @@
 import { backendPaths } from "./backend-paths.js";
 
 export const backendDefaults = Object.freeze({
-  name: "我的文件",
+  name: "My files",
   transport: "http",
   rootPath: backendPaths.files,
   auth: "none",

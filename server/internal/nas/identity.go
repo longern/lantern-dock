@@ -222,31 +222,31 @@ func (s *Server) ConfigureIdentity(cfg IdentityConfig) error {
 func (s *Server) identityUser(r *http.Request) (IdentityUser, error) {
 	var user IdentityUser
 	if s.identity == nil {
-		return user, fault(503, "IDENTITY_DISABLED", "NAS 尚未配置身份验证。")
+		return user, fault(503, "IDENTITY_DISABLED", "errors.identityDisabled")
 	}
 	values := r.Header.Values("Authorization")
 	if len(values) != 1 {
-		return user, fault(401, "LOGIN_REQUIRED", "请先登录。")
+		return user, fault(401, "LOGIN_REQUIRED", "errors.loginRequired")
 	}
 	scheme, raw, ok := strings.Cut(values[0], " ")
 	if !ok || !strings.EqualFold(scheme, "DPoP") || len(raw) > 8192 {
-		return user, fault(401, "LOGIN_REQUIRED", "登录凭据无效。")
+		return user, fault(401, "LOGIN_REQUIRED", "errors.invalidLogin")
 	}
 	signed, err := jose.ParseSigned(raw, []jose.SignatureAlgorithm{jose.EdDSA})
 	if err != nil || len(signed.Signatures) != 1 {
-		return user, fault(401, "INVALID_IDENTITY", "身份凭据无效。")
+		return user, fault(401, "INVALID_IDENTITY", "errors.invalidIdentity")
 	}
 	header := signed.Signatures[0].Protected
 	typ, _ := header.ExtraHeaders["typ"].(string)
 	if (strings.ToLower(typ) != "at+jwt" && strings.ToLower(typ) != "application/at+jwt") || header.KeyID == "" || len(header.KeyID) > 128 {
-		return user, fault(401, "INVALID_IDENTITY", "身份凭据类型不正确。")
+		return user, fault(401, "INVALID_IDENTITY", "errors.invalidIdentityType")
 	}
 	payload, err := s.identity.keys.VerifySignature(r.Context(), raw)
 	if err != nil {
 		if errors.Is(err, errIdentityDiscovery) {
-			return user, fault(503, "IDENTITY_DISCOVERY_UNAVAILABLE", "无法获取站点授权配置，请检查 NAS 到站点的 HTTPS 连接。")
+			return user, fault(503, "IDENTITY_DISCOVERY_UNAVAILABLE", "errors.identityDiscoveryUnavailable")
 		}
-		return user, fault(401, "INVALID_IDENTITY", "身份凭据无效或已过期。")
+		return user, fault(401, "INVALID_IDENTITY", "errors.identityExpired")
 	}
 	var claims struct {
 		jwt.Claims
@@ -262,18 +262,18 @@ func (s *Server) identityUser(r *http.Request) (IdentityUser, error) {
 		} `json:"cnf"`
 	}
 	if err = json.Unmarshal(payload, &claims); err != nil || claims.Issuer != s.identity.config.SiteOrigin || !claims.Audience.Contains(s.identity.config.SiteOrigin+"/nas") || claims.LanternDock.ProtocolVersion != 2 || !validSubject(claims.Subject) || claims.ClientID == "" || len(claims.ClientID) > 2048 || claims.ID == "" || len(claims.ID) > 128 || claims.CNF.JKT == "" || claims.IssuedAt == nil || claims.Expiry == nil {
-		return user, fault(401, "INVALID_IDENTITY", "身份凭据不匹配。")
+		return user, fault(401, "INVALID_IDENTITY", "errors.identityMismatch")
 	}
 	now := time.Now()
 	issued, expires := claims.IssuedAt.Time(), claims.Expiry.Time()
 	if issued.After(now.Add(5*time.Second)) || !expires.After(now) || !expires.After(issued) || expires.Sub(issued) > time.Minute || now.Sub(issued) > 65*time.Second || (claims.NotBefore != nil && claims.NotBefore.Time().After(now.Add(5*time.Second))) {
-		return user, fault(401, "INVALID_IDENTITY", "身份凭据无效或已过期。")
+		return user, fault(401, "INVALID_IDENTITY", "errors.identityExpired")
 	}
 	if err = s.verifyProof(r, raw, claims.CNF.JKT); err != nil {
 		return user, err
 	}
 	if !containsScope(claims.Scope, "account:read") {
-		return user, fault(403, "INSUFFICIENT_SCOPE", "此凭据没有读取账户的权限。")
+		return user, fault(403, "INSUFFICIENT_SCOPE", "errors.insufficientScope")
 	}
 	user = IdentityUser{Issuer: claims.Issuer, Sub: claims.Subject, Name: claims.Name, Email: claims.Email, Role: "member"}
 	if s.identity.admins[user.Sub] {
@@ -291,7 +291,7 @@ func containsScope(value, required string) bool {
 }
 func (s *Server) verifyProof(r *http.Request, token, thumbprint string) error {
 	fail := func() error {
-		return fault(401, "INVALID_PROOF", "无法验证请求的持有证明，请重新登录。")
+		return fault(401, "INVALID_PROOF", "errors.invalidProof")
 	}
 	values := r.Header.Values("DPoP")
 	if len(values) != 1 || len(values[0]) > 8192 {
@@ -336,11 +336,11 @@ func (s *Server) verifyProof(r *http.Request, token, thumbprint string) error {
 	key := base64.RawURLEncoding.EncodeToString(proofHash[:])
 	result, err := s.Store.DB.ExecContext(r.Context(), `INSERT INTO identity_proofs(id,expires_at) VALUES(?,?) ON CONFLICT(id) DO NOTHING`, key, time.Now().Unix()+120)
 	if err != nil {
-		return fault(503, "AUTH_STORAGE_UNAVAILABLE", "身份验证存储暂不可用，请稍后重试。")
+		return fault(503, "AUTH_STORAGE_UNAVAILABLE", "errors.authStorageUnavailable")
 	}
 	count, err := result.RowsAffected()
 	if err != nil {
-		return fault(503, "AUTH_STORAGE_UNAVAILABLE", "身份验证存储暂不可用，请稍后重试。")
+		return fault(503, "AUTH_STORAGE_UNAVAILABLE", "errors.authStorageUnavailable")
 	}
 	if count != 1 {
 		return fail()
@@ -385,11 +385,14 @@ func sameProofURI(proof, target string) bool {
 	a, b := normalize(proof), normalize(target)
 	return a != "" && a == b
 }
-func writeIdentityError(w http.ResponseWriter, err error) {
+func writeIdentityError(w http.ResponseWriter, r *http.Request, err error) {
+	t := responseTranslator(w, r)
 	var f *Fault
 	if !errors.As(err, &f) {
-		f = &Fault{503, "AUTH_UNAVAILABLE", "身份验证暂不可用。"}
+		f = &Fault{503, "AUTH_UNAVAILABLE", "errors.authUnavailable"}
 	}
+	// OAuth descriptions are ASCII protocol diagnostics. The message below is
+	// localized for display without changing the authentication wire contract.
 	code, description := "invalid_token", "The access token is missing, invalid or expired."
 	switch f.Code {
 	case "INVALID_PROOF":
@@ -410,7 +413,7 @@ func writeIdentityError(w http.ResponseWriter, err error) {
 		}
 		w.Header().Set("WWW-Authenticate", challenge)
 	}
-	writeJSON(w, f.Status, map[string]string{"error": code, "error_description": description, "message": f.Message, "code": f.Code})
+	writeJSON(w, f.Status, map[string]string{"error": code, "error_description": description, "message": t.T(f.MessageKey), "code": f.Code})
 }
 func (s *Server) serveAccount(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "OPTIONS" {
@@ -428,12 +431,12 @@ func (s *Server) serveAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Path != accountPath || r.Method != "GET" {
-		writeError(w, fault(404, "NOT_FOUND", "找不到这个账户接口。"))
+		writeError(w, r, fault(404, "NOT_FOUND", "errors.accountNotFound"))
 		return
 	}
 	user, err := s.identityUser(r)
 	if err != nil {
-		writeIdentityError(w, err)
+		writeIdentityError(w, r, err)
 		return
 	}
 	writeJSON(w, 200, map[string]any{"user": user, "administratorConfigured": len(s.identity.admins) > 0})

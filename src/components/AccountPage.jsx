@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import {
@@ -46,7 +47,7 @@ export function AccountPage() {
               info.user.issuer !== value.user.issuer
             ) {
               info.transport.close();
-              throw new Error("账户身份不匹配，请退出后重新登录。");
+              throw new Error(t("account.identityMismatch"));
             }
             connection.current = info.transport;
             setAccount(info);
@@ -69,12 +70,12 @@ export function AccountPage() {
       window.removeEventListener("pagehide", stop);
     };
   }, [revision]);
-  const copy = async (value, label) => {
+  const copy = async (value, successMessage) => {
     try {
       await navigator.clipboard.writeText(value);
-      setCopied(`已复制${label}`);
+      setCopied(successMessage);
     } catch {
-      setCopied("复制失败，请手动选中内容复制。");
+      setCopied(t("account.copyFailed"));
     }
   };
   const login = async () => {
@@ -114,15 +115,17 @@ export function AccountPage() {
       </a>
       <section class="setup-card" aria-labelledby="account-title">
         <div class="setup-intro">
-          <span class="setup-eyebrow">我的账户</span>
+          <span class="setup-eyebrow">{t("account.myAccount")}</span>
           <h1 id="account-title">
-            {session ? session.user.name || "已登录" : "登录你的账户"}
+            {session
+              ? session.user.name || t("account.signedIn")
+              : t("account.signInTitle")}
           </h1>
-          {!session && <p>公开文件可直接浏览，登录后可查看账户信息。</p>}
+          {!session && <p>{t("account.signInDescription")}</p>}
         </div>
         {loading && (
           <p class="upload-message" role="status">
-            正在检查账户…
+            {t("account.checkingAccount")}
           </p>
         )}
         {error && (
@@ -135,20 +138,20 @@ export function AccountPage() {
             <dl class="account-details">
               {session.user.email && (
                 <div>
-                  <dt>邮箱</dt>
+                  <dt>{t("account.email")}</dt>
                   <dd>{session.user.email}</dd>
                 </div>
               )}
               <div>
-                <dt>站点身份</dt>
+                <dt>{t("account.siteRole")}</dt>
                 <dd>
                   {account
                     ? account.user.role === "admin"
-                      ? "管理员"
-                      : "普通用户"
+                      ? t("account.administrator")
+                      : t("account.standardUser")
                     : accountError
-                      ? "暂时无法验证"
-                      : "验证中…"}
+                      ? t("account.verificationUnavailable")
+                      : t("account.verifying")}
                 </dd>
               </div>
             </dl>
@@ -156,36 +159,35 @@ export function AccountPage() {
               class="account-advanced"
               open={!account?.administratorConfigured}
             >
-              <summary>账户详情</summary>
+              <summary>{t("account.accountDetails")}</summary>
               <dl class="account-details">
                 <div>
-                  <dt>身份签发方</dt>
+                  <dt>{t("account.identityIssuer")}</dt>
                   <dd>{session.user.issuer}</dd>
                 </div>
               </dl>
               <label class="form-label" for="account-sub">
-                用户标识（sub）
+                {t("account.userSubject")}
               </label>
               <div class="account-copy">
                 <input id="account-sub" readOnly value={session.user.sub} />
                 <button
                   class="secondary-button"
-                  onClick={() => copy(session.user.sub, " sub")}
+                  onClick={() =>
+                    copy(session.user.sub, t("account.subjectCopied"))
+                  }
                 >
                   <Icon name="copy" />
-                  复制 sub
+                  {t("account.copySubject")}
                 </button>
               </div>
             </details>
             {account && !account.administratorConfigured && (
               <div class="account-notice">
-                <h2>尚未配置管理员</h2>
-                <p>
-                  把下面的值填入 NAS 服务的 <code>ADMIN_SUBJECTS</code>{" "}
-                  环境变量，重启 NAS 服务后点击“重新检测”。
-                </p>
+                <h2>{t("account.administratorMissing")}</h2>
+                <p>{t("account.administratorInstructions")}</p>
                 <label class="form-label" for="account-admins">
-                  ADMIN_SUBJECTS 的值
+                  {t("account.administratorValue")}
                 </label>
                 <textarea
                   id="account-admins"
@@ -196,16 +198,19 @@ export function AccountPage() {
                 <button
                   class="secondary-button"
                   onClick={() =>
-                    copy(JSON.stringify([session.user.sub]), "管理员配置")
+                    copy(
+                      JSON.stringify([session.user.sub]),
+                      t("account.administratorCopied"),
+                    )
                   }
                 >
                   <Icon name="copy" />
-                  复制管理员配置
+                  {t("account.copyAdministrator")}
                 </button>
               </div>
             )}
             {account?.user.role === "admin" && (
-              <p class="account-notice">管理员权限已启用。</p>
+              <p class="account-notice">{t("account.administratorEnabled")}</p>
             )}
             {accountError && (
               <p class="account-notice error" role="alert">
@@ -223,13 +228,13 @@ export function AccountPage() {
           {!session && !loading && (
             <button class="primary-button" disabled={busy} onClick={login}>
               <Icon name="user" />
-              {busy ? "正在前往登录…" : "统一登录"}
+              {busy ? t("account.redirectingToSignIn") : t("account.signIn")}
             </button>
           )}
           {session && (
             <button class="secondary-button" disabled={busy} onClick={logout}>
               <Icon name="logout" />
-              退出登录
+              {t("account.signOut")}
             </button>
           )}
           <button
@@ -240,10 +245,10 @@ export function AccountPage() {
               setRevision((value) => value + 1);
             }}
           >
-            重新检测
+            {t("account.checkAgain")}
           </button>
           <a class="upload-back" href="#/">
-            返回公开文件
+            {t("account.backToPublicFiles")}
           </a>
         </div>
       </section>

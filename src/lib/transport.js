@@ -1,3 +1,5 @@
+import { t, locale } from "../../shared/i18n.js";
+import { coreError } from "./errors.js";
 import { WireReader, readResponse, requestBytes } from "./http-wire.js";
 export function basicAuthorization(username, password) {
   return (
@@ -44,9 +46,7 @@ export class DirectTransport {
     if (this.session) return this.session;
     if (this.connecting) return this.connecting;
     if (typeof WebTransport === "undefined")
-      throw new Error(
-        "此浏览器不支持 WebTransport，请使用支持该功能的浏览器，或将后端配置为 HTTPS。",
-      );
+      throw coreError("WEBTRANSPORT_UNSUPPORTED");
     const connecting = (async () => {
       const session = new WebTransport(
         this.config.endpoint,
@@ -68,16 +68,14 @@ export class DirectTransport {
             timer = setTimeout(
               () =>
                 reject(
-                  new Error(
-                    "连接超时，请检查 UDP 隧道、网页 Origin 和证书哈希。",
-                  ),
+                  coreError("CONNECTION_TIMEOUT"),
                 ),
               12000,
             );
           }),
         ]);
         if (this.pending !== session)
-          throw new DOMException("连接已取消", "AbortError");
+          throw new DOMException(t("core.connectionCancelled"), "AbortError");
         this.session = session;
         return session;
       } catch (error) {
@@ -102,6 +100,7 @@ export class DirectTransport {
     signal?.throwIfAborted();
     const auth = authorization(this.credentials);
     const outgoing = new Headers(headers);
+    outgoing.set("Accept-Language", locale);
     if (auth) outgoing.set("Authorization", auth);
     if (this.config.transport === "http") {
       const endpoint = new URL(this.config.endpoint);
@@ -110,9 +109,7 @@ export class DirectTransport {
         endpoint.protocol === "http:" &&
         !["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname)
       )
-        throw new Error(
-          "HTTPS 网页无法直接访问此明文 HTTP 地址。请使用 HTTPS 后端，或改用 WebTransport。",
-        );
+        throw coreError("MIXED_CONTENT");
       try {
         return await fetch(new URL(path, endpoint), {
           method,
@@ -124,9 +121,7 @@ export class DirectTransport {
         });
       } catch (error) {
         if (signal?.aborted) throw error;
-        throw new Error(
-          "无法直连后端。请检查地址、HTTPS 证书、网络，以及 WebDAV 的 CORS / OPTIONS 配置。",
-        );
+        throw coreError("BACKEND_UNREACHABLE");
       }
     }
     const session = await this.connect();

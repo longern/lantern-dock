@@ -64,10 +64,10 @@ func runVideoTool(ctx context.Context, file *os.File, program string, limit int,
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, fault(415, "VIDEO_UNSUPPORTED", "此视频暂不支持生成封面。")
+		return nil, fault(415, "VIDEO_UNSUPPORTED", "errors.videoUnsupported")
 	}
 	if output.overflow {
-		return nil, fault(413, "IMAGE_TOO_LARGE", "视频封面超过处理限制。")
+		return nil, fault(413, "IMAGE_TOO_LARGE", "errors.videoPreviewTooLarge")
 	}
 	return output.Bytes(), nil
 }
@@ -97,7 +97,7 @@ func sourceVideoMetadata(ctx context.Context, file *os.File) (imageMetadata, err
 		Format struct{ Duration string } `json:"format"`
 	}
 	if json.Unmarshal(data, &info) != nil {
-		return imageMetadata{}, fault(415, "VIDEO_UNSUPPORTED", "无法读取视频信息。")
+		return imageMetadata{}, fault(415, "VIDEO_UNSUPPORTED", "errors.videoMetadataUnavailable")
 	}
 	for _, stream := range info.Streams {
 		if stream.CodecType != "video" || stream.Disposition.Attached != 0 {
@@ -105,7 +105,7 @@ func sourceVideoMetadata(ctx context.Context, file *os.File) (imageMetadata, err
 		}
 		m := imageMetadata{Width: stream.Width, Height: stream.Height, Orientation: 1, Video: true, Stream: stream.Index}
 		if !m.valid() {
-			return m, fault(413, "IMAGE_TOO_LARGE", "视频尺寸超过封面处理限制。")
+			return m, fault(413, "IMAGE_TOO_LARGE", "errors.videoDimensionsTooLarge")
 		}
 		if a, b, ok := strings.Cut(stream.SAR, ":"); ok {
 			n, _ := strconv.Atoi(a)
@@ -129,11 +129,11 @@ func sourceVideoMetadata(ctx context.Context, file *os.File) (imageMetadata, err
 			m.Seek = math.Min(1, duration/2)
 		}
 		if !m.valid() {
-			return m, fault(413, "IMAGE_TOO_LARGE", "视频尺寸超过封面处理限制。")
+			return m, fault(413, "IMAGE_TOO_LARGE", "errors.videoDimensionsTooLarge")
 		}
 		return m, nil
 	}
-	return imageMetadata{}, fault(415, "VIDEO_UNSUPPORTED", "文件中没有可用的视频画面。")
+	return imageMetadata{}, fault(415, "VIDEO_UNSUPPORTED", "errors.videoFramesUnavailable")
 }
 func videoRendition(ctx context.Context, file *os.File, m imageMetadata, size imageSize) ([]byte, error) {
 	args := append(videoInput(), "-ss", strconv.FormatFloat(m.Seek, 'f', 3, 64), "-i", "fd:", "-map", "0:"+strconv.Itoa(m.Stream), "-frames:v", "1", "-an", "-sn", "-dn", "-vf", fmt.Sprintf("scale=%d:%d:flags=bilinear,setsar=1", size.Width, size.Height), "-map_metadata", "-1", "-threads", "1", "-filter_threads", "1", "-c:v", "mjpeg", "-q:v", "3", "-f", "image2pipe", "pipe:1")
@@ -143,7 +143,7 @@ func videoRendition(ctx context.Context, file *os.File, m imageMetadata, size im
 	}
 	config, err := jpeg.DecodeConfig(bytes.NewReader(data))
 	if err != nil || config.Width != size.Width || config.Height != size.Height {
-		return nil, fault(415, "VIDEO_UNSUPPORTED", "无法生成视频封面。")
+		return nil, fault(415, "VIDEO_UNSUPPORTED", "errors.videoPreviewUnavailable")
 	}
 	return data, nil
 }

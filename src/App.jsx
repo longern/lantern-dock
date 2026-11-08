@@ -1,3 +1,4 @@
+import { t } from "../shared/i18n.js";
 import {
   useCallback,
   useEffect,
@@ -162,9 +163,9 @@ function LibraryApp() {
         {library.mode === "home" && <CategoryCards library={library} />}
         {library.demoPreview && (
           <div class="demo-preview-note">
-            <span>正在体验演示文件</span>
+            <span>{t("library.demoPreview")}</span>
             <button class="text-button" onClick={library.endDemo}>
-              返回配置向导
+              {t("library.backToSetup")}
             </button>
           </div>
         )}
@@ -203,7 +204,7 @@ function LibraryApp() {
             setSelected(null);
             transfer.cancel();
             library.setCredentials({ mode: "none" });
-            toast("已清除页面内的登录信息。");
+            toast(t("library.credentialsCleared"));
           }}
           onClose={() => setSettings("closing")}
           feedback={feedback}

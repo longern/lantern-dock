@@ -148,7 +148,7 @@ func (w davCacheWriter) Write(data []byte) (int, error) {
 
 func (s *Server) serveDAV(w http.ResponseWriter, r *http.Request) {
 	if !publicPathAllowed(r.URL.Path) {
-		writeError(w, fault(404, "NOT_FOUND", "找不到这个地址。"))
+		writeError(w, r, fault(404, "NOT_FOUND", "errors.notFound"))
 		return
 	}
 	const allow = "GET, HEAD, OPTIONS, PROPFIND"
@@ -159,13 +159,13 @@ func (s *Server) serveDAV(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method != "GET" && r.Method != "HEAD" && r.Method != "PROPFIND" {
-		writeError(w, fault(405, "READ_ONLY", "公开文件仅支持浏览和下载。"))
+		writeError(w, r, fault(405, "READ_ONLY", "errors.readOnly"))
 		return
 	}
 	if r.Method == "PROPFIND" {
 		_ = http.NewResponseController(w).SetReadDeadline(time.Now().Add(15 * time.Second))
 		if d := r.Header.Get("Depth"); d != "0" && d != "1" {
-			writeError(w, fault(403, "FINITE_DEPTH_REQUIRED", "目录读取需要 Depth: 0 或 1。"))
+			writeError(w, r, fault(403, "FINITE_DEPTH_REQUIRED", "errors.finiteDepthRequired"))
 			return
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, 16<<10)

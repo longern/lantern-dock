@@ -1,3 +1,5 @@
+import { t } from "../../shared/i18n.js";
+import { coreError } from "../lib/errors.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 
 const memoryLimit = 256 * 1024 * 1024;
@@ -9,7 +11,7 @@ export function useDownload(connection, remember, toast) {
   const cancel = () => active.current?.abort();
   const download = async (item) => {
     if (active.current) {
-      toast("请先等待当前下载结束，或取消后重试。");
+      toast(t("core.downloadInProgress"));
       return;
     }
     const controller = new AbortController();
@@ -22,9 +24,7 @@ export function useDownload(connection, remember, toast) {
         });
         sink = await handle.createWritable();
       } else if (item.size > memoryLimit)
-        throw new Error(
-          "此浏览器的内存下载上限为 256 MB，请使用支持文件保存 API 的浏览器下载大文件。",
-        );
+        throw coreError("DOWNLOAD_FILE_API_REQUIRED");
       controller.signal.throwIfAborted();
       setProgress({ name: item.name, received: 0, total: 0 });
       const response = await connection.client.get(
@@ -35,7 +35,7 @@ export function useDownload(connection, remember, toast) {
         Number(response.headers.get("Content-Length")) || item.size || 0;
       if (!sink && total > memoryLimit) {
         await response.body?.cancel();
-        throw new Error("文件超过此浏览器的 256 MB 内存下载限制。");
+        throw coreError("DOWNLOAD_MEMORY_LIMIT");
       }
       const chunks = [];
       let received = 0;
@@ -50,7 +50,7 @@ export function useDownload(connection, remember, toast) {
             if (sink) await sink.write(value);
             else {
               if (received > memoryLimit)
-                throw new Error("文件超过此浏览器的 256 MB 内存下载限制。");
+                throw coreError("DOWNLOAD_MEMORY_LIMIT");
               chunks.push(value);
             }
             setProgress({ name: item.name, received, total });
@@ -83,12 +83,12 @@ export function useDownload(connection, remember, toast) {
         setTimeout(() => URL.revokeObjectURL(url), 60000);
       }
       remember(item);
-      toast("下载完成：" + item.name);
+      toast(t("core.downloadComplete", { name: item.name }));
     } catch (error) {
       if (sink) await sink.abort().catch(() => {});
       const cancelled =
         controller.signal.aborted || error.name === "AbortError";
-      toast(cancelled ? "已取消下载" : error.message, !cancelled);
+      toast(cancelled ? t("core.downloadCancelled") : error.message, !cancelled);
     } finally {
       if (active.current === controller) {
         active.current = null;

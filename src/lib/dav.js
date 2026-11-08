@@ -1,3 +1,4 @@
+import { coreError } from "./errors.js";
 import { limitedBytes } from "./content.js";
 export { limitedBytes } from "./content.js";
 import { MemoryCache, cachePolicy } from "./cache.js";
@@ -5,7 +6,7 @@ import { ImageClient } from "./images.js";
 
 export function normalizePath(value) {
   if (!value.startsWith("/") || /[?#\\\x00-\x1f]/.test(value))
-    throw new Error("无效文件路径");
+    throw coreError("INVALID_PATH");
   const trailing = value.endsWith("/");
   const parts = value
     .split("/")
@@ -15,10 +16,10 @@ export function normalizePath(value) {
       try {
         decoded = decodeURIComponent(part);
       } catch {
-        throw new Error("无效路径编码");
+        throw coreError("INVALID_PATH_ENCODING");
       }
       if ([".", ".."].includes(decoded) || /[\/\\\x00-\x1f]/.test(decoded))
-        throw new Error("不允许访问此路径");
+        throw coreError("PATH_DENIED");
       return encodeURIComponent(decoded);
     });
   return "/" + parts.join("/") + (trailing && parts.length ? "/" : "");
@@ -64,16 +65,14 @@ const child = (node, name) => localChildren(node, name)[0];
 const text = (node, name) => child(node, name)?.textContent?.trim() || "";
 export function parseDAV(xml, currentPath, rootPath) {
   if (/<!DOCTYPE|<!ENTITY/i.test(xml))
-    throw new Error("后端返回了不安全的 XML");
+    throw coreError("UNSAFE_XML");
   const doc = new DOMParser().parseFromString(xml, "application/xml");
   if (
     doc.querySelector("parsererror") ||
     doc.documentElement.localName !== "multistatus" ||
     doc.documentElement.namespaceURI !== "DAV:"
   )
-    throw new Error(
-      "后端未返回有效 WebDAV 目录。请确认地址指向 WebDAV 挂载路径。",
-    );
+    throw coreError("INVALID_WEBDAV");
   const current = normalizePath(currentPath),
     root = normalizePath(rootPath),
     items = [],
@@ -127,13 +126,13 @@ export function parseDAV(xml, currentPath, rootPath) {
 export function checkResponse(response) {
   if (!response.ok) void response.body?.cancel().catch(() => {});
   if (response.status === 401)
-    throw new Error("后端需要登录，请填写后端账号或访问令牌。");
+    throw coreError("BACKEND_LOGIN_REQUIRED");
   if (response.status === 407)
-    throw new Error("网关需要认证，请填写 Bridge 访问令牌。");
+    throw coreError("GATEWAY_AUTH_REQUIRED");
   if (response.status === 403)
-    throw new Error("后端拒绝访问。请检查文件权限和网关路径白名单。");
+    throw coreError("BACKEND_ACCESS_DENIED");
   if (!response.ok)
-    throw new Error(`后端返回 ${response.status}，请检查服务地址和访问权限。`);
+    throw coreError("BACKEND_RESPONSE_ERROR", { status: response.status });
   return response;
 }
 export class DAVClient {
@@ -154,7 +153,7 @@ export class DAVClient {
   async list(path, signal, { force = false } = {}) {
     signal?.throwIfAborted();
     path = normalizePath(path);
-    if (!withinRoot(path, this.root)) throw new Error("不能离开配置的根目录");
+    if (!withinRoot(path, this.root)) throw coreError("OUTSIDE_ROOT");
     if (!path.endsWith("/")) path += "/";
     const cached = this.directories.get(path);
     if (!force && cached && Date.now() - cached.time < cached.value.freshFor)
@@ -191,9 +190,9 @@ export class DAVClient {
   }
   async read(path, signal, headers = {}, method = "GET") {
     path = normalizePath(path);
-    if (!withinRoot(path, this.root)) throw new Error("不能离开配置的根目录");
+    if (!withinRoot(path, this.root)) throw coreError("OUTSIDE_ROOT");
     if (!["GET", "HEAD"].includes(method))
-      throw new Error("文件预览仅支持读取");
+      throw coreError("PREVIEW_READ_ONLY");
     return this.transport.request(path, { signal, headers, method });
   }
   async get(path, signal) {

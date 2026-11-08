@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import {
   certificateWebhookUrl,
@@ -33,7 +34,7 @@ export function CertificateWebhook({
         .catch(() => {
           if (active)
             setError(
-              "无法在此浏览器生成 URL，请使用 HTTPS 页面或在本地运行 npm run webhook。",
+              t("account.webhookGenerationFailed"),
             );
         });
     }
@@ -48,14 +49,14 @@ export function CertificateWebhook({
     if (!url) return;
     try {
       await navigator.clipboard.writeText(url);
-      notify("已复制证书更新 Webhook URL。");
+      notify(t("account.webhookCopied"));
     } catch {
       setRevealed(true);
       requestAnimationFrame(() => {
         output.current?.focus();
         output.current?.select();
       });
-      notify("请复制已选中的 Webhook URL。");
+      notify(t("account.webhookCopyManually"));
     }
   };
   const download = () => {
@@ -75,16 +76,14 @@ export function CertificateWebhook({
   };
   if (!key)
     return (
-      <section class="setup-webhook" aria-label="证书更新 Webhook">
+      <section class="setup-webhook" aria-label={t("account.certificateWebhook")}>
         <p>
-          将首次生成密钥时一并保存的 Webhook URL 填入 bridge 的{" "}
-          <code>CERT_WEBHOOK_URL</code>。
+          {t("account.webhookSavedInstructions")}
         </p>
         <details class="setup-webhook-existing">
-          <summary>使用已有密钥重新计算 URL</summary>
+          <summary>{t("account.recalculateWebhook")}</summary>
           <p>
-            在本地项目的 <code>.env</code> 中保留已部署的同一个{" "}
-            <code>SECRET_KEY</code>，运行以下命令：
+            {t("account.webhookExistingInstructions")}
           </p>
           <code>
             npm run webhook --{" "}
@@ -96,16 +95,15 @@ export function CertificateWebhook({
       </section>
     );
   return (
-    <section class="setup-webhook" aria-label="证书更新 Webhook">
-      <h3>Bridge 配置</h3>
+    <section class="setup-webhook" aria-label={t("account.certificateWebhook")}>
+      <h3>{t("account.bridgeConfiguration")}</h3>
       <p>
-        将 URL 填入网关的 <code>CERT_WEBHOOK_URL</code>，启用{" "}
-        <code>--auto-cert</code>。
+        {t("account.webhookBridgeInstructions")}
       </p>
       {showAddress && (
         <>
           <label class="form-label" for="webhook-origin">
-            LanternDock 部署地址
+            {t("account.deploymentAddress")}
           </label>
           <input
             id="webhook-origin"
@@ -119,13 +117,13 @@ export function CertificateWebhook({
           />
           <p id="webhook-origin-help">
             {address && !origin
-              ? "请填写 HTTPS 站点地址，不包含路径、参数或账号。"
-              : "填写 LanternDock 站点地址。"}
+              ? t("account.webhookAddressInvalid")
+              : t("account.webhookAddressHelp")}
           </p>
         </>
       )}
       <label class="form-label" for="certificate-webhook-url">
-        证书更新 Webhook URL
+        {t("account.certificateWebhookUrl")}
       </label>
       <input
         ref={output}
@@ -133,7 +131,7 @@ export function CertificateWebhook({
         type={revealed ? "text" : "password"}
         value={url}
         readOnly
-        placeholder="填写站点地址后自动生成"
+        placeholder={t("account.webhookUrlPlaceholder")}
         autoComplete="off"
         spellCheck={false}
       />
@@ -143,17 +141,17 @@ export function CertificateWebhook({
           disabled={!url}
           onClick={() => setRevealed((value) => !value)}
         >
-          {revealed ? "隐藏 Webhook URL" : "显示 Webhook URL"}
+          {revealed ? t("account.hideWebhookUrl") : t("account.showWebhookUrl")}
         </button>
         <button class="secondary-button" disabled={!url} onClick={copy}>
-          复制 Webhook URL
+          {t("account.copyWebhookUrl")}
         </button>
         <button class="text-button" disabled={!url} onClick={download}>
-          下载 bridge.env
+          {t("account.downloadBridgeEnv")}
         </button>
       </div>
       <p class="field-note">
-        与站点配置配套，请一并保存。Worker 的 KV 绑定名为 <code>KV</code>。
+        {t("account.webhookSaveInstructions")}
       </p>
       {error && <p role="status">{error}</p>}
     </section>

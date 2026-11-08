@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { useEffect, useMemo, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { Thumbnail } from "./Thumbnail.jsx";
@@ -40,7 +41,7 @@ export function Album({ entries, loading, demo, client, selected, onPreview }) {
             <button
               class="file-open album-preview"
               data-path={item.path}
-              aria-label={`预览${item.kind === "video" ? "视频" : ""} ${item.name}`}
+              aria-label={t(item.kind === "video" ? "library.previewVideoNamed" : "library.previewNamed", { name: item.name })}
               aria-pressed={selected?.path === item.path}
               onClick={() => onPreview(item)}
             >

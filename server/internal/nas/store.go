@@ -16,16 +16,21 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/longern/lantern-dock/server/internal/i18n"
 	_ "modernc.org/sqlite"
 )
 
+// Fault keeps a catalog key until response serialization. Background media and
+// storage work never capture a caller's language or cache translated errors.
 type Fault struct {
-	Status        int
-	Code, Message string
+	Status           int
+	Code, MessageKey string
 }
 
-func (e *Fault) Error() string                     { return e.Message }
-func fault(status int, code, message string) error { return &Fault{status, code, message} }
+func (e *Fault) Error() string { return i18n.New("").T(e.MessageKey) }
+func fault(status int, code, messageKey string) error {
+	return &Fault{Status: status, Code: code, MessageKey: messageKey}
+}
 
 type Store struct {
 	DB        *sql.DB
@@ -138,22 +143,22 @@ func scanLink(row scanner) (Link, error) {
 }
 func live(l Link) error {
 	if l.Revoked {
-		return fault(410, "LINK_REVOKED", "这个收件链接已撤销。")
+		return fault(410, "LINK_REVOKED", "errors.linkRevoked")
 	}
 	if !time.Now().Before(l.ExpiresAt) {
-		return fault(410, "LINK_EXPIRED", "这个收件链接已过期。")
+		return fault(410, "LINK_EXPIRED", "errors.linkExpired")
 	}
 	return nil
 }
 func (s *Store) Authenticate(ctx context.Context, token string) (Link, error) {
 	raw, err := base64.RawURLEncoding.DecodeString(token)
 	if err != nil || len(raw) != 32 {
-		return Link{}, fault(401, "INVALID_UPLOAD_TOKEN", "收件链接无效。")
+		return Link{}, fault(401, "INVALID_UPLOAD_TOKEN", "errors.invalidUploadToken")
 	}
 	hash := sha256.Sum256([]byte(token))
 	l, err := scanLink(s.DB.QueryRowContext(ctx, `SELECT `+linkColumns+` FROM links WHERE token_hash=?`, hash[:]))
 	if errors.Is(err, sql.ErrNoRows) {
-		return Link{}, fault(401, "INVALID_UPLOAD_TOKEN", "收件链接无效。")
+		return Link{}, fault(401, "INVALID_UPLOAD_TOKEN", "errors.invalidUploadToken")
 	}
 	if err != nil {
 		return Link{}, err
@@ -208,7 +213,7 @@ func validName(name string) bool {
 }
 func (s *Store) Reserve(ctx context.Context, linkID, name string, size int64) (Upload, error) {
 	if !validName(name) || size < 0 {
-		return Upload{}, fault(400, "INVALID_FILE", "文件名无效或文件大小不正确。")
+		return Upload{}, fault(400, "INVALID_FILE", "errors.invalidFile")
 	}
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -223,7 +228,7 @@ func (s *Store) Reserve(ctx context.Context, linkID, name string, size int64) (U
 		return Upload{}, err
 	}
 	if size > l.MaxFileBytes {
-		return Upload{}, fault(413, "FILE_TOO_LARGE", "文件超过单文件大小限制。")
+		return Upload{}, fault(413, "FILE_TOO_LARGE", "errors.fileTooLarge")
 	}
 	var used, count int64
 	err = tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(size),0),COUNT(*) FROM uploads WHERE link_id=? AND `+usageWhere, l.ID, time.Now().Unix()).Scan(&used, &count)
@@ -231,7 +236,7 @@ func (s *Store) Reserve(ctx context.Context, linkID, name string, size int64) (U
 		return Upload{}, err
 	}
 	if size > l.MaxTotalBytes-used || count >= l.MaxFiles {
-		return Upload{}, fault(409, "QUOTA_EXCEEDED", "这个收件箱的剩余容量或文件数量不足。")
+		return Upload{}, fault(409, "QUOTA_EXCEEDED", "errors.quotaExceeded")
 	}
 	expiry := time.Now().Add(15 * time.Minute)
 	if l.ExpiresAt.Before(expiry) {
@@ -250,7 +255,7 @@ func (s *Store) GetUpload(ctx context.Context, id, linkID string) (Upload, error
 	err := s.DB.QueryRowContext(ctx, `SELECT id,link_id,name,size,status,expires_at FROM uploads WHERE id=? AND link_id=?`, id, linkID).Scan(&u.ID, &u.LinkID, &u.Name, &u.Size, &u.Status, &expiry)
 	u.ExpiresAt = time.Unix(expiry, 0).UTC()
 	if errors.Is(err, sql.ErrNoRows) {
-		return u, fault(404, "UPLOAD_NOT_FOUND", "找不到这个上传任务。")
+		return u, fault(404, "UPLOAD_NOT_FOUND", "errors.uploadNotFound")
 	}
 	return u, err
 }
@@ -261,7 +266,7 @@ func (s *Store) Start(ctx context.Context, u Upload, l Link) error {
 	}
 	n, _ := result.RowsAffected()
 	if n != 1 {
-		return fault(409, "UPLOAD_UNAVAILABLE", "上传任务已开始、已取消或已过期，请重试。")
+		return fault(409, "UPLOAD_UNAVAILABLE", "errors.uploadUnavailable")
 	}
 	return nil
 }
@@ -276,7 +281,7 @@ func (s *Store) Cancel(ctx context.Context, u Upload) error {
 	}
 	n, _ := result.RowsAffected()
 	if n == 0 {
-		return fault(409, "UPLOAD_COMPLETE", "文件已经接收完成。")
+		return fault(409, "UPLOAD_COMPLETE", "errors.uploadComplete")
 	}
 	return nil
 }

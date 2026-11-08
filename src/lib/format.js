@@ -1,6 +1,8 @@
+import { locale } from "../../shared/i18n.js";
+
 export function bytes(size) {
   if (size == null) return "—";
-  if (size < 1024) return size + " B";
+  if (size < 1024) return new Intl.NumberFormat(locale).format(size) + " B";
   const units = ["KB", "MB", "GB", "TB"];
   let value = size / 1024,
     index = 0;
@@ -8,14 +10,15 @@ export function bytes(size) {
     value /= 1024;
     index++;
   }
-  return value.toFixed(value >= 100 ? 0 : 1) + " " + units[index];
+  const digits = value >= 100 ? 0 : 1;
+  return new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value) + " " + units[index];
 }
 
 export function date(value, full = false) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "—";
   return new Intl.DateTimeFormat(
-    "zh-CN",
+    locale,
     full
       ? {
           year: "numeric",

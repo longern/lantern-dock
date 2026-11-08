@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { Icon } from "./Icon.jsx";
 import { bytes } from "../lib/format.js";
 import { useLayoutEffect, useRef } from "preact/hooks";
@@ -18,16 +19,18 @@ export function DownloadPanel({ progress, onCancel }) {
         <strong>{progress.name}</strong>
         <p>
           {progress.received
-            ? `${bytes(progress.received)}${progress.total ? " / " + bytes(progress.total) : ""}`
-            : "正在连接文件…"}
+            ? progress.total
+              ? t("library.downloadTransferred", { received: bytes(progress.received), total: bytes(progress.total) })
+              : bytes(progress.received)
+            : t("library.connectingFile")}
         </p>
         <progress
-          aria-label="下载进度"
+          aria-label={t("library.downloadProgress")}
           max={progress.total || 1}
           value={progress.total ? progress.received : undefined}
         />
       </div>
-      <button class="icon-button" aria-label="取消下载" onClick={onCancel}>
+      <button class="icon-button" aria-label={t("library.cancelDownload")} onClick={onCancel}>
         <Icon name="x" />
       </button>
     </div>

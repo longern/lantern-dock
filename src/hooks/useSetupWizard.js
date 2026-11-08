@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { useLayoutEffect, useState } from "preact/hooks";
 import { backendDefaults } from "../../shared/backend-defaults.js";
 import { generateSecretKey, webhookOrigin } from "../../shared/site-secret.js";
@@ -5,6 +6,8 @@ import { setupVariables } from "../lib/setup.js";
 
 const initialForm = (setup) => ({
   ...backendDefaults,
+  name: t("core.defaultLibraryName"),
+  nameConfigured: false,
   endpoint: "",
   rootPath: "",
   ...setup.backend,
@@ -59,7 +62,11 @@ export function useSetupWizard(setup, notify) {
   }, [setup]);
 
   const update = (field, value) =>
-    setForm((current) => ({ ...current, [field]: value }));
+    setForm((current) => ({
+      ...current,
+      [field]: value,
+      nameConfigured: field === "name" ? Boolean(value.trim()) : current.nameConfigured,
+    }));
   const chooseTransport = (transport) => {
     if (transport !== form.transport)
       setForm((current) => ({
@@ -93,7 +100,7 @@ export function useSetupWizard(setup, notify) {
         setSecretKey(generateSecretKey());
       setTarget(next);
     } catch {
-      notify("无法生成部署密钥，请使用支持 Web Crypto 的浏览器。", true);
+      notify(t("core.secretGenerationUnavailable"), true);
     }
   };
   const newDeployment = () => {
@@ -102,7 +109,7 @@ export function useSetupWizard(setup, notify) {
       setOwnsCurrentKey(false);
       if (isLocal) setTarget("worker");
     } catch {
-      notify("无法生成部署密钥，请使用支持 Web Crypto 的浏览器。", true);
+      notify(t("core.secretGenerationUnavailable"), true);
     }
   };
   return {

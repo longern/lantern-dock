@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { MemoryCache, cachePolicy } from "./cache.js";
 import { limitedBytes } from "./content.js";
 import { backendPaths } from "../../shared/backend-paths.js";
@@ -7,8 +8,8 @@ export class ImageServiceError extends Error {
   constructor(status) {
     super(
       status === 404
-        ? "文件已移除，请刷新目录。"
-        : "无法加载图片预览，请稍后重试。",
+        ? t("core.imageRemoved")
+        : t("core.imagePreviewFailed"),
     );
     this.status = status;
   }
@@ -99,7 +100,7 @@ export class ImageClient {
         cancel: () => {
           controller.abort();
           clean();
-          reject(new DOMException("已取消", "AbortError"));
+          reject(new DOMException(t("core.cancelled"), "AbortError"));
         },
         start: async () => {
           try {

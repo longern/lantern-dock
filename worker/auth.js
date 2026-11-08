@@ -1,3 +1,4 @@
+import { createTranslator, detectRequestLanguage } from "../shared/i18n.js";
 import {
   SignJWT,
   calculateJwkThumbprint,
@@ -225,7 +226,7 @@ class OIDCProviderError extends Error {
     this.code = code;
   }
 }
-async function provider(env) {
+async function provider(env, t) {
   const state = stateFor(env);
   if (state.provider && state.provider.expires > Date.now())
     return state.provider;
@@ -244,13 +245,13 @@ async function provider(env) {
   } catch {
     throw new OIDCProviderError(
       "OIDC_DISCOVERY_UNREACHABLE",
-      "Worker 无法连接登录服务的 Discovery 接口，请检查地址和网络访问限制。",
+      t("server.oidcDiscoveryUnreachable"),
     );
   }
   if (!response.ok)
     throw new OIDCProviderError(
       "OIDC_DISCOVERY_HTTP_ERROR",
-      `登录服务的 Discovery 接口返回 HTTP ${response.status}，请检查登录服务的访问规则。`,
+      t("server.oidcDiscoveryHttpError", { status: response.status }),
     );
   let document;
   try {
@@ -258,13 +259,13 @@ async function provider(env) {
   } catch {
     throw new OIDCProviderError(
       "OIDC_DISCOVERY_INVALID",
-      "登录服务的 Discovery 接口没有返回有效的 JSON 配置。",
+      t("server.oidcDiscoveryInvalidJson"),
     );
   }
   if (document?.issuer !== cfg.issuer)
     throw new OIDCProviderError(
       "OIDC_ISSUER_MISMATCH",
-      "OIDC_ISSUER_URL 与登录服务声明的 issuer 不一致，请核对完整地址及结尾斜杠。",
+      t("server.oidcIssuerMismatch"),
     );
   if (
     !env.OIDC_CLIENT_ID &&
@@ -272,12 +273,12 @@ async function provider(env) {
   )
     throw new OIDCProviderError(
       "OIDC_CIMD_UNSUPPORTED",
-      "登录服务未声明支持 CIMD，请配置已注册的 OIDC_CLIENT_ID。",
+      t("server.oidcCimdUnsupported"),
     );
   if (!document.code_challenge_methods_supported?.includes("S256"))
     throw new OIDCProviderError(
       "OIDC_PKCE_UNSUPPORTED",
-      "登录服务未声明支持 PKCE S256。",
+      t("server.oidcPkceUnsupported"),
     );
   try {
     for (const key of ["authorization_endpoint", "token_endpoint", "jwks_uri"])
@@ -285,7 +286,7 @@ async function provider(env) {
   } catch {
     throw new OIDCProviderError(
       "OIDC_DISCOVERY_INVALID",
-      "登录服务的 Discovery 配置包含无效的 HTTPS 接口地址。",
+      t("server.oidcDiscoveryInvalidEndpoint"),
     );
   }
   const jwks = createRemoteJWKSet(new URL(document.jwks_uri), {
@@ -364,12 +365,12 @@ function authorizationMetadata(site) {
     },
   };
 }
-async function issueGrant(request, env, cfg) {
+async function issueGrant(request, env, cfg, t) {
   if (!sameOrigin(request, cfg.site))
     return oauthError(
       "invalid_request",
       "The request origin is not allowed.",
-      "请求来源不匹配。",
+      t("server.originMismatch"),
       403,
     );
   if (
@@ -382,7 +383,7 @@ async function issueGrant(request, env, cfg) {
     return oauthError(
       "invalid_request",
       "Use application/x-www-form-urlencoded.",
-      "令牌请求格式不正确，请刷新页面。",
+      t("server.invalidTokenFormat"),
     );
   let params;
   try {
@@ -391,7 +392,7 @@ async function issueGrant(request, env, cfg) {
     return oauthError(
       "invalid_request",
       "The request body is invalid or too large.",
-      "令牌请求无效。",
+      t("server.invalidTokenRequest"),
     );
   }
   for (const key of ["grant_type", "client_id", "resource", "scope"])
@@ -399,38 +400,38 @@ async function issueGrant(request, env, cfg) {
       return oauthError(
         "invalid_request",
         "Duplicate request parameter.",
-        "令牌请求参数重复。",
+        t("server.duplicateTokenParameter"),
       );
   if (params.get("grant_type") !== SESSION_GRANT_TYPE)
     return oauthError(
       "unsupported_grant_type",
       "Only the LanternDock session grant is supported.",
-      "请刷新页面后重新登录。",
+      t("server.refreshAndSignIn"),
     );
   if (params.get("client_id") !== cfg.site + "/")
     return oauthError(
       "invalid_client",
       "The client_id is not allowed.",
-      "客户端不匹配。",
+      t("server.clientMismatch"),
     );
   if (params.has("resource") && params.get("resource") !== cfg.site + "/nas")
     return oauthError(
       "invalid_target",
       "The requested resource is not allowed.",
-      "请求的 NAS 不匹配。",
+      t("server.resourceMismatch"),
     );
   if (params.has("scope") && params.get("scope") !== ACCOUNT_SCOPE)
     return oauthError(
       "invalid_scope",
       "The requested scope is not allowed.",
-      "请求的权限无效。",
+      t("server.invalidScope"),
     );
   const session = await siteSession(request, env, cfg.site);
   if (!session)
     return oauthError(
       "invalid_grant",
       "The site session has expired or is missing.",
-      "请重新登录。",
+      t("server.loginRequired"),
       400,
       "LOGIN_REQUIRED",
     );
@@ -441,7 +442,7 @@ async function issueGrant(request, env, cfg) {
     return oauthError(
       "invalid_dpop_proof",
       "The DPoP proof is invalid or uses a different key.",
-      "无法验证浏览器密钥，请重新登录。",
+      t("server.invalidProofSignIn"),
       400,
       "INVALID_PROOF",
     );
@@ -461,7 +462,7 @@ async function issueGrant(request, env, cfg) {
     const response = oauthError(
       "use_dpop_nonce",
       "Retry with the supplied DPoP nonce and a new proof.",
-      "正在验证浏览器请求。",
+      t("server.verifyingRequest"),
     );
     response.headers.set("DPoP-Nonce", await nextNonce());
     return response;
@@ -529,7 +530,30 @@ export function clientMetadata(env) {
   };
 }
 
-export async function authentication(request, env) {
+export async function authentication(
+  request,
+  env,
+  t = createTranslator(
+    detectRequestLanguage(request.headers.get("Accept-Language")),
+  ),
+) {
+  const response = await handleAuthentication(request, env, t);
+  // Public discovery and JWKS responses are language-neutral and cacheable.
+  if (
+    response &&
+    !response.headers.get("Cache-Control")?.startsWith("public")
+  ) {
+    response.headers.set("Content-Language", t.locale);
+    const vary = response.headers.get("Vary");
+    response.headers.set(
+      "Vary",
+      vary ? `${vary}, Accept-Language` : "Accept-Language",
+    );
+  }
+  return response;
+}
+
+async function handleAuthentication(request, env, t) {
   const path = new URL(request.url).pathname;
   if (
     path !== AUTHORIZATION_METADATA_PATH &&
@@ -542,7 +566,7 @@ export async function authentication(request, env) {
   } catch {
     return json(
       {
-        error: "登录需要有效的 HTTPS 站点地址，请检查访问地址或 SITE_ORIGIN。",
+        error: t("server.invalidSiteOrigin"),
         code: "INVALID_SITE_ORIGIN",
       },
       400,
@@ -550,15 +574,15 @@ export async function authentication(request, env) {
   }
   if (path === "/api/auth/oidc/client.json") {
     if (request.method !== "GET")
-      return json({ error: "Method not allowed" }, 405);
+      return json({ error: t("server.methodNotAllowed") }, 405);
     try {
       const metadata = clientMetadata(env);
       if (new URL(request.url).origin !== origin(env.SITE_ORIGIN))
-        return json({ error: "Use the configured site origin" }, 400);
+        return json({ error: t("server.useConfiguredOrigin") }, 400);
       return json(metadata);
     } catch {
       return json(
-        { error: "请配置 SITE_ORIGIN。", code: "AUTH_NOT_CONFIGURED" },
+        { error: t("server.configureSiteOrigin"), code: "AUTH_NOT_CONFIGURED" },
         503,
       );
     }
@@ -567,12 +591,12 @@ export async function authentication(request, env) {
   try {
     cfg = settings(env);
     if (new URL(request.url).origin !== cfg.site)
-      return json({ error: "请从配置的站点地址登录。" }, 400);
+      return json({ error: t("server.signInAtConfiguredOrigin") }, 400);
   } catch {
     return json(
       {
         enabled: false,
-        error: "请在 Worker 配置有效的 SECRET_KEY。",
+        error: t("server.configureSecretKey"),
         code: "AUTH_NOT_CONFIGURED",
       },
       503,
@@ -585,7 +609,7 @@ export async function authentication(request, env) {
       return json(
         {
           enabled: false,
-          error: "请在 Worker 配置有效的 OIDC_ISSUER_URL。",
+          error: t("server.configureOidcIssuer"),
           code: "OIDC_NOT_CONFIGURED",
         },
         503,
@@ -617,17 +641,17 @@ export async function authentication(request, env) {
     }
     if (path === "/api/auth/login" && request.method === "POST") {
       if (!sameOrigin(request, cfg.site))
-        return json({ error: "请求来源不匹配。" }, 403);
+        return json({ error: t("server.originMismatch") }, 403);
       let jkt;
       try {
         jkt = (await proof(request, cfg.site)).thumbprint;
       } catch {
         return json(
-          { error: "无法验证浏览器密钥，请重试。", code: "INVALID_PROOF" },
+          { error: t("server.invalidProofRetry"), code: "INVALID_PROOF" },
           401,
         );
       }
-      const p = await provider(env),
+      const p = await provider(env, t),
         state = random(),
         nonce = random(),
         verifier = random();
@@ -673,18 +697,18 @@ export async function authentication(request, env) {
         query.getAll("state").length !== 1 ||
         query.get("state") !== state.state
       )
-        return accountError(env, "登录请求已过期或已更新，请重新登录。");
+        return accountError(env, t("server.loginExpired"));
       if (query.has("iss") && query.get("iss") !== cfg.issuer)
-        return accountError(env, "登录服务不匹配，请重试。");
+        return accountError(env, t("server.loginProviderMismatch"));
       if (query.has("error"))
-        return accountError(env, "登录未完成或授权已取消。");
+        return accountError(env, t("server.loginCancelled"));
       if (
         query.getAll("code").length !== 1 ||
         !query.get("code") ||
         query.get("code").length > 4096
       )
-        return accountError(env, "登录响应无效，请重试。");
-      const p = await provider(env);
+        return accountError(env, t("server.loginResponseInvalid"));
+      const p = await provider(env, t);
       const body = new URLSearchParams({
         grant_type: "authorization_code",
         client_id: cfg.clientId,
@@ -774,38 +798,38 @@ export async function authentication(request, env) {
         const response = oauthError(
           "invalid_request",
           "Use POST for token requests.",
-          "此接口需要 POST 请求。",
+          t("server.tokenRequiresPost"),
           405,
         );
         response.headers.set("Allow", "POST");
         return response;
       }
-      return await issueGrant(request, env, cfg);
+      return await issueGrant(request, env, cfg, t);
     }
     if (path === "/api/auth/logout" && request.method === "POST") {
       if (!sameOrigin(request, cfg.site))
-        return json({ error: "请求来源不匹配。" }, 403);
+        return json({ error: t("server.originMismatch") }, 403);
       const response = json({ ok: true });
       setCookie(response, SESSION_COOKIE, "", 0);
       setCookie(response, STATE_COOKIE, "", 0);
       return response;
     }
-    return json({ error: "Not found" }, 404);
+    return json({ error: t("server.notFound") }, 404);
   } catch (error) {
     if (path === "/auth/callback")
-      return accountError(env, "登录验证失败，请重新登录。");
+      return accountError(env, t("server.loginVerificationFailed"));
     if (path === "/api/auth/login" && error instanceof OIDCProviderError)
       return json({ error: error.message, code: error.code }, 503);
     if (path === "/api/auth/token")
       return oauthError(
         "temporarily_unavailable",
         "The authorization service is temporarily unavailable.",
-        "登录服务暂不可用，请稍后重试。",
+        t("server.authUnavailable"),
         503,
         "AUTH_UNAVAILABLE",
       );
     return json(
-      { error: "登录服务暂不可用，请稍后重试。", code: "AUTH_UNAVAILABLE" },
+      { error: t("server.authUnavailable"), code: "AUTH_UNAVAILABLE" },
       503,
     );
   }

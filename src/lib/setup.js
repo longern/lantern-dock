@@ -1,3 +1,5 @@
+import { t } from "../../shared/i18n.js";
+import { coreError } from "./errors.js";
 import { normalizePath } from "./dav.js";
 import {
   backendDefaults as defaults,
@@ -5,16 +7,18 @@ import {
 } from "../../shared/backend-defaults.js";
 
 export function setupVariables(form, resetVariables = []) {
-  const name = (form.name || "").trim() || defaults.name;
+  const defaultName = t("core.defaultLibraryName");
+  const enteredName = (form.name || "").trim();
+  const name = enteredName || defaultName;
   if (/[\x00-\x1f]/.test(name))
-    throw new Error("资源名称不能包含换行或控制字符。");
+    throw coreError("INVALID_LIBRARY_NAME");
   if (!["http", "webtransport"].includes(form.transport))
-    throw new Error("请选择连接方式。");
+    throw coreError("TRANSPORT_REQUIRED");
   let endpoint;
   try {
     endpoint = new URL(form.endpoint.trim());
   } catch {
-    throw new Error("请填写完整的后端地址，例如 https://files.example.com。");
+    throw coreError("BACKEND_URL_REQUIRED");
   }
   if (
     !["http:", "https:"].includes(endpoint.protocol) ||
@@ -23,20 +27,20 @@ export function setupVariables(form, resetVariables = []) {
     endpoint.search ||
     endpoint.hash
   )
-    throw new Error("请使用 HTTP(S) 地址，账号和令牌在连接时填写。");
+    throw coreError("BACKEND_URL_INVALID");
   if (form.transport === "webtransport" && endpoint.protocol !== "https:")
-    throw new Error("WebTransport 地址必须以 https:// 开头。");
+    throw coreError("WEBTRANSPORT_HTTPS_REQUIRED");
   let root;
   try {
     root = normalizePath(
       form.rootPath.trim() || defaultBackendRoot(form.transport, endpoint),
     );
   } catch {
-    throw new Error("根目录必须以 / 开头，且不能包含 ..、查询参数或无效编码。");
+    throw coreError("ROOT_PATH_INVALID");
   }
   if (!root.endsWith("/")) root += "/";
   if (!["none", "basic", "bearer"].includes(form.auth))
-    throw new Error("请选择后端认证方式。");
+    throw coreError("AUTH_METHOD_REQUIRED");
   const vars = {
     [form.transport === "http" ? "WEBDAV_URL" : "WEBTRANSPORT_URL"]:
       form.transport === "http"
@@ -50,7 +54,11 @@ export function setupVariables(form, resetVariables = []) {
   const otherAddress =
     form.transport === "http" ? "WEBTRANSPORT_URL" : "WEBDAV_URL";
   if (resetVariables.includes(otherAddress)) vars[otherAddress] = "";
-  optional("BACKEND_NAME", name, defaults.name);
+  // Preserve an explicit name even if it matches the translated default.
+  // An empty override restores the localized default for every visitor.
+  if (enteredName && (form.nameConfigured || name !== defaultName))
+    vars.BACKEND_NAME = name;
+  else if (resetVariables.includes("BACKEND_NAME")) vars.BACKEND_NAME = "";
   optional("BACKEND_AUTH", form.auth, defaults.auth);
   if (form.transport === "webtransport") {
     optional("BACKEND_ROOT", root, defaults.rootPath);
@@ -65,7 +73,7 @@ export function setupVariables(form, resetVariables = []) {
   } else if (resetVariables.includes("BACKEND_ROOT")) vars.BACKEND_ROOT = "";
   if (form.transport === "webtransport") {
     if (!["pinned", "webpki"].includes(form.certificateMode))
-      throw new Error("请选择网关证书类型。");
+      throw coreError("CERTIFICATE_MODE_REQUIRED");
     optional(
       "CERTIFICATE_MODE",
       form.certificateMode,

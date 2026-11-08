@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/longern/lantern-dock/server/internal/i18n"
 	"github.com/longern/lantern-dock/server/internal/nas"
 )
 
@@ -120,7 +121,7 @@ func run(args []string, out io.Writer) error {
 	}
 	flags := flag.NewFlagSet("link "+args[1], flag.ContinueOnError)
 	data := flags.String("data-dir", "./data", "private persistent state directory")
-	title := flags.String("title", "临时收件箱", "title shown to visitors")
+	title := flags.String("title", i18n.New("").T("inbox.defaultTitle"), "title shown to visitors")
 	site := flags.String("site", "", "frontend HTTPS origin (required for create)")
 	expiry := flags.Duration("expires", 24*time.Hour, "link lifetime, e.g. 24h or 168h")
 	maxFile := flags.String("max-file", "1GiB", "maximum size per file")

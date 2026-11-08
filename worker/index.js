@@ -1,3 +1,4 @@
+import { createTranslator, detectRequestLanguage } from "../shared/i18n.js";
 import {
   backendDefaults as defaults,
   backendAddress,
@@ -23,7 +24,7 @@ class SetupRequired extends Error {
   }
 }
 
-function setupConfiguration(env, reason) {
+function setupConfiguration(env, reason, t) {
   const address = backendAddress(env);
   let hasSecretKey = false;
   try {
@@ -53,8 +54,8 @@ function setupConfiguration(env, reason) {
       resetVariables: [
         ...["WEBDAV_URL", "WEBTRANSPORT_URL"].filter((key) => env[key]?.trim()),
         ...(env.BACKEND_ROOT ? ["BACKEND_ROOT"] : []),
+        ...(env.BACKEND_NAME ? ["BACKEND_NAME"] : []),
         ...Object.entries({
-          BACKEND_NAME: defaults.name,
           BACKEND_AUTH: defaults.auth,
           GATEWAY_AUTH: String(defaults.gatewayAuth),
           CERTIFICATE_MODE: defaults.certificateMode,
@@ -63,7 +64,8 @@ function setupConfiguration(env, reason) {
           .map(([key]) => key),
       ],
       backend: {
-        name: env.BACKEND_NAME || defaults.name,
+        name: env.BACKEND_NAME || t("server.defaultBackendName"),
+        nameConfigured: Boolean(env.BACKEND_NAME),
         transport:
           address.transport === "webtransport" ? "webtransport" : "http",
         endpoint,
@@ -80,7 +82,13 @@ function setupConfiguration(env, reason) {
   };
 }
 
-export function validatePins(input, now = Date.now()) {
+class CertificateInputError extends Error {}
+
+export function validatePins(
+  input,
+  now = Date.now(),
+  t = createTranslator("en"),
+) {
   const list = input?.certificates;
   if (
     input?.version !== 1 ||
@@ -88,13 +96,13 @@ export function validatePins(input, now = Date.now()) {
     list.length > 2 ||
     !list.length
   )
-    throw new Error("Invalid certificate document");
+    throw new CertificateInputError(t("server.invalidCertificateDocument"));
   return list
     .map((pin) => {
-      const start = Date.parse(pin.notBefore),
-        end = Date.parse(pin.notAfter);
+      const start = Date.parse(pin?.notBefore),
+        end = Date.parse(pin?.notAfter);
       if (
-        pin.algorithm !== "sha-256" ||
+        pin?.algorithm !== "sha-256" ||
         typeof pin.value !== "string" ||
         !/^[A-Za-z0-9+/]{43}=$/.test(pin.value) ||
         !Number.isFinite(start) ||
@@ -102,7 +110,7 @@ export function validatePins(input, now = Date.now()) {
         end <= start ||
         end - start > 14 * 86400000
       )
-        throw new Error("Invalid certificate pin");
+        throw new CertificateInputError(t("server.invalidCertificatePin"));
       return {
         algorithm: "sha-256",
         value: pin.value,
@@ -112,12 +120,12 @@ export function validatePins(input, now = Date.now()) {
     })
     .filter((pin) => Date.parse(pin.notAfter) > now);
 }
-export async function configuration(env) {
+export async function configuration(env, t = createTranslator("en")) {
   if (env.DEMO_MODE === "true")
     return {
       version: 1,
       backend: {
-        name: "公开资源库",
+        name: t("server.demoBackendName"),
         transport: "demo",
         endpoint: "",
         rootPath: "/",
@@ -129,22 +137,22 @@ export async function configuration(env) {
   const address = backendAddress(env);
   if (address.conflict)
     throw new SetupRequired(
-      "Set either WEBDAV_URL or WEBTRANSPORT_URL",
+      t("server.conflictingBackends"),
       "conflicting-backends",
     );
   const transport = address.transport;
   if (!["http", "webtransport"].includes(transport))
-    throw new SetupRequired("BACKEND_TRANSPORT must be http or webtransport");
+    throw new SetupRequired(t("server.invalidBackendTransport"));
   if (!address.endpoint)
     throw new SetupRequired(
-      "Configure BACKEND_ENDPOINT before connecting",
+      t("server.missingBackendEndpoint"),
       "missing-backend",
     );
   let endpoint;
   try {
     endpoint = new URL(address.endpoint);
   } catch {
-    throw new SetupRequired("Configure a valid BACKEND_ENDPOINT");
+    throw new SetupRequired(t("server.invalidBackendEndpoint"));
   }
   if (
     endpoint.username ||
@@ -153,19 +161,19 @@ export async function configuration(env) {
     endpoint.search ||
     !["https:", "http:"].includes(endpoint.protocol)
   )
-    throw new SetupRequired("Invalid backend URL");
+    throw new SetupRequired(t("server.invalidBackendUrl"));
   if (transport === "webtransport" && endpoint.protocol !== "https:")
-    throw new SetupRequired("WebTransport requires an HTTPS endpoint");
+    throw new SetupRequired(t("server.webtransportRequiresHttps"));
   const root = env.BACKEND_ROOT || defaultBackendRoot(transport, endpoint);
   if (
     !root.startsWith("/") ||
     /[?#\\\x00-\x1f]/.test(root) ||
     root.split("/").some((part) => [".", ".."].includes(part))
   )
-    throw new SetupRequired("Invalid BACKEND_ROOT");
+    throw new SetupRequired(t("server.invalidBackendRoot"));
   const auth = env.BACKEND_AUTH || defaults.auth;
   if (!["none", "basic", "bearer"].includes(auth))
-    throw new SetupRequired("Invalid BACKEND_AUTH");
+    throw new SetupRequired(t("server.invalidBackendAuth"));
   let certificates = [];
   if (transport === "webtransport" && env.CERTIFICATE_MODE !== "webpki") {
     // Storage outages are operational errors, not an invitation to reconfigure.
@@ -176,23 +184,25 @@ export async function configuration(env) {
     try {
       certificates = validatePins(
         typeof saved === "string" ? JSON.parse(saved) : saved,
+        Date.now(),
+        t,
       );
     } catch {
       throw new SetupRequired(
-        "Publish valid gateway certificate pins",
+        t("server.missingCertificatePins"),
         "missing-certificates",
       );
     }
     if (!certificates.length)
       throw new SetupRequired(
-        "No unexpired certificate pins; publish the gateway certificate first",
+        t("server.expiredCertificatePins"),
         "missing-certificates",
       );
   }
   return {
     version: 1,
     backend: {
-      name: env.BACKEND_NAME || defaults.name,
+      name: env.BACKEND_NAME || t("server.defaultBackendName"),
       transport,
       endpoint: transport === "http" ? endpoint.origin : endpoint.href,
       rootPath: root.endsWith("/") ? root : root + "/",
@@ -202,9 +212,9 @@ export async function configuration(env) {
     },
   };
 }
-async function smallJSON(request) {
+async function smallJSON(request, t) {
   const reader = request.body?.getReader();
-  if (!reader) throw new Error("Missing body");
+  if (!reader) throw new CertificateInputError(t("server.missingBody"));
   const parts = [];
   let size = 0;
   try {
@@ -214,7 +224,7 @@ async function smallJSON(request) {
       size += value.length;
       if (size > 8192) {
         await reader.cancel();
-        throw new Error("Body exceeds 8 KiB");
+        throw new CertificateInputError(t("server.bodyTooLarge"));
       }
       parts.push(value);
     }
@@ -227,7 +237,11 @@ async function smallJSON(request) {
     bytes.set(part, offset);
     offset += part.length;
   }
-  return JSON.parse(new TextDecoder().decode(bytes));
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    throw new CertificateInputError(t("server.invalidJson"));
+  }
 }
 async function equalSecret(a, b) {
   const digest = async (value) =>
@@ -241,45 +255,53 @@ async function equalSecret(a, b) {
 }
 export default {
   async fetch(request, env) {
+    const t = createTranslator(
+      detectRequestLanguage(request.headers.get("Accept-Language")),
+    );
+    const respond = (data, status = 200, headers = {}) =>
+      json(data, status, {
+        "Content-Language": t.locale,
+        Vary: "Accept-Language",
+        ...headers,
+      });
     const url = new URL(request.url);
-    const account = await authentication(request, env);
+    const account = await authentication(request, env, t);
     if (account) return secureResponse(account);
     if (url.pathname === "/api/config" && request.method === "GET") {
       try {
-        return json(await configuration(env));
+        return respond(await configuration(env, t));
       } catch (error) {
         if (error instanceof SetupRequired)
-          return json(setupConfiguration(env, error.reason));
-        return json({ error: "服务配置暂不可用，请稍后重试。" }, 503);
+          return respond(setupConfiguration(env, error.reason, t));
+        return respond({ error: t("server.configurationUnavailable") }, 503);
       }
     }
     if (url.pathname.startsWith("/api/certificates/")) {
       if (request.method !== "PUT")
-        return json({ error: "Use PUT to publish certificates." }, 405, {
+        return respond({ error: t("server.certificateMethod") }, 405, {
           Allow: "PUT",
         });
       if (url.search)
-        return json(
+        return respond(
           {
-            error: "Webhook URLs must not contain query parameters.",
+            error: t("server.invalidWebhookUrl"),
             code: "INVALID_WEBHOOK_URL",
           },
           400,
         );
       if (typeof env.KV?.put !== "function")
-        return json(
+        return respond(
           {
-            error: "Workers KV binding named KV is not configured.",
+            error: t("server.missingKvBinding"),
             code: "MISSING_KV_BINDING",
           },
           503,
         );
       const tokens = await certificateWebhookTokens(env).catch(() => null);
       if (!tokens?.length)
-        return json(
+        return respond(
           {
-            error:
-              "Certificate webhook credentials are missing or invalid. Configure SECRET_KEY.",
+            error: t("server.invalidSiteKey"),
             code: "INVALID_SITE_KEY",
           },
           503,
@@ -290,10 +312,9 @@ export default {
           (await equalSecret(url.pathname, `/api/certificates/${token}`)) ||
           authorized;
       if (!authorized)
-        return json(
+        return respond(
           {
-            error:
-              "This webhook URL does not match the configured credentials.",
+            error: t("server.invalidWebhookToken"),
             code: "INVALID_WEBHOOK_TOKEN",
           },
           401,
@@ -303,21 +324,33 @@ export default {
         request.headers.get("Content-Type")?.split(";")[0].trim() !==
         "application/json"
       )
-        return json({ error: "Expected JSON" }, 415);
+        return respond({ error: t("server.expectedJson") }, 415);
       let data;
       try {
-        data = await smallJSON(request);
-        const certificates = validatePins(data);
-        if (!certificates.length) throw new Error("All certificates expired");
+        data = await smallJSON(request, t);
+        const certificates = validatePins(data, Date.now(), t);
+        if (!certificates.length)
+          throw new CertificateInputError(t("server.allCertificatesExpired"));
         data = { version: 1, certificates };
       } catch (error) {
-        return json({ error: error.message }, 400);
+        return respond(
+          {
+            error:
+              error instanceof CertificateInputError
+                ? error.message
+                : t("server.invalidCertificateDocument"),
+          },
+          400,
+        );
       }
       // Acknowledge only durable writes. A failed PUT is retried by the gateway.
       try {
         await env.KV.put("certificate-pins", JSON.stringify(data));
       } catch {
-        return json({ error: "Certificate storage unavailable" }, 503);
+        return respond(
+          { error: t("server.certificateStorageUnavailable") },
+          503,
+        );
       }
       return new Response(null, {
         status: 204,
@@ -325,7 +358,7 @@ export default {
       });
     }
     if (url.pathname.startsWith("/api/"))
-      return json({ error: "Not found" }, 404);
+      return respond({ error: t("server.notFound") }, 404);
     return secureResponse(await env.ASSETS.fetch(request));
   },
 };

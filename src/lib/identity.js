@@ -1,3 +1,5 @@
+import { t, locale } from "../../shared/i18n.js";
+import { coreError } from "./errors.js";
 import { DirectTransport } from "./transport.js";
 import { backendPaths } from "../../shared/backend-paths.js";
 import {
@@ -21,7 +23,7 @@ async function browserKey() {
       const request = indexedDB.open("lantern-dock-identity", 1);
       request.onupgradeneeded = () => request.result.createObjectStore("keys");
       request.onerror = () =>
-        reject(new Error("登录需要浏览器允许本站存储安全密钥。"));
+        reject(coreError("IDENTITY_STORAGE_REQUIRED"));
       request.onsuccess = () => resolve(request.result);
     });
     try {
@@ -101,7 +103,7 @@ async function result(response, parsed) {
       value.message ||
         value.error_description ||
         value.error ||
-        `账户服务返回 ${response.status}，请检查连接配置。`,
+        t("core.error.ACCOUNT_SERVICE_ERROR", { status: response.status }),
     );
     error.code = value.code;
     throw error;
@@ -112,6 +114,7 @@ export async function identitySession(signal) {
   return result(
     await fetch("/api/auth/session", {
       cache: "no-store",
+      headers: { "Accept-Language": locale },
       credentials: "same-origin",
       signal,
     }),
@@ -126,7 +129,7 @@ export async function beginLogin() {
     await fetch("/api/auth/login", {
       method: "POST",
       credentials: "same-origin",
-      headers: { DPoP: proof },
+      headers: { DPoP: proof, "Accept-Language": locale },
     }),
   );
   location.assign(value.url);
@@ -137,13 +140,14 @@ export async function endLogin() {
     await fetch("/api/auth/logout", {
       method: "POST",
       credentials: "same-origin",
+      headers: { "Accept-Language": locale },
     }),
   );
 }
 let tokenNonce;
 export async function requestNASGrant(signal) {
   const metadata = await result(
-    await fetch(AUTHORIZATION_METADATA_PATH, { cache: "no-store", signal }),
+    await fetch(AUTHORIZATION_METADATA_PATH, { cache: "no-store", headers: { "Accept-Language": locale }, signal }),
   );
   const endpoint = new URL(metadata.token_endpoint);
   if (
@@ -158,7 +162,7 @@ export async function requestNASGrant(signal) {
     !metadata.grant_types_supported?.includes(SESSION_GRANT_TYPE) ||
     !metadata.dpop_signing_alg_values_supported?.includes("ES256")
   )
-    throw new Error("站点授权配置不匹配，请检查部署。");
+    throw coreError("AUTHORIZATION_MISMATCH");
   for (let attempt = 0; attempt < 2; attempt++) {
     const response = await fetch(endpoint, {
       method: "POST",
@@ -166,6 +170,7 @@ export async function requestNASGrant(signal) {
       signal,
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
+        "Accept-Language": locale,
         DPoP: await identityProof("POST", endpoint.href, undefined, tokenNonce),
       },
       body: new URLSearchParams({
@@ -200,20 +205,20 @@ export async function requestNASGrant(signal) {
       grant.expires_in <= 0 ||
       grant.expires_in > 60
     )
-      throw new Error("站点返回了无效的 NAS 凭据。");
+      throw coreError("INVALID_NAS_GRANT");
     return grant;
   }
 }
 export async function accountConnection(signal) {
   const config = await result(
-    await fetch("/api/config", { cache: "no-store", signal }),
+    await fetch("/api/config", { cache: "no-store", headers: { "Accept-Language": locale }, signal }),
   );
   if (
     config.setupRequired ||
     !config.backend ||
     config.backend.transport === "demo"
   )
-    throw new Error("NAS 尚未完成连接配置，身份已登录，可先复制 sub。 ");
+    throw coreError("NAS_NOT_CONFIGURED");
   const grant = await requestNASGrant(signal);
   const transport = new DirectTransport(config.backend);
   try {

@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { useMemo } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { artwork } from "../lib/demo.js";
@@ -25,7 +26,7 @@ function FileCard({
       <button
         class="file-open"
         data-path={item.path}
-        aria-label={`${item.isDirectory ? "打开文件夹 " : "预览 "}${item.name}`}
+        aria-label={t(item.isDirectory ? "library.openFolderNamed" : "library.previewNamed", { name: item.name })}
         aria-pressed={item.isDirectory ? undefined : selected}
         onClick={() => onOpen(item)}
       >
@@ -54,7 +55,7 @@ function FileCard({
             {item.name}
           </div>
           <div class="file-meta">
-            <span>{item.isDirectory ? "文件夹" : bytes(item.size)}</span>
+            <span>{item.isDirectory ? t("library.folder") : bytes(item.size)}</span>
             <span class="separator">·</span>
             <span>{date(recent ? item.visitedAt : item.modified)}</span>
           </div>
@@ -68,7 +69,7 @@ function FileCard({
       </button>
       <button
         class={`favorite-button${favorite ? " selected" : ""}`}
-        aria-label={`${favorite ? "取消收藏 " : "收藏 "}${item.name}`}
+        aria-label={t(favorite ? "library.unfavoriteNamed" : "library.favoriteNamed", { name: item.name })}
         aria-pressed={favorite}
         onClick={() => onFavorite(item)}
       >
@@ -107,35 +108,35 @@ export function FileBrowser({
     ((usesDirectory || recordsPending) ? library.error : null);
   const busy = !error && (recordsPending || (library.loading && usesDirectory));
   const status = recordsError
-    ? "记录异常"
+    ? t("library.recordsError")
     : library.error
-      ? "连接异常"
+      ? t("library.connectionError")
       : library.loading
-        ? "连接中"
+        ? t("library.connecting")
         : library.backend?.transport === "demo"
-          ? "演示空间"
-          : "已连接";
+          ? t("library.demoSpace")
+          : t("library.connected");
   return (
     <section
       class={`content${home ? " home-content" : ""}${album ? " album-content" : ""}`}
-      aria-label="文件浏览器"
+      aria-label={t("library.fileBrowser")}
     >
       {album && (
         <div class="album-heading">
-          <h1>照片</h1>
+          <h1>{t("library.photos")}</h1>
         </div>
       )}
       <div class="file-toolbar">
         <div class="file-stats">
           {home && (
-            <h2 class="file-section-title">{recent ? "最近文件" : "文件"}</h2>
+            <h2 class="file-section-title">{recent ? t("library.recentFiles") : t("library.files")}</h2>
           )}
           <strong id="item-count">
             {busy
-              ? "加载中…"
+              ? t("library.loading")
               : error
-                ? "读取失败"
-                : `${entries.length} 个项目`}
+                ? t("library.readFailed")
+                : t("library.itemCount", { count: entries.length })}
           </strong>
           {(recordsError ||
             library.error ||
@@ -153,7 +154,7 @@ export function FileBrowser({
             <button
               class="filter-chip"
               onClick={() => library.selectMode("all")}
-              aria-label="清除类型筛选"
+              aria-label={t("library.clearTypeFilter")}
             >
               {categoryLabel(library.kind)}
               <Icon name="x" />
@@ -163,7 +164,7 @@ export function FileBrowser({
         <div class="view-tools">
           <button
             class="icon-button mobile-refresh"
-            aria-label="刷新目录"
+            aria-label={t("library.refreshDirectory")}
             disabled={library.loading}
             aria-busy={library.loading}
             onClick={library.refresh}
@@ -172,22 +173,22 @@ export function FileBrowser({
           </button>
           {!recent && !album && (
             <select
-              aria-label="排序"
+              aria-label={t("library.sort")}
               value={sort}
               onChange={(event) => library.setSort(event.currentTarget.value)}
             >
-              <option value="name">名称</option>
-              <option value="modified">修改时间</option>
-              <option value="size">大小</option>
+              <option value="name">{t("library.name")}</option>
+              <option value="modified">{t("library.modifiedAt")}</option>
+              <option value="size">{t("library.size")}</option>
             </select>
           )}
           {!album && (
-            <div class="view-switch" role="group" aria-label="显示方式">
+            <div class="view-switch" role="group" aria-label={t("library.viewMode")}>
               {["list", "grid"].map((view) => (
                 <button
                   key={view}
                   class={library.view === view ? "active" : ""}
-                  aria-label={view === "list" ? "列表视图" : "网格视图"}
+                  aria-label={view === "list" ? t("library.listView") : t("library.gridView")}
                   aria-pressed={library.view === view}
                   onClick={() => library.setView(view)}
                 >
@@ -203,8 +204,8 @@ export function FileBrowser({
           <span class="empty-symbol">
             <Icon name="cloud-off" />
           </span>
-          <h2>{recordsError ? "无法读取最近文件记录" : "无法读取文件"}</h2>
-          <p>{recordsError ? recordsError.message : "请重试，或检查连接设置。"}</p>
+          <h2>{recordsError ? t("library.recentFilesUnavailable") : t("library.filesUnavailable")}</h2>
+          <p>{recordsError ? recordsError.message : t("library.retryConnection")}</p>
           <div class="empty-actions">
             <button
               class="primary-button"
@@ -212,13 +213,13 @@ export function FileBrowser({
               disabled={!recordsError && library.loading}
             >
               <Icon name="refresh" />
-              重试
+              {t("library.retry")}
             </button>
             <button
               class="secondary-button"
               onClick={recordsError ? () => library.selectMode("all") : onSettings}
             >
-              {recordsError ? "查看文件" : "连接设置"}
+              {recordsError ? t("library.viewFiles") : t("library.connectionSettings")}
             </button>
           </div>
         </div>
@@ -232,9 +233,9 @@ export function FileBrowser({
           (!busy && !entries.length)
         }
       >
-        <span>文件名</span>
-        <span>{recent ? "访问时间" : "修改时间"}</span>
-        <span>大小</span>
+        <span>{t("library.fileName")}</span>
+        <span>{recent ? t("library.accessedAt") : t("library.modifiedAt")}</span>
+        <span>{t("library.size")}</span>
         <span />
       </div>
       <div
@@ -242,7 +243,7 @@ export function FileBrowser({
         class={album ? "album-timeline" : `file-grid${library.view === "list" ? " list-layout" : ""}`}
         aria-live="polite"
         aria-busy={busy}
-        aria-label={album ? "相册" : recent ? "最近文件列表" : "文件列表"}
+        aria-label={album ? t("library.album") : recent ? t("library.recentFileList") : t("library.fileList")}
       >
         {album ? (
           <Album
@@ -293,30 +294,30 @@ export function FileBrowser({
           </span>
           <h2>
             {library.query
-              ? "没有找到匹配的文件"
+              ? t("library.noMatchingFiles")
               : library.mode === "favorites"
-                ? "暂无收藏"
+                ? t("library.noFavorites")
                 : recent
-                  ? "暂无访问记录"
-                  : "暂无文件"}
+                  ? t("library.noRecentFiles")
+                  : t("library.noFiles")}
           </h2>
           <p>
             {library.query
-              ? "试试其他关键词。"
+              ? t("library.tryKeywords")
               : library.mode === "favorites"
-                ? "点击文件旁的星标，收藏常用文件。"
+                ? t("library.favoritesHint")
                 : recent
-                  ? "打开过的文件会显示在这里。"
+                  ? t("library.recentFilesHint")
                   : library.kind
-                    ? "当前文件夹没有此类文件。"
-                    : "此文件夹还没有内容。"}
+                    ? t("library.noFilesOfType")
+                    : t("library.emptyFolderHint")}
           </p>
           {library.query && (
             <button
               class="secondary-button"
               onClick={() => library.setQuery("")}
             >
-              清除搜索
+              {t("library.clearSearch")}
             </button>
           )}
           {!library.query && library.kind && (
@@ -324,11 +325,11 @@ export function FileBrowser({
               class="secondary-button"
               onClick={() => library.selectMode("all")}
             >
-              查看全部文件
+              {t("library.viewAllFiles")}
             </button>
           )}
           {!library.query && !usesDirectory && (
-            <span class="empty-footnote">记录保存在此浏览器</span>
+            <span class="empty-footnote">{t("library.localRecordsNote")}</span>
           )}
         </div>
       )}

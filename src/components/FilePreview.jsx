@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { useEffect, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { limitedBytes } from "../lib/dav.js";
@@ -36,7 +37,7 @@ export function FilePreview({
           return;
         }
         if (!["image", "text"].includes(item.kind)) {
-          setError("下载后查看此文件");
+          setError(t("library.downloadToView"));
           return;
         }
         if (item.kind === "image" && client.images) {
@@ -60,7 +61,7 @@ export function FilePreview({
         }
         const limit = (item.kind === "image" ? 25 : 1) * 1024 * 1024;
         if (item.size > limit)
-          throw new Error("文件超过预览大小限制，请下载原文件查看。");
+          throw new Error(t("library.previewTooLarge"));
         const response = await client.get(item.path, controller.signal);
         const data = await limitedBytes(response, limit, controller.signal);
         if (controller.signal.aborted) return;
@@ -70,7 +71,7 @@ export function FilePreview({
         }
         const mime = response.headers.get("Content-Type")?.split(";")[0];
         if (mime && !mime.startsWith("image/"))
-          throw new Error("后端没有返回图片，可能需要重新登录。");
+          throw new Error(t("library.imageResponseInvalid"));
         if (url) URL.revokeObjectURL(url);
         url = URL.createObjectURL(
           new Blob([data], { type: mime || "image/*" }),
@@ -78,7 +79,7 @@ export function FilePreview({
         setContent({ url });
       } catch (error) {
         if (!controller.signal.aborted) {
-          setError("无法预览此文件，请下载查看。");
+          setError(t("library.filePreviewFailed"));
           onError(error.message);
         }
       }
@@ -100,13 +101,13 @@ export function FilePreview({
       aria-labelledby="preview-name"
     >
       <div class="preview-header">
-        <button class="icon-button" aria-label="关闭预览" onClick={onClose}>
+        <button class="icon-button" aria-label={t("library.closePreview")} onClick={onClose}>
           <Icon name={modal ? "chevron-left" : "x"} />
         </button>
         <strong id="preview-name">{item.name}</strong>
         <button
           class="icon-button"
-          aria-label={favorite ? "取消收藏文件" : "收藏文件"}
+          aria-label={favorite ? t("library.unfavoriteFile") : t("library.favoriteFile")}
           aria-pressed={favorite}
           style={{ color: favorite ? "#a58b41" : undefined }}
           onClick={() => onFavorite(item)}
@@ -119,7 +120,7 @@ export function FilePreview({
           {error || !content ? (
             <div class="preview-placeholder">
               <Icon name={item.kind} />
-              <p role="status">{error || "正在加载预览…"}</p>
+              <p role="status">{error || t("library.loadingPreview")}</p>
             </div>
           ) : content.video ? (
             <VideoPreview
@@ -143,29 +144,29 @@ export function FilePreview({
                 )
               }
               onError={() => {
-                setError("无法预览此图片，请下载查看。");
-                onError("无法预览此图片，请下载查看。");
+                setError(t("library.imagePreviewFailed"));
+                onError(t("library.imagePreviewFailed"));
               }}
             />
           )}
         </div>
         <dl class="file-details">
           <div>
-            <dt>类型</dt>
+            <dt>{t("library.type")}</dt>
             <dd>{item.mime || item.name.split(".").pop().toUpperCase()}</dd>
           </div>
           <div>
-            <dt>大小</dt>
+            <dt>{t("library.size")}</dt>
             <dd>{bytes(item.size)}</dd>
           </div>
           {dimensions && (
             <div>
-              <dt>尺寸</dt>
+              <dt>{t("library.dimensions")}</dt>
               <dd>{dimensions}</dd>
             </div>
           )}
           <div>
-            <dt>修改时间</dt>
+            <dt>{t("library.modifiedAt")}</dt>
             <dd>{date(item.modified, true)}</dd>
           </div>
         </dl>
@@ -173,7 +174,7 @@ export function FilePreview({
       <div class="preview-actions">
         <button class="primary-button" onClick={() => onDownload(item)}>
           <Icon name="download" />
-          下载
+          {t("library.download")}
         </button>
       </div>
       {feedback}

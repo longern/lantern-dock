@@ -1,3 +1,5 @@
+import { t, locale } from "../../shared/i18n.js";
+
 function dayKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
@@ -43,20 +45,20 @@ export function groupMediaByDate(entries, now = new Date()) {
         if (b.timestamp === null) return -1;
         return b.timestamp - a.timestamp;
       }
-      return a.item.name.localeCompare(b.item.name, "zh-CN", { numeric: true }) ||
-        a.item.path.localeCompare(b.item.path);
+      return a.item.name.localeCompare(b.item.name, locale, { numeric: true }) ||
+        a.item.path.localeCompare(b.item.path, locale);
     });
   const groups = new Map();
   for (const { item, timestamp } of media) {
     const date = timestamp === null ? null : new Date(timestamp);
     const key = date ? dayKey(date) : "unknown";
     if (!groups.has(key)) {
-      const label = !date ? "日期未知"
+      const label = !date ? t("core.album.unknown")
         : date.getFullYear() !== now.getFullYear()
-          ? `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`
-          : key === today ? "今天"
-            : key === yesterday ? "昨天"
-              : `${date.getMonth() + 1}月${date.getDate()}日`;
+          ? new Intl.DateTimeFormat(locale, { year: "numeric", month: "long", day: "numeric" }).format(date)
+          : key === today ? t("core.album.today")
+            : key === yesterday ? t("core.album.yesterday")
+              : new Intl.DateTimeFormat(locale, { month: "long", day: "numeric" }).format(date);
       groups.set(key, { key, label, items: [] });
     }
     groups.get(key).items.push(item);

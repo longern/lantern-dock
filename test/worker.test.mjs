@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker, { configuration, validatePins } from "../worker/index.js";
+import { createTranslator } from "../shared/i18n.js";
+import { setupVariables } from "../src/lib/setup.js";
 import {
   deriveSecret,
   CERTIFICATE_WEBHOOK_PURPOSE,
@@ -492,4 +494,176 @@ test("an explicit legacy webhook credential stays valid during migration", async
     ).status,
     401,
   );
+});
+
+test("configuration negotiates browser languages without changing configured names", async () => {
+  const cases = [
+    ["zh-TW, en;q=0.8", "zh-CN", "我的文件", "公开资源库"],
+    ["zh-CN;q=0.5, en-GB;q=0.9", "en", "My files", "Public library"],
+    ["fr-FR, zh;q=0.8, en;q=0.5", "zh-CN", "我的文件", "公开资源库"],
+    ["zh;q=0, en;q=1", "en", "My files", "Public library"],
+    ["fr-FR", "en", "My files", "Public library"],
+    ["", "en", "My files", "Public library"],
+  ];
+  for (const [language, locale, name, demoName] of cases) {
+    const request = () =>
+      new Request("https://portal.example.com/api/config", {
+        headers: { "Accept-Language": language },
+      });
+    const configured = await worker.fetch(request(), base);
+    assert.equal((await configured.json()).backend.name, name);
+    assert.equal(configured.headers.get("Content-Language"), locale);
+    assert.equal(configured.headers.get("Vary"), "Accept-Language");
+    assert.equal(configured.headers.get("Cache-Control"), "no-store");
+    const setup = await worker.fetch(request(), {});
+    assert.equal((await setup.json()).setup.backend.name, name);
+    const demo = await worker.fetch(request(), { DEMO_MODE: "true" });
+    assert.equal((await demo.json()).backend.name, demoName);
+    for (const env of [base, {}]) {
+      const custom = await worker.fetch(request(), {
+        ...env,
+        BACKEND_NAME: "<Owner's archive>",
+      });
+      const data = await custom.json();
+      assert.equal(
+        (data.backend || data.setup.backend).name,
+        "<Owner's archive>",
+      );
+    }
+  }
+});
+
+test("concurrent configuration requests keep their language across storage awaits", async () => {
+  const pending = [];
+  const env = {
+    ...base,
+    BACKEND_TRANSPORT: "webtransport",
+    KV: {
+      get: () =>
+        new Promise((resolve) => {
+          pending.push(resolve);
+          if (pending.length === 2)
+            for (const complete of pending.reverse())
+              complete({ version: 1, certificates: [pin] });
+        }),
+    },
+  };
+  const responses = await Promise.all(
+    ["zh-CN", "en"].map((language) =>
+      worker.fetch(
+        new Request("https://portal.example.com/api/config", {
+          headers: { "Accept-Language": language },
+        }),
+        env,
+      ),
+    ),
+  );
+  assert.equal((await responses[0].json()).backend.name, "我的文件");
+  assert.equal((await responses[1].json()).backend.name, "My files");
+  assert.equal(responses[0].headers.get("Content-Language"), "zh-CN");
+  assert.equal(responses[1].headers.get("Content-Language"), "en");
+});
+
+test("webhook validation localizes safe errors without exposing malformed payloads", async () => {
+  const secret = "localized-webhook-secret-".repeat(3);
+  const env = { CERT_WEBHOOK_SECRET: secret, KV: { put: async () => {} } };
+  const url = "https://portal.example.com/api/certificates/" + secret;
+  for (const [language, expected] of [
+    ["en", "Invalid JSON body"],
+    ["zh-CN", "JSON 请求正文无效。"],
+  ]) {
+    const response = await worker.fetch(
+      new Request(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept-Language": language,
+        },
+        body: '{"private-canary":',
+      }),
+      env,
+    );
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), { error: expected });
+    assert.equal(response.headers.get("Content-Language"), language);
+  }
+  const invalidPin = await worker.fetch(
+    new Request(url, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept-Language": "zh-CN",
+      },
+      body: JSON.stringify({ version: 1, certificates: [null] }),
+    }),
+    env,
+  );
+  assert.deepEqual(await invalidPin.json(), { error: "证书指纹无效。" });
+});
+
+test("setup distinguishes explicit default names from localized fallback names", async () => {
+  for (const [language, defaultName] of [
+    ["en", "My files"],
+    ["zh-CN", "我的文件"],
+  ]) {
+    for (const name of [undefined, "", "My files", "我的文件"]) {
+      const env = Object.freeze(
+        name === undefined ? {} : { BACKEND_NAME: name },
+      );
+      const request = () =>
+        new Request("https://portal.example.com/api/config", {
+          headers: { "Accept-Language": language },
+        });
+      const setup = await worker.fetch(request(), env);
+      const data = await setup.json();
+      assert.equal(data.setup.backend.name, name || defaultName);
+      assert.equal(data.setup.backend.nameConfigured, Boolean(name));
+      assert.equal(
+        data.setup.resetVariables.includes("BACKEND_NAME"),
+        Boolean(name),
+      );
+      assert.equal(env.BACKEND_NAME, name);
+      assert.equal(Object.hasOwn(env, "BACKEND_NAME"), name !== undefined);
+
+      const configured = await worker.fetch(request(), { ...base, ...env });
+      const backend = (await configured.json()).backend;
+      assert.equal(backend.name, name || defaultName);
+      assert.equal(Object.hasOwn(backend, "nameConfigured"), false);
+    }
+  }
+});
+
+test("clearing an explicit English default name exports a reset for every locale", async () => {
+  for (const language of ["en", "zh-CN"]) {
+    const previous = Object.freeze({ BACKEND_NAME: "My files" });
+    const response = await worker.fetch(
+      new Request("https://portal.example.com/api/config", {
+        headers: { "Accept-Language": language },
+      }),
+      previous,
+    );
+    const { setup } = await response.json();
+    assert.equal(setup.backend.nameConfigured, true);
+    assert.deepEqual(setup.resetVariables, ["BACKEND_NAME"]);
+    const form = {
+      ...setup.backend,
+      endpoint: "https://files.example.com",
+    };
+    const retained = setupVariables(form, setup.resetVariables);
+    assert.equal(retained.BACKEND_NAME, "My files");
+    const cleared = setupVariables(
+      { ...form, name: "", nameConfigured: false },
+      setup.resetVariables,
+    );
+    assert.equal(cleared.BACKEND_NAME, "");
+    const configured = await configuration(
+      { ...previous, ...cleared },
+      createTranslator(language),
+    );
+    assert.equal(
+      configured.backend.name,
+      language === "zh-CN" ? "我的文件" : "My files",
+    );
+    assert.equal(previous.BACKEND_NAME, "My files");
+  }
 });

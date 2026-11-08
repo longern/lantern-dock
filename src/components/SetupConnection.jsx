@@ -1,3 +1,4 @@
+import { t } from "../../shared/i18n.js";
 import { Icon } from "./Icon.jsx";
 
 export function SetupConnection({ wizard }) {
@@ -10,7 +11,7 @@ export function SetupConnection({ wizard }) {
         wizard.generate();
       }}
     >
-      <div class="setup-choices" role="group" aria-label="连接方式">
+      <div class="setup-choices" role="group" aria-label={t("account.connectionMethod")}>
         <button
           type="button"
           class={`setup-choice${!webtransport ? " selected" : ""}`}
@@ -19,7 +20,7 @@ export function SetupConnection({ wizard }) {
         >
           <Icon name="folder" />
           <strong>HTTPS / WebDAV</strong>
-          <span>直接连接文件服务</span>
+          <span>{t("account.directConnection")}</span>
         </button>
         <button
           type="button"
@@ -29,11 +30,11 @@ export function SetupConnection({ wizard }) {
         >
           <Icon name="plug" />
           <strong>WebTransport</strong>
-          <span>通过 bridge 网关连接</span>
+          <span>{t("account.bridgeConnection")}</span>
         </button>
       </div>
       <label class="form-label" for="setup-endpoint">
-        {webtransport ? "WebTransport 网关地址" : "WebDAV 服务地址"}
+        {webtransport ? t("account.webtransportAddress") : t("account.webdavAddress")}
       </label>
       <input
         id="setup-endpoint"
@@ -51,13 +52,13 @@ export function SetupConnection({ wizard }) {
       />
       <p id="setup-endpoint-help" class="field-note">
         {webtransport
-          ? "填写以 /webtransport 结尾的完整网关地址。"
-          : "填写服务地址，默认使用 /dav/；完整 WebDAV 地址会自动识别根目录。"}
+          ? t("account.webtransportAddressHelp")
+          : t("account.webdavAddressHelp")}
       </p>
       <details class="setup-advanced">
-        <summary>高级设置</summary>
+        <summary>{t("account.advancedSettings")}</summary>
         <label class="form-label" for="setup-name">
-          资源名称
+          {t("account.resourceName")}
         </label>
         <input
           id="setup-name"
@@ -68,36 +69,36 @@ export function SetupConnection({ wizard }) {
         <div class="setup-fields">
           <div>
             <label class="form-label" for="setup-root">
-              WebDAV 根目录
+              {t("account.webdavRoot")}
             </label>
             <input
               id="setup-root"
               value={form.rootPath}
               placeholder={
-                webtransport ? "/dav/（默认）" : "自动识别，默认 /dav/"
+                webtransport ? t("account.webtransportRootPlaceholder") : t("account.webdavRootPlaceholder")
               }
               onInput={(event) => update("rootPath", event.currentTarget.value)}
             />
           </div>
           <div>
             <label class="form-label" for="setup-auth">
-              后端认证
+              {t("account.backendAuthentication")}
             </label>
             <select
               id="setup-auth"
               value={form.auth}
               onChange={(event) => update("auth", event.currentTarget.value)}
             >
-              <option value="none">无需认证</option>
-              <option value="basic">用户名与密码（Basic）</option>
-              <option value="bearer">访问令牌（Bearer）</option>
+              <option value="none">{t("account.noAuthentication")}</option>
+              <option value="basic">{t("account.basicAuthentication")}</option>
+              <option value="bearer">{t("account.bearerAuthentication")}</option>
             </select>
           </div>
         </div>
         {webtransport && (
           <>
             <label class="form-label" for="setup-certificate">
-              网关证书
+              {t("account.gatewayCertificate")}
             </label>
             <select
               id="setup-certificate"
@@ -106,8 +107,8 @@ export function SetupConnection({ wizard }) {
                 update("certificateMode", event.currentTarget.value)
               }
             >
-              <option value="pinned">短期证书 + 自动更新</option>
-              <option value="webpki">公开受信任的 HTTPS 证书</option>
+              <option value="pinned">{t("account.pinnedCertificate")}</option>
+              <option value="webpki">{t("account.trustedCertificate")}</option>
             </select>
             <label class="setup-checkbox">
               <input
@@ -117,15 +118,15 @@ export function SetupConnection({ wizard }) {
                   update("gatewayAuth", event.currentTarget.checked)
                 }
               />
-              网关要求访问令牌
+              {t("account.gatewayRequiresToken")}
             </label>
           </>
         )}
-        <p class="field-note">账号和访问令牌在连接时填写。</p>
+        <p class="field-note">{t("account.credentialsHelp")}</p>
       </details>
       <div class="setup-actions setup-actions-end">
         <button type="submit" class="primary-button">
-          生成配置
+          {t("account.generateConfiguration")}
           <Icon name="chevron-right" />
         </button>
       </div>
