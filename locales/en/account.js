@@ -1,4 +1,9 @@
 export default {
+  "closeSignIn": "Close sign-in",
+  "signInFailed": "Could not start sign-in. Try again.",
+  "guest": "Guest",
+  "sessionUnavailable": "Account unavailable",
+  "sessionRetryHint": "Could not check your sign-in status. Try again.",
   "subjectCopied": "Copied sub.",
   "administratorCopied": "Copied administrator configuration.",
   "administratorInstructions": "Set the NAS service’s ADMIN_SUBJECTS environment variable to the value below, restart the NAS service, then select “Check again”.",

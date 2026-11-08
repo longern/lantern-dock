@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fileListing } from "../src/lib/file-listing.js";
+import { fileListing, listingPreferences } from "../src/lib/file-listing.js";
 
 const file = (name, visitedAt = 0, modified = "2020-01-01") => ({
   name, path: "/" + name, kind: "text", isDirectory: false, visitedAt, modified,
@@ -10,7 +10,34 @@ const library = (overrides = {}) => ({
   mode: "home", entries: directory, sort: "recent", kind: "", query: "", ...overrides,
 });
 const records = (recent = [], favorites = [], overrides = {}) => ({
-  recent, favorites, recentStatus: "ready", recentError: null, ...overrides,
+  recent, favorites, recentStatus: "ready", recentError: null,
+  favoritesStatus: "ready", favoritesError: null, ...overrides,
+});
+
+test("header preferences share recent eligibility without reading or sorting directory entries", () => {
+  const source = library({ view: "grid", sort: "size" });
+  Object.defineProperty(source, "entries", { get() { throw new Error("Header must not scan entries"); } });
+  assert.deepEqual(listingPreferences(source, records()), {
+    recent: false, album: false, sort: "size", view: "grid",
+  });
+  for (const recentStatus of ["pending", "error", "ready"]) {
+    assert.deepEqual(listingPreferences(source, records([file("recent.md")], [], { recentStatus })), {
+      recent: true, album: false, sort: "recent", view: "list",
+    });
+  }
+});
+
+test("album and favorites header preferences agree with their content model", () => {
+  for (const kind of ["album", "image", "text", ""]) {
+    const source = library({ mode: "all", kind, sort: "modified", view: "grid" });
+    const preference = listingPreferences(source, records([file("recent.md")]));
+    const listing = fileListing(source, records([file("recent.md")]));
+    assert.equal(preference.album, ["album", "image"].includes(kind));
+    for (const key of ["recent", "album", "sort", "view"]) assert.equal(listing[key], preference[key]);
+  }
+  assert.deepEqual(listingPreferences(library({ mode: "favorites", sort: "name", view: "grid" }), records([file("recent.md")])), {
+    recent: false, album: false, sort: "name", view: "grid",
+  });
 });
 
 test("home keeps the recent source while its backend namespace is unresolved", () => {
@@ -97,6 +124,55 @@ test("favorites keep their own source and never fall back to directory files", (
   assert.deepEqual(empty.entries, []);
 });
 
+test("favorites wait for their backend namespace without showing an empty or directory source", () => {
+  const result = fileListing(library({ mode: "favorites" }), records([], [], {
+    favoritesStatus: "pending",
+  }));
+  assert.equal(result.recordsPending, true);
+  assert.equal(result.recordsError, null);
+  assert.equal(result.recent, false);
+  assert.equal(result.usesDirectory, false);
+  assert.deepEqual(result.entries, []);
+});
+
+test("favorites storage errors stay errors until a successful retry supplies the favorite source", () => {
+  const error = new Error("favorites storage unavailable");
+  const failed = fileListing(library({ mode: "favorites" }), records([file("recent.md")], [], {
+    favoritesStatus: "error", favoritesError: error,
+  }));
+  assert.equal(failed.recordsPending, false);
+  assert.equal(failed.recordsError, error);
+  assert.equal(failed.usesDirectory, false);
+  assert.deepEqual(failed.entries, []);
+  const favorite = file("restored-favorite.md");
+  const recovered = fileListing(library({ mode: "favorites" }), records([], [favorite]));
+  assert.equal(recovered.recordsError, null);
+  assert.equal(recovered.recordsPending, false);
+  assert.deepEqual(recovered.entries, [favorite]);
+});
+
+test("favorites availability is independent of recent history and never blocks ordinary files", () => {
+  for (const status of ["pending", "error"]) {
+    const error = new Error("unrelated record failure");
+    const favorite = file("favorite.md");
+    const favorites = fileListing(library({ mode: "favorites" }), records([], [favorite], {
+      recentStatus: status, recentError: error,
+    }));
+    assert.equal(favorites.recordsPending, false);
+    assert.equal(favorites.recordsError, null);
+    assert.deepEqual(favorites.entries, [favorite]);
+    for (const mode of ["all", "home"]) {
+      const files = fileListing(library({ mode }), records([], [], {
+        favoritesStatus: status, favoritesError: error,
+      }));
+      assert.equal(files.recordsPending, false);
+      assert.equal(files.recordsError, null);
+      assert.equal(files.usesDirectory, true);
+      assert.equal(files.entries.length, 2);
+    }
+  }
+});
+
 test("recent sorting is fixed even when another view has selected a different sort", () => {
   const older = { ...file("aaa.md", 10, "2030-01-01"), size: 100 };
   const newer = { ...file("zzz.md", 20, "2000-01-01"), size: 1 };
@@ -104,6 +180,27 @@ test("recent sorting is fixed even when another view has selected a different so
     const result = fileListing(library({ sort }), records([older, newer]));
     assert.equal(result.sort, "recent");
     assert.deepEqual(result.entries, [newer, older]);
+  }
+});
+
+test("recent files always use list layout without changing the saved view preference", () => {
+  const source = library({ view: "grid", sort: "size" });
+  const result = fileListing(source, records([file("recent.md", 20)]));
+  assert.equal(result.view, "list");
+  assert.equal(result.sort, "recent");
+  assert.equal(source.view, "grid");
+  assert.equal(source.sort, "size");
+  for (const recentStatus of ["pending", "error"]) {
+    assert.equal(fileListing(source, records([], [], { recentStatus })).view, "list");
+  }
+});
+
+test("ordinary files, favorites and the empty-history fallback preserve view choices", () => {
+  for (const mode of ["home", "all", "favorites"]) {
+    for (const view of ["grid", "list"]) {
+      const result = fileListing(library({ mode, view }), records());
+      assert.equal(result.view, view);
+    }
   }
 });
 

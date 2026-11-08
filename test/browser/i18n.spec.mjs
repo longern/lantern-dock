@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { closeFavorites, openFavorites } from "../helpers/navigation.mjs";
 
 const labels = {
   en: {
@@ -125,16 +126,20 @@ for (const { locale, expected } of [
       await expect(search).toHaveValue("");
       await expect(page.locator(".file-card")).toHaveCount(12);
 
-      for (const destinationName of [copy.files, copy.favorites]) {
+      for (const mode of ["files", "favorites"]) {
         await search.fill("no-matching-i18n-file");
-        const destination = nav.getByRole("button", { name: destinationName });
-        await destination.click();
+        const destination = mode === "favorites"
+          ? await openFavorites(page, expected)
+          : nav.getByRole("button", { name: copy.files });
+        if (mode === "files") await destination.click();
         await destination.focus();
         await page.keyboard.press("/");
-        await expect(destination).toHaveAttribute("aria-current", "page");
+        if (mode === "favorites") await expect(page).toHaveURL(/#\/favorites$/);
+        else await expect(destination).toHaveAttribute("aria-current", "page");
         await expect(destination).toBeFocused();
         await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
         await expect(page.locator(".category-cards")).toHaveCount(0);
+        if (mode === "favorites") await closeFavorites(page, expected);
         await home.click();
         await expect(search).toHaveValue("");
       }

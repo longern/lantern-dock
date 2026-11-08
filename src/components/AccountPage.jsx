@@ -9,6 +9,18 @@ import {
 } from "../lib/identity.js";
 
 export function AccountPage() {
+  const [returnToMe] = useState(() => {
+    const requested = new URLSearchParams(location.hash.split("?")[1] || "").get("return") === "me";
+    try {
+      // A local, allowlisted destination only. No identity or credentials are
+      // persisted; this survives the existing identity-provider redirect.
+      const pending = sessionStorage.getItem("lantern-dock:account-return");
+      sessionStorage.removeItem("lantern-dock:account-return");
+      return requested || pending === "me";
+    } catch {
+      return requested;
+    }
+  });
   const [session, setSession] = useState(null);
   const [account, setAccount] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -18,16 +30,31 @@ export function AccountPage() {
   const [copied, setCopied] = useState("");
   const [revision, setRevision] = useState(0);
   const connection = useRef(null);
+  const request = useRef(null);
+  const loginRequest = useRef(null);
+  const mounted = useRef(true);
+  useEffect(() => () => {
+    mounted.current = false;
+    if (loginRequest.current) {
+      loginRequest.current.abort();
+      try { sessionStorage.removeItem("lantern-dock:account-return"); } catch { /* Optional navigation hint. */ }
+    }
+  }, []);
   useEffect(() => {
     const query = new URLSearchParams(location.hash.split("?")[1] || "");
     if (query.has("error")) {
       setError(query.get("error"));
-      history.replaceState(null, "", "/#/account");
+      query.delete("error");
     }
+    if (returnToMe) query.set("return", "me");
+    const suffix = query.toString();
+    history.replaceState(null, "", `#/account${suffix ? `?${suffix}` : ""}`);
   }, []);
   useEffect(() => {
     const controller = new AbortController();
+    request.current = controller;
     setLoading(true);
+    setSession(null);
     setAccount(null);
     setAccountError("");
     (async () => {
@@ -79,13 +106,23 @@ export function AccountPage() {
     }
   };
   const login = async () => {
+    const controller = new AbortController();
+    loginRequest.current = controller;
     setBusy(true);
     setError("");
     try {
-      await beginLogin();
+      try {
+        if (returnToMe) sessionStorage.setItem("lantern-dock:account-return", "me");
+      } catch { /* Sign-in still works when session storage is unavailable. */ }
+      await beginLogin(controller.signal);
     } catch (err) {
-      setError(err.message);
-      setBusy(false);
+      if (mounted.current) {
+        try { sessionStorage.removeItem("lantern-dock:account-return"); } catch { /* Optional navigation hint. */ }
+      }
+      if (mounted.current && !controller.signal.aborted) {
+        setError(err.message);
+        setBusy(false);
+      }
     }
   };
   const logout = async () => {
@@ -93,21 +130,28 @@ export function AccountPage() {
     setError("");
     try {
       await endLogin();
+      // Logout may finish after a user has returned to My. Refresh that real
+      // session rather than leaving the account summary with the old identity.
+      window.dispatchEvent(new Event("lantern-dock:session-changed"));
+      if (!mounted.current) return;
+      // Do not let a pending NAS response put the old identity back after logout.
+      request.current?.abort();
       connection.current?.close();
       connection.current = null;
       setSession(null);
       setAccount(null);
       setAccountError("");
       setCopied("");
+      setLoading(false);
     } catch (err) {
-      setError(err.message);
+      if (mounted.current) setError(err.message);
     } finally {
-      setBusy(false);
+      if (mounted.current) setBusy(false);
     }
   };
   return (
     <main class="setup-page account-page">
-      <a class="setup-brand" href="#/">
+      <a class="setup-brand" href={returnToMe ? "#/me" : "#/"}>
         <span class="brand-symbol">
           <Icon name="portal" />
         </span>
@@ -247,8 +291,8 @@ export function AccountPage() {
           >
             {t("account.checkAgain")}
           </button>
-          <a class="upload-back" href="#/">
-            {t("account.backToPublicFiles")}
+          <a class="upload-back" href={returnToMe ? "#/me" : "#/"}>
+            {t(returnToMe ? "library.backToMe" : "account.backToPublicFiles")}
           </a>
         </div>
       </section>

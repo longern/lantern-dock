@@ -109,6 +109,19 @@
     transform: translateX(24px);
   }
 }
+.favorites-dialog::backdrop { background: var(--scrim); animation: backdrop-in var(--motion-enter) var(--ease-standard) both; }
+.favorites-dialog[data-state="closed"]::backdrop { animation: backdrop-out var(--motion-exit) ease-in both; }
+.favorites-dialog[open] { animation: favorites-in var(--motion-enter) var(--ease-standard) both; }
+.favorites-dialog[open][data-state="closed"] { animation: favorites-out var(--motion-exit) ease-in both; }
+@keyframes favorites-in {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes favorites-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(100%); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

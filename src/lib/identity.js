@@ -120,18 +120,22 @@ export async function identitySession(signal) {
     }),
   );
 }
-export async function beginLogin() {
+export async function beginLogin(signal) {
+  signal?.throwIfAborted();
   const proof = await identityProof(
     "POST",
     location.origin + "/api/auth/login",
   );
+  signal?.throwIfAborted();
   const value = await result(
     await fetch("/api/auth/login", {
       method: "POST",
       credentials: "same-origin",
       headers: { DPoP: proof, "Accept-Language": locale },
+      signal,
     }),
   );
+  signal?.throwIfAborted();
   location.assign(value.url);
 }
 export async function endLogin() {

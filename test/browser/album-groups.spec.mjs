@@ -1,3 +1,4 @@
+import { listingOptionsButton } from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
@@ -94,7 +95,7 @@ test("photos form dated groups with real thumbnails and four edge-to-edge mobile
   await expect(page.getByRole("region", { name: "日期未知", exact: true })
     .getByRole("button", { name: "预览视频 undated.mp4", exact: true })).toBeVisible();
   await expect(page.getByText("按修改日期 · 新到旧", { exact: true })).toHaveCount(0);
-  await expect(page.getByLabel("排序", { exact: true })).toHaveCount(0);
+  await expect(listingOptionsButton(page)).toHaveCount(0);
   await expect(page.locator("#file-list .file-info,#file-list .favorite-button")).toHaveCount(0);
   const first = page.locator(".album-preview").first();
   await expect(first.locator("img")).toBeVisible();

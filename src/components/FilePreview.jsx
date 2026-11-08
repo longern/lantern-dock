@@ -15,6 +15,7 @@ export function FilePreview({
   onDownload,
   onError,
   onClose,
+  onEntered,
   onExited,
   open,
   feedback,
@@ -95,6 +96,7 @@ export function FilePreview({
       open={open}
       modal={modal}
       onClose={onClose}
+      onEntered={onEntered}
       onExited={onExited}
       id="preview-dialog"
       class="preview-dialog"

@@ -1,4 +1,12 @@
 export default {
+  "listingOptions": "排序与视图",
+  "me": "我的",
+  "meActions": "个人快捷入口",
+  "myFavorites": "我的收藏",
+  "settings": "设置",
+  "backToMe": "返回我的",
+  "backToFiles": "返回文件",
+  "favoritesUnavailable": "无法读取收藏",
   "demoPreview": "正在体验演示文件",
   "backToSetup": "返回配置向导",
   "credentialsCleared": "已清除页面内的登录信息。",

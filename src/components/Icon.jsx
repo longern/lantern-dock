@@ -1,5 +1,7 @@
 import {
   ArrowUpRight,
+  Check,
+  Ellipsis,
   BookOpen,
   ChevronRight,
   ChevronLeft,
@@ -42,6 +44,8 @@ import {
 
 const icons = {
   home: House,
+  check: Check,
+  ellipsis: Ellipsis,
   folder: Folder,
   clock: Clock,
   star: Star,

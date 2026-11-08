@@ -1,3 +1,4 @@
+import { chooseListingOption } from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -329,7 +330,7 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
   await expect
     .poll(() => thumbnail.evaluate((img) => img.naturalWidth))
     .toBe(128);
-  await page.getByRole("button", { name: "网格视图", exact: true }).click();
+  await chooseListingOption(page, "网格视图");
   await expect
     .poll(() => thumbnail.evaluate((img) => img.naturalWidth))
     .toBe(384);

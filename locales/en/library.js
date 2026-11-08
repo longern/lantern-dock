@@ -1,4 +1,12 @@
 export default {
+  "listingOptions": "Sort and view options",
+  "me": "Me",
+  "meActions": "Personal shortcuts",
+  "myFavorites": "My favorites",
+  "settings": "Settings",
+  "backToMe": "Back to Me",
+  "backToFiles": "Back to files",
+  "favoritesUnavailable": "Could not load favorites",
   "demoPreview": "You are exploring demo files",
   "backToSetup": "Back to setup",
   "credentialsCleared": "Login details have been cleared from this page.",

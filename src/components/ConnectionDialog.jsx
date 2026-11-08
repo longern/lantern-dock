@@ -13,6 +13,7 @@ export function ConnectionDialog({
   onExited,
   open,
   feedback,
+  fallbackFocus,
 }) {
   const mobile = useMediaQuery("(max-width: 700px)");
   const [form, setForm] = useState({
@@ -41,7 +42,7 @@ export function ConnectionDialog({
       open={open}
       onClose={onClose}
       onExited={onExited}
-      fallbackFocus={mobile ? "#navigation-toggle" : "#connection-settings"}
+      fallbackFocus={!mobile ? "#connection-settings" : fallbackFocus || "#navigation-toggle"}
       class="settings-dialog"
       aria-labelledby="settings-title"
     >

@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef } from "preact/hooks";
+import { afterOverlayEntry } from "../lib/overlay-entry.js";
 
 // Keep the native modal (focus containment, inert background and backdrop) open
 // through its exit animation. All dismiss paths use the same controlled state.
@@ -6,6 +7,7 @@ export function Dialog({
   open,
   modal = true,
   onClose,
+  onEntered,
   onExited,
   fallbackFocus,
   children,
@@ -15,7 +17,7 @@ export function Dialog({
   const outsidePress = useRef(false);
   const returnFocus = useRef(null);
   const callbacks = useRef(null);
-  callbacks.current = { open, onClose, onExited, fallbackFocus };
+  callbacks.current = { open, onClose, onEntered, onExited, fallbackFocus };
   useLayoutEffect(() => {
     const node = element.current;
     if (open) {
@@ -23,6 +25,11 @@ export function Dialog({
       if (!node.open) {
         returnFocus.current ||= document.activeElement;
         modal ? node.showModal() : node.show();
+      }
+      if (callbacks.current.onEntered) {
+        return afterOverlayEntry(node, () => {
+          if (callbacks.current.open) callbacks.current.onEntered?.();
+        });
       }
       return;
     }
@@ -41,14 +48,17 @@ export function Dialog({
         if (callbacks.current.open) return;
         node.close();
         const trigger = returnFocus.current;
-        if (
-          trigger?.isConnected &&
-          trigger.getClientRects().length &&
-          !trigger.closest("dialog:not([open]), [inert]")
-        ) {
+        const topModal = [...document.querySelectorAll("dialog:modal")].at(-1);
+        const canFocus = (target) =>
+          target && target !== document.body && target !== document.documentElement &&
+          target.isConnected && target.getClientRects().length &&
+          !target.closest("dialog:not([open]), [inert]") &&
+          (!topModal || topModal.contains(target));
+        if (canFocus(trigger)) {
           trigger.focus({ preventScroll: true });
         } else if (callbacks.current.fallbackFocus) {
-          document.querySelector(callbacks.current.fallbackFocus)?.focus({ preventScroll: true });
+          const fallback = document.querySelector(callbacks.current.fallbackFocus);
+          if (canFocus(fallback)) fallback.focus({ preventScroll: true });
         }
         returnFocus.current = null;
         callbacks.current.onExited?.();

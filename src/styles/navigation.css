@@ -231,6 +231,17 @@
 .topbar .mobile-menu {
   margin-left: var(--topbar-edge-margin);
 }
+/* Shared by page headers; the menu still owns only its local popup state. */
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.header-actions .icon-button {
+  width: var(--topbar-button-size);
+  height: var(--topbar-button-size);
+  margin-right: var(--topbar-edge-margin);
+}
 .topbar-right > .icon-button:last-child {
   margin-right: var(--topbar-edge-margin);
 }
@@ -292,40 +303,6 @@
   align-items: center;
   gap: 16px;
 }
-.view-tools select {
-  border: 0;
-  background: none;
-  color: #7a7b88;
-  font-size: 12px;
-  max-width: 112px;
-  padding: 8px;
-  min-height: 40px;
-  border-radius: var(--radius-control);
-}
-.view-switch {
-  display: flex;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  padding: 2px;
-}
-.view-switch button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 34px;
-  border-radius: 7px;
-  color: #9393a0;
-}
-.view-switch svg {
-  width: 17px;
-  height: 17px;
-}
-.view-switch .active {
-  background: #eeedfb;
-  color: var(--accent);
-}
-
 .filter-chip {
   display: inline-flex;
   align-items: center;

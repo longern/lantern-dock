@@ -1,6 +1,7 @@
+import { chooseListingOption } from "../helpers/listing-options.mjs";
 import { test as base, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
-import { openConnectionSettings } from "../helpers/navigation.mjs";
+import { closeFavorites, openConnectionSettings, openFavorites } from "../helpers/navigation.mjs";
 
 const test = base.extend({
   page: async ({ page }, use) => {
@@ -32,13 +33,13 @@ test("search, sorting, views, folders and navigation work", async ({
   await expect(page.getByText("没有找到匹配的文件")).toBeVisible();
   await expect(page.locator(".list-head")).toBeHidden();
   await page.getByRole("searchbox").fill("");
-  await page.getByLabel("排序", { exact: true }).selectOption("size");
+  await chooseListingOption(page, "大小");
   await expect(
     page.locator(".file-card").nth(4).locator(".file-name"),
   ).toHaveText("归档资料.zip");
-  await page.getByRole("button", { name: "网格视图" }).click();
+  await chooseListingOption(page, "网格视图");
   await expect(page.locator("#file-list")).not.toHaveClass(/list-layout/);
-  await page.getByRole("button", { name: "列表视图" }).click();
+  await chooseListingOption(page, "列表视图");
   await expect(page.locator("#file-list")).toHaveClass(/list-layout/);
   await page
     .getByRole("button", { name: "打开文件夹 照片", exact: true })
@@ -117,13 +118,14 @@ test("favorites and recent entries survive reload without storing credentials", 
   );
   await page.getByRole("button", { name: "收藏文件", exact: true }).click();
   await page.getByRole("button", { name: "关闭预览" }).click();
-  await nav(page).getByRole("button", { name: /收藏/ }).click();
+  await openFavorites(page);
   await expect(page.locator(".file-card")).toHaveCount(1);
+  await closeFavorites(page);
   await nav(page).getByRole("button", { name: /首页/ }).click();
   await expect(page.locator(".file-card")).toHaveCount(1);
   await page.reload();
   await expect(page.locator(".file-card")).toHaveCount(1);
-  await nav(page).getByRole("button", { name: /收藏/ }).click();
+  await openFavorites(page);
   await expect(page.locator(".file-name")).toHaveText("项目笔记.md");
 });
 

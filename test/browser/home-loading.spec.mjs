@@ -1,3 +1,4 @@
+import { listingOptionsButton } from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
 import { openConnectionSettings } from "../helpers/navigation.mjs";
 
@@ -30,7 +31,7 @@ for (const history of [[], [visit]]) {
       await expect(page.locator("#file-list")).toHaveAttribute("aria-label", "最近文件列表");
       await expect(page.locator(".skeleton")).toHaveCount(8);
       await expect(page.locator(".file-card,.empty-state")).toHaveCount(0);
-      await expect(page.getByLabel("排序", { exact: true })).toHaveCount(0);
+      await expect(listingOptionsButton(page)).toHaveCount(0);
     } finally {
       release();
     }
@@ -50,7 +51,7 @@ test("configuration failure remains an error without pretending history is empty
   await expect(page.getByRole("heading", { name: "无法读取文件", exact: true })).toBeVisible();
   await expect(page.locator("#file-list")).toHaveAttribute("aria-busy", "false");
   await expect(page.locator(".file-card,.skeleton")).toHaveCount(0);
-  await expect(page.getByLabel("排序", { exact: true })).toHaveCount(0);
+  await expect(listingOptionsButton(page)).toHaveCount(0);
 });
 
 test("denied history reads stay errors and retry recovers without a directory flash", async ({ page }) => {

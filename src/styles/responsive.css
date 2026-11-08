@@ -84,9 +84,20 @@
   .topbar {
     padding: 0 16px;
     display: grid;
-    grid-template-columns: 36px minmax(0, 1fr) 36px;
+    grid-template-columns: 36px minmax(0, 1fr);
     gap: 8px;
     border-bottom: 0;
+  }
+  .topbar.has-actions {
+    grid-template-columns: 36px minmax(0, 1fr) 36px;
+  }
+  .topbar.has-actions .topbar-right {
+    display: flex;
+    margin-left: 0;
+    justify-content: flex-end;
+  }
+  .topbar-right #refresh-button {
+    display: none;
   }
   .mobile-file-tools {
     display: grid;
@@ -108,16 +119,6 @@
     padding-top: 6px;
   }
   .topbar-right {
-    display: contents;
-  }
-  .topbar-right > .icon-button {
-    grid-row: 1;
-    grid-column: 3;
-  }
-  .topbar-right > .account-entry {
-    grid-column: 3;
-  }
-  .topbar-right > #refresh-button {
     display: none;
   }
   .search-box {
@@ -152,15 +153,6 @@
   }
   .view-tools {
     gap: 5px;
-  }
-  .view-tools select {
-    font-size: 12px;
-    max-width: 90px;
-    min-height: 44px;
-  }
-  .view-switch button {
-    width: 42px;
-    height: 40px;
   }
   .list-head {
     display: none !important;

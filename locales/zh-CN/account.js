@@ -1,4 +1,9 @@
 export default {
+  "closeSignIn": "关闭登录",
+  "signInFailed": "暂时无法开始登录，请重试。",
+  "guest": "游客",
+  "sessionUnavailable": "暂时无法获取账号",
+  "sessionRetryHint": "无法确认登录状态，请重试。",
   "subjectCopied": "已复制 sub",
   "administratorCopied": "已复制管理员配置",
   "administratorInstructions": "把下面的值填入 NAS 服务的 ADMIN_SUBJECTS 环境变量，重启 NAS 服务后点击“重新检测”。",

@@ -29,6 +29,8 @@ export function useRecords(key, toast) {
     favorites.some((entry) => entry.path === item.path);
   return {
     favorites,
+    favoritesStatus: favoriteState.status,
+    favoritesError: favoriteState.error,
     recent,
     recentStatus: recentState.status,
     recentError: recentState.error,

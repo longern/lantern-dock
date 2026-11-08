@@ -120,7 +120,7 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
   );
 }
 
-export function Topbar({ library, menuOpen, onMenu }) {
+export function Topbar({ library, menuOpen, onMenu, actions }) {
   const mobile = useMediaQuery("(max-width: 700px)");
   const home = library.mode === "home";
   const root = library.connection?.client.root || "/";
@@ -184,7 +184,7 @@ export function Topbar({ library, menuOpen, onMenu }) {
   );
   return (
     <div class="browser-header">
-      <header class="topbar">
+      <header class={`topbar${actions ? " has-actions" : ""}`}>
         <button
           id="navigation-toggle"
           class="icon-button mobile-menu"
@@ -220,14 +220,7 @@ export function Topbar({ library, menuOpen, onMenu }) {
           >
             <Icon name="refresh" />
           </button>
-          <a
-            class="account-entry icon-button"
-            href="#/account"
-            aria-label={t("library.myAccount")}
-            title={t("library.myAccount")}
-          >
-            <Icon name="user" />
-          </a>
+          {actions && <div class="header-actions">{actions}</div>}
         </div>
       </header>
       {mobile && (
@@ -241,13 +234,15 @@ export function Topbar({ library, menuOpen, onMenu }) {
 }
 
 export function MobileTabs({ library, onCloseMenu }) {
+  const mobileModes = [modes[0], modes[1], ["me", "user", "library.me"]];
+  const active = library.mode === "favorites" ? "me" : library.mode;
   return (
     <nav class="mobile-tabs" aria-label={t("library.mobileResourceNavigation")}>
-      {modes.map(([mode, icon, label]) => (
+      {mobileModes.map(([mode, icon, label]) => (
         <button
           key={mode}
-          class={library.mode === mode ? "active" : ""}
-          aria-current={library.mode === mode ? "page" : undefined}
+          class={active === mode ? "active" : ""}
+          aria-current={active === mode ? "page" : undefined}
           onClick={() => {
             library.selectMode(mode);
             onCloseMenu();

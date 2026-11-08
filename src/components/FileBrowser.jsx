@@ -87,7 +87,7 @@ export function FileBrowser({
   onSettings,
 }) {
   const {
-    entries, recent, usesDirectory, sort, recordsPending, recordsError,
+    entries, recent, album, usesDirectory, view, recordsPending, recordsError,
   } = useMemo(
     () => fileListing(library, records),
     [
@@ -96,14 +96,16 @@ export function FileBrowser({
       records.recent,
       records.recentStatus,
       records.recentError,
+      records.favoritesStatus,
+      records.favoritesError,
       library.mode,
       library.kind,
       library.query,
       library.sort,
+      library.view,
     ],
   );
   const home = library.mode === "home";
-  const album = ["album", "image"].includes(library.kind);
   const error = recordsError ||
     ((usesDirectory || recordsPending) ? library.error : null);
   const busy = !error && (recordsPending || (library.loading && usesDirectory));
@@ -161,50 +163,26 @@ export function FileBrowser({
             </button>
           )}
         </div>
-        <div class="view-tools">
-          <button
-            class="icon-button mobile-refresh"
-            aria-label={t("library.refreshDirectory")}
-            disabled={library.loading}
-            aria-busy={library.loading}
-            onClick={library.refresh}
-          >
-            <Icon name="refresh" />
-          </button>
-          {!recent && !album && (
-            <select
-              aria-label={t("library.sort")}
-              value={sort}
-              onChange={(event) => library.setSort(event.currentTarget.value)}
+        {!recent && (
+          <div class="view-tools">
+            <button
+              class="icon-button mobile-refresh"
+              aria-label={t("library.refreshDirectory")}
+              disabled={library.loading}
+              aria-busy={library.loading}
+              onClick={library.refresh}
             >
-              <option value="name">{t("library.name")}</option>
-              <option value="modified">{t("library.modifiedAt")}</option>
-              <option value="size">{t("library.size")}</option>
-            </select>
-          )}
-          {!album && (
-            <div class="view-switch" role="group" aria-label={t("library.viewMode")}>
-              {["list", "grid"].map((view) => (
-                <button
-                  key={view}
-                  class={library.view === view ? "active" : ""}
-                  aria-label={view === "list" ? t("library.listView") : t("library.gridView")}
-                  aria-pressed={library.view === view}
-                  onClick={() => library.setView(view)}
-                >
-                  <Icon name={view} />
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+              <Icon name="refresh" />
+            </button>
+          </div>
+        )}
       </div>
       {error && (
         <div class="empty-state">
           <span class="empty-symbol">
             <Icon name="cloud-off" />
           </span>
-          <h2>{recordsError ? t("library.recentFilesUnavailable") : t("library.filesUnavailable")}</h2>
+          <h2>{recordsError ? t(library.mode === "favorites" ? "library.favoritesUnavailable" : "library.recentFilesUnavailable") : t("library.filesUnavailable")}</h2>
           <p>{recordsError ? recordsError.message : t("library.retryConnection")}</p>
           <div class="empty-actions">
             <button
@@ -228,7 +206,7 @@ export function FileBrowser({
         class="list-head"
         hidden={
           album ||
-          library.view !== "list" ||
+          view !== "list" ||
           !!error ||
           (!busy && !entries.length)
         }
@@ -240,7 +218,7 @@ export function FileBrowser({
       </div>
       <div
         id="file-list"
-        class={album ? "album-timeline" : `file-grid${library.view === "list" ? " list-layout" : ""}`}
+        class={album ? "album-timeline" : `file-grid${view === "list" ? " list-layout" : ""}`}
         aria-live="polite"
         aria-busy={busy}
         aria-label={album ? t("library.album") : recent ? t("library.recentFileList") : t("library.fileList")}
@@ -263,7 +241,7 @@ export function FileBrowser({
                 key={item.path}
                 item={item}
                 client={library.connection?.client}
-                side={library.view === "list" ? 128 : 384}
+                side={view === "list" ? 128 : 384}
                 demo={library.backend?.transport === "demo"}
                 selected={selected?.path === item.path}
                 favorite={records.isFavorite(item)}
