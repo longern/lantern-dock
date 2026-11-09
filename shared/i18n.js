@@ -1,4 +1,6 @@
 import { createInstance } from "i18next";
+import enAdmin from "../locales/en/admin.js";
+import zhAdmin from "../locales/zh-CN/admin.js";
 import enApp from "../locales/en/app.js";
 import zhApp from "../locales/zh-CN/app.js";
 import enLibrary from "../locales/en/library.js";
@@ -15,8 +17,8 @@ import zhDemo from "../locales/zh-CN/demo.js";
 export const DEFAULT_LANGUAGE = "en";
 export const SUPPORTED_LANGUAGES = Object.freeze(["en", "zh-CN"]);
 export const resources = {
-  en: { app: enApp, library: enLibrary, account: enAccount, core: enCore, server: enServer, demo: enDemo },
-  "zh-CN": { app: zhApp, library: zhLibrary, account: zhAccount, core: zhCore, server: zhServer, demo: zhDemo },
+  en: { admin: enAdmin, app: enApp, library: enLibrary, account: enAccount, core: enCore, server: enServer, demo: enDemo },
+  "zh-CN": { admin: zhAdmin, app: zhApp, library: zhLibrary, account: zhAccount, core: zhCore, server: zhServer, demo: zhDemo },
 };
 
 export function detectLanguage(languages = []) {
