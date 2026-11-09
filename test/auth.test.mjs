@@ -14,6 +14,7 @@ import {
   AUTHORIZATION_METADATA_PATH,
   SESSION_GRANT_TYPE,
   ACCOUNT_SCOPE,
+  NAS_SCOPES,
 } from "../shared/identity-protocol.js";
 import { certificateWebhookTokens } from "../worker/secrets.js";
 import { deriveSecret } from "../shared/site-secret.js";
@@ -164,10 +165,11 @@ async function fixture() {
     return response;
   }
   let nonce;
-  async function grant() {
+  async function grant(scope = ACCOUNT_SCOPE) {
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await request("/api/auth/token", {
         method: "POST",
+        body: new URLSearchParams({ grant_type: SESSION_GRANT_TYPE, client_id: site + "/", scope }),
         headers: {
           DPoP: await proof("/api/auth/token", pair, nonce ? { nonce } : {}),
         },
@@ -413,7 +415,7 @@ test("authorization metadata and token errors expose the supported session-grant
   assert.deepEqual(metadata.grant_types_supported, [SESSION_GRANT_TYPE]);
   assert.deepEqual(metadata.response_types_supported, []);
   assert.deepEqual(metadata.dpop_signing_alg_values_supported, ["ES256"]);
-  assert.deepEqual(metadata.scopes_supported, [ACCOUNT_SCOPE]);
+  assert.deepEqual(metadata.scopes_supported, NAS_SCOPES);
   assert.equal(metadata.lantern_dock.resource, site + "/nas");
   assert.match(response.headers.get("Cache-Control"), /max-age=300/);
   assert.ok(!JSON.stringify(metadata).includes(f.env.SECRET_KEY));
@@ -422,6 +424,10 @@ test("authorization metadata and token errors expose the supported session-grant
     [{ client_id: "other" }, "invalid_client"],
     [{ resource: "https://other.example/nas" }, "invalid_target"],
     [{ scope: "files:write" }, "invalid_scope"],
+    [{ scope: "" }, "invalid_scope"],
+    [{ scope: "account:read links:write other" }, "invalid_scope"],
+    [{ scope: "links:write links:write" }, "invalid_scope"],
+    [{ scope: "links:write\tinbox:read" }, "invalid_scope"],
   ]) {
     const r = await f.request("/api/auth/token", {
       method: "POST",
@@ -916,5 +922,24 @@ test("callback errors use the browser language and remain encoded in a private r
         .getSetCookie()
         .some((cookie) => cookie.includes("Max-Age=0")),
     );
+  }
+});
+
+
+test("NAS grants carry only explicitly requested supported scopes and never assert admin", async () => {
+  const f = await fixture();
+  await f.login();
+  for (const requested of ["links:read", "links:write", "inbox:read", "inbox:read links:write account:read"]) {
+    const response = await f.grant(requested);
+    assert.equal(response.status, 200);
+    const token = await response.json();
+    const expected = NAS_SCOPES.filter((scope) => requested.split(" ").includes(scope)).join(" ");
+    assert.equal(token.scope, expected);
+    const payload = decodeJwt(token.access_token);
+    assert.equal(payload.scope, expected);
+    assert.equal(payload.sub, expectedSiteSubject);
+    assert.equal(payload.role, undefined);
+    assert.equal(payload.admin, undefined);
+    assert.ok(payload.cnf.jkt);
   }
 });

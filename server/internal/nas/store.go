@@ -8,7 +8,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -109,11 +108,12 @@ func OpenStore(directory string) (*Store, error) {
 }
 func (s *Store) Close() error { return s.DB.Close() }
 func (s *Store) CreateLink(ctx context.Context, link Link) (Link, string, error) {
+	link.ExpiresAt = time.Unix(link.ExpiresAt.Unix(), 0).UTC()
 	if strings.TrimSpace(link.Title) == "" || len(link.Title) > 200 || strings.IndexFunc(link.Title, unicode.IsControl) >= 0 {
-		return Link{}, "", fmt.Errorf("title must be 1–200 bytes without control characters")
+		return Link{}, "", fault(400, "INVALID_LINK", "errors.invalidLink")
 	}
 	if !link.ExpiresAt.After(time.Now()) || link.MaxFileBytes <= 0 || link.MaxTotalBytes < link.MaxFileBytes || link.MaxFiles <= 0 {
-		return Link{}, "", fmt.Errorf("expiry must be in the future; positive limits and max-file <= max-total are required")
+		return Link{}, "", fault(400, "INVALID_LINK", "errors.invalidLink")
 	}
 	var key [32]byte
 	if _, err := rand.Read(key[:]); err != nil {
@@ -122,7 +122,6 @@ func (s *Store) CreateLink(ctx context.Context, link Link) (Link, string, error)
 	token := base64.RawURLEncoding.EncodeToString(key[:])
 	hash := sha256.Sum256([]byte(token))
 	link.ID = randomID()
-	link.ExpiresAt = time.Unix(link.ExpiresAt.Unix(), 0).UTC()
 	link.Revoked = false
 	link.UsedBytes = 0
 	link.UsedFiles = 0
@@ -204,7 +203,7 @@ func (s *Store) Revoke(ctx context.Context, id string) error {
 	}
 	n, _ := result.RowsAffected()
 	if n == 0 {
-		return fmt.Errorf("link not found")
+		return fault(404, "LINK_NOT_FOUND", "errors.linkNotFound")
 	}
 	return nil
 }

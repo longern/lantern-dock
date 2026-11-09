@@ -3,6 +3,15 @@ export const AUTHORIZATION_METADATA_PATH =
 export const SESSION_GRANT_TYPE =
   "urn:lantern-dock:params:oauth:grant-type:session";
 export const ACCOUNT_SCOPE = "account:read";
+export const LINKS_READ_SCOPE = "links:read";
+export const LINKS_WRITE_SCOPE = "links:write";
+export const INBOX_READ_SCOPE = "inbox:read";
+export const NAS_SCOPES = Object.freeze([
+  ACCOUNT_SCOPE,
+  LINKS_READ_SCOPE,
+  LINKS_WRITE_SCOPE,
+  INBOX_READ_SCOPE,
+]);
 export const GRANT_SECONDS = 60;
 export const IDENTITY_PROTOCOL_VERSION = 2;
 

@@ -22,7 +22,7 @@ Accept: application/json
   "grant_types_supported": ["urn:lantern-dock:params:oauth:grant-type:session"],
   "response_types_supported": [],
   "token_endpoint_auth_methods_supported": ["none"],
-  "scopes_supported": ["account:read"],
+  "scopes_supported": ["account:read", "links:read", "links:write", "inbox:read"],
   "dpop_signing_alg_values_supported": ["ES256"],
   "lantern_dock": {
     "protocol_version": 2,
@@ -53,7 +53,7 @@ DPoP: <proof JWT>
 grant_type=urn%3Alantern-dock%3Aparams%3Aoauth%3Agrant-type%3Asession&client_id=https%3A%2F%2Fnas.example.com%2F&resource=https%3A%2F%2Fnas.example.com%2Fnas&scope=account%3Aread
 ```
 
-The grant type and client ID are required. `resource` defaults to `SITE_ORIGIN + "/nas"` and cannot select another resource. `scope` defaults to `account:read`; no additional scopes are currently issued. Recognized parameters may not occur twice. Bodies are limited to 8 KiB.
+The grant type and client ID are required. `resource` defaults to `SITE_ORIGIN + "/nas"` and cannot select another resource. `scope` defaults to `account:read`. Clients may explicitly request a space-separated subset of `account:read`, `links:read`, `links:write` and `inbox:read`. Empty, repeated or unknown scopes are rejected. The response and token contain only the requested scopes, in Discovery order. A scope restricts the credential; it does not assign a NAS role or bypass the NAS administrator check. Recognized parameters may not occur twice. Bodies are limited to 8 KiB.
 
 A valid session and proof without a current server nonce receive:
 
@@ -98,7 +98,7 @@ The protected header uses `typ: at+jwt`, `alg: EdDSA` and the signing key's `kid
 | `lantern_dock`      | Project claim `{ "protocol_version": 2 }`; version 1 tokens are rejected.                                                             |
 | `name`, `email`     | Optional display data; do not determine permissions.                                                                                  |
 
-The NAS accepts only signed access tokens of the expected type and algorithm, not OIDC ID tokens or DPoP proof JWTs. The account role is computed locally from the site-issued `sub` and configured `ADMIN_SUBJECTS`, never from a token's claimed role. The issuer is always the configured LanternDock origin. The NAS neither knows nor validates the external login provider. This version has no administrative write scopes or APIs.
+The NAS accepts only signed access tokens of the expected type and algorithm, not OIDC ID tokens or DPoP proof JWTs. The account role is computed locally from the site-issued `sub` and configured `ADMIN_SUBJECTS`, never from a token's claimed role. The issuer is always the configured LanternDock origin. The NAS neither knows nor validates the external login provider. Administrative endpoints require both their operation-specific scope and the current local administrator role. `account:read` cannot read private inbox contents or manage collection links. The Worker does not claim or decide the NAS role; even a signed token with an `admin` or `role` field cannot elevate a member.
 
 The Worker maps the validated external `(issuer, sub)` by hashing the UTF-8 JSON array `["lantern-dock:subject:v1", issuer, sub]` with SHA-256, taking the first 16 bytes, and encoding those bytes as unpadded Base64URL with an `ld_` prefix. The result is exactly 25 characters. Truncate the digest bytes, not the encoded string. For issuer `https://sso.example` and upstream subject `test-user`, the result is `ld_1KzSHPuTIpRkcYiSJTXRlA`. Worker session reads, NAS access-token validation and `ADMIN_SUBJECTS` all require the canonical current format; former 46-character IDs, raw upstream IDs and padded or noncanonical encodings are rejected, with no compatibility aliases. Neither site origin, signing secrets nor key versions are inputs, so key rotation does not change user IDs and the same upstream identity maps identically across deployments. The 128-bit truncated digest is an identifier, not a secret or a guarantee of anonymity. The mapping belongs entirely to the login adapter; NAS implementations validate the public format but treat its contents as opaque. Neither `identity_issuer` nor raw upstream subjects appear in site sessions, NAS tokens or NAS account responses. Site-session cookies include protocol version 2 and are issued under the LanternDock origin. A session can be used until its own expiry without retrieving external identity again.
 
@@ -116,10 +116,25 @@ For direct HTTPS, `htu` is the actual NAS endpoint origin plus request path, wit
 
 For WebTransport, this project defines the logical HTTP request URI as `SITE_ORIGIN + request path`; the bridge forwards its origin-form HTTP request to the private NAS. This is a project-specific mapping of HTTP onto WebTransport, not a claim that unmodified OAuth HTTP clients can use the tunnel. See the [bridge contract](bridge-protocol.md).
 
-The NAS does not require its own DPoP nonce: its short-lived grants and persistent proof replay tracking apply at the resource endpoint. `401` responses use `WWW-Authenticate: DPoP` with `algs="ES256"` and, where applicable, `error="invalid_token"` or `error="invalid_dpop_proof"`. Missing scope returns `403` with `error="insufficient_scope"` and `scope="account:read"`. These headers are exposed by NAS CORS. Public WebDAV and file-drop bearer tokens are separate authorization paths.
+The NAS does not require its own DPoP nonce: its short-lived grants and persistent proof replay tracking apply at the resource endpoint. `401` responses use `WWW-Authenticate: DPoP` with `algs="ES256"` and, where applicable, `error="invalid_token"` or `error="invalid_dpop_proof"`. Missing scope returns `403` with `error="insufficient_scope"` and a `scope` challenge naming the required operation scope. A verified non-administrator gets `403` with `error="access_denied"` and `code="ADMIN_REQUIRED"` on administrative endpoints. These headers are exposed by NAS CORS. Public WebDAV and file-drop bearer tokens are separate authorization paths.
 
 ## Versioning
 
 `lantern_dock.protocol_version` identifies this identity contract; the browser and NAS reject unsupported/missing versions. Additions that old clients can ignore may remain version 2. Incompatible grants, claim meanings or URI mappings require a new protocol version. Discovery/JWKS paths and ordinary JSON property order are not part of the signature contract. Consumers use `kid`, not key-array order, for verification.
 
 Upgrade both Worker and NAS for version 2, refresh the account page and sign in again. Administrators must replace previously configured upstream subjects with the new site subject shown on the account page. Existing public DAV/file-drop APIs are unaffected. See [key rotation](authentication.md#rotate-nas-signing-keys) for maintaining overlapping verification keys.
+
+
+## Administrative NAS resources
+
+All endpoints below use the same 60-second access-token validation and persistent DPoP replay protection as `/api/account`. A fresh DPoP proof is required for each HTTP request, including each download range and HEAD. The proof URI uses the configured NAS resource origin and exact request path; query parameters are omitted according to DPoP. With WebTransport this normally uses the site origin, while direct HTTPS uses `NAS_RESOURCE_ORIGIN` when the NAS and frontend origins differ. CORS allows Authorization, DPoP, Content-Type, Range and If-Range from configured exact origins.
+
+| Endpoint | Required scope | Additional check |
+| --- | --- | --- |
+| `GET /api/admin/links` | `links:read` | Current NAS administrator |
+| `POST /api/admin/links` | `links:write` | Current NAS administrator |
+| `DELETE /api/admin/links/<id>` | `links:write` | Current NAS administrator |
+| `GET /api/admin/inbox` | `inbox:read` | Current NAS administrator |
+| `GET`, `HEAD /api/admin/inbox/<id>/download` | `inbox:read` | Current NAS administrator |
+
+`GET /api/account` adds `capabilities: { "adminLinks": true, "adminInbox": true }` for administrators and false values for other users. Clients must not infer authorization from public capability metadata or the Worker session alone. Older NAS versions omit these fields and do not support the administrative UI. See [NAS API details](nas-server.md#administrative-http-interface) for payloads and pagination.

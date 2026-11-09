@@ -60,7 +60,7 @@ Docker's native `user: "UID:GID"` (or `--user`) takes precedence when selecting 
 
 When upgrading from the earlier `65532:65532` default, an unset `PUID/PGID` now selects `1000:1000`; the next container start migrates the existing private state. Explicit IDs remain supported. Pull the updated image and recreate the container with its existing data mounts. For Compose, use the updated file and remove the old NAS `cap_drop`/`cap_add` overrides. The public mount stays read-only. On UGREEN UGOS, use the Docker environment-variable page or edit the Compose project; the selected account still needs access under UGOS folder ACLs. See the official [Compose guide](https://support.ugnas.com/knowledgecenter/detail/article/zh-CN/411) and [folder permission guide](https://support.ugnas.com/detail/article/zh-CN/918).
 
-The bridge listens on **4433/udp** (`BRIDGE_PORT` optionally changes the host port). Keep the existing UDP tunnel forwarding to this port. Its backend becomes `http://nas:8080`, allowed paths are `/dav,/api`, and methods are `GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS`. The bridge uses public mode; the NAS service checks every upload's own permission and verifies identity proofs on the account API.
+The bridge listens on **4433/udp** (`BRIDGE_PORT` optionally changes the host port). Keep the existing UDP tunnel forwarding to this port. Its backend becomes `http://nas:8080`, allowed paths are `/dav,/api`, and methods are `GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS`. The bridge uses public mode; the NAS service checks every upload's own permission and verifies identity proofs and local administrator permissions on the account and management APIs.
 
 If you keep an existing bridge container instead, attach it and the NAS service to the same Docker network and update those arguments. Preserve the bridge's existing certificate volume, certificate flags and frontend origin. Do not start a second bridge on an occupied host UDP port. Changing to a new bridge certificate volume requires that instance to publish its new hashes before clients connect.
 
@@ -78,7 +78,13 @@ The public service excludes entries named `#recycle` or `@Recycle` at every dire
 
 ## Create a file-drop link
 
-Run on the NAS:
+Sign in on the website with a site subject listed in the NAS `ADMIN_SUBJECTS` environment variable. Open the management page to create a collection link, set its title, expiry and quotas, and copy the link from the creation result. The browser can list/revoke links and list/download completed files from the private inbox without NAS CLI access. The first administrator is still configured using the NAS container environment; there is no first-visitor claim or public bootstrap write API.
+
+The full link is shown only immediately after creation. Save or share it before leaving that result. Listing links later never reconstructs a token. If it is lost, revoke the old link and create a replacement. Uploaded files remain private and are never published by creating a link or downloading from the inbox.
+
+### Optional CLI
+
+For local maintenance, the existing CLI remains available. Run on the NAS:
 
 ```sh
 docker compose -f compose.nas.yaml exec nas /lantern-dock link create \
@@ -123,7 +129,7 @@ The private `/data` volume contains:
       <upload-id>-<original-name>
 ```
 
-Uploaded files are **not automatically published**. Collect them from the private data volume and move or copy selected files into your public folder when ready. Separate upload IDs prevent name collisions and overwriting. Do not manually delete quota records from a running database. Moving or deleting a completed file does not restore its link's lifetime quota; create another link for a new collection.
+Uploaded files are **not automatically published**. Administrators can download completed files from the private inbox page, or collect them from the private data volume. Move or copy selected files into your public folder yourself when ready. Separate upload IDs prevent name collisions and overwriting. Do not manually delete quota records from a running database. Moving or deleting a completed file does not restore its link's lifetime quota; create another link for a new collection.
 
 The NAS reserves the declared size and one file slot before transfer, using an SQLite transaction. Reservations count against the shared link quota, including parallel uploads. An unstarted reservation expires after 15 minutes or at link expiry, whichever comes first. Interrupted/cancelled transfers release reservations and remove partial files. The server fsyncs and renames a completed file before committing success, and rechecks the link before finalization. Startup recovers interrupted transfers and removes their partial/orphaned files. There are at most 32 active file bodies per server, with a one-minute read-idle deadline.
 
@@ -140,7 +146,7 @@ go build -o lantern-dock ./cmd/lantern-dock
   --public-dir=/path/to/public --data-dir=/path/to/private-state
 ```
 
-The binary uses the same `link create`, `link list` and `link revoke` commands. Management is local CLI only in this version: there is no public administrative write API or visitor registration. Optional [OIDC/CIMD login](authentication.md) adds an account page, copyable subjects and NAS-enforced administrator recognition through `ADMIN_SUBJECTS`; it does not change public DAV or collection-link access.
+The binary uses the same `link create`, `link list` and `link revoke` commands. Local CLI management remains available alongside the administrator-only web APIs. [OIDC/CIMD login](authentication.md) provides an account page, copyable subjects and NAS-enforced administrator access through `ADMIN_SUBJECTS`; it does not change public DAV or collection-link access. There is no visitor registration or public administrator bootstrap.
 
 For direct HTTPS connections, place the HTTP server behind your HTTPS reverse proxy and allow your exact frontend origin:
 
@@ -170,10 +176,25 @@ All upload endpoints require the file-drop bearer token. A token cannot read fil
 
 Errors are JSON with `error` and `code`: `401` for an invalid/missing link token, `410` for an expired/revoked link, `413` for a file above its size limit, `409` for insufficient quota or a conflicting task state, and `503` for storage/service failures. Public WebDAV writes return `405`.
 
-This first version transfers each file in one request. Cancelling or losing an incomplete transfer requires uploading that file again; there is no resumable-upload protocol yet. The UI displays results for the current visit rather than exposing an inbox listing.
+This first version transfers each file in one request. Cancelling or losing an incomplete transfer requires uploading that file again; there is no resumable-upload protocol yet. The guest upload page displays results for the current visit and never exposes an inbox listing. Only authenticated NAS administrators can use the private inbox below.
 
 ## Image previews and caching
 
 The NAS service includes IIIF Image API 3 Level 0 for public images, a bounded cache in `/data/cache/images`, and lazy thumbnails/resized previews in the frontend. Existing `/dav,/api` bridge namespaces cover it. There are no additional required variables or mounts. Update both the NAS image and the frontend to enable the complete feature. See [images and caching](images.md) for formats, limits, HTTP validation and compatibility with third-party DAV servers.
 
 The image also includes FFmpeg/ffprobe for video posters. Video playback stays on the client: public HTTPS uses the original URL, while WebTransport uses page-local MP4Box + MediaSource for supported MP4/MOV files. See [video playback](video.md) for compatibility and resource limits.
+
+
+## Administrative HTTP interface
+
+These resources require a site-issued DPoP access token with the exact scope in the [identity protocol](identity-protocol.md#administrative-nas-resources) and a current NAS administrator subject. A guest upload bearer token, Worker login alone, a claimed role in a token, or an `account:read` token cannot authorize them. All management responses use `Cache-Control: no-store`. The existing `/api` bridge path and method allowlists cover these routes; no new bridge namespace or NAS secret is needed.
+
+- `POST /api/admin/links` accepts `application/json` with `title`, `expiresAt` (RFC 3339), `maxFileBytes`, `maxTotalBytes`, and `maxFiles`. The title is 1–200 UTF-8 bytes without control characters, expiry must be in the future, and limits are positive integers no larger than JavaScript's safe integer limit. Per-file size cannot exceed total size. Unknown fields, malformed/trailing JSON and bodies over 4 KiB are rejected.
+- Creation returns `201` with `{ "link": Link, "token": "..." }`. The 32-byte random token is returned only in this response; SQLite stores its SHA-256 hash. The client constructs the existing `#/upload/<token>` URL locally. It must not put tokens in request query parameters, browser storage or logs. If the creation response is lost, inspect the list and revoke/recreate as needed rather than automatically replaying the POST.
+- `GET /api/admin/links` returns `{ "links": [Link], "nextOffset": null }`. Each Link contains `id`, `title`, `expiresAt`, `maxFileBytes`, `maxTotalBytes`, `maxFiles`, `revoked`, `usedBytes`, and `usedFiles`. Usage includes completed uploads and live reservations in one database snapshot. Tokens, hashes, filenames and filesystem paths are never returned here.
+- `DELETE /api/admin/links/<id>` revokes the link and returns `204`, including when already revoked. Unknown IDs return `404`. Revocation blocks new requests and finalization immediately; active body transfers are stopped by the existing sweeper within five seconds. Completed files are retained.
+- `GET /api/admin/inbox` returns `{ "uploads": [{ "id": "...", "linkId": "...", "linkTitle": "...", "name": "...", "size": 123, "status": "complete", "createdAt": "..." }], "nextOffset": null }`. Only completed uploads are listed. Optional `linkId=<id>` limits results to one collection. Expired or revoked collection links do not hide completed files from administrators.
+- Both list routes accept `limit` (1–200, default 100) and `offset` (nonnegative, default 0). When more results exist, `nextOffset` is the next numeric offset; otherwise it is null. Ordering is newest creation first with ID as a deterministic tie-breaker. Refresh from offset zero after creation or when newer uploads arrive, since separate page requests are not a frozen snapshot.
+- `GET` or `HEAD /api/admin/inbox/<upload-id>/download` returns the completed file as an `application/octet-stream` attachment with its original filename, `nosniff`, a sandbox content policy, and Range support. CORS exposes Content-Disposition, Content-Length, Content-Range and Accept-Ranges. Clients must fetch with fresh DPoP authorization rather than navigating to a bare download URL. File paths are selected only from validated database IDs/names; every symlink component and non-regular or size-changed file is rejected. Missing/incomplete files return `404`. Downloading does not publish or delete a file, change quotas, or reactivate its link.
+
+Malformed input returns `400` (or `415` for a non-JSON create body), unsupported methods `405`, unavailable identity/storage `503`, missing/invalid login/proof `401`, missing operation scope `403` with a scope challenge, and a non-administrator `403` with `ADMIN_REQUIRED`. Errors keep machine-readable codes and localized display messages. Environment administrators remain the only management identities in this phase; user management, private spaces, per-user quotas, publishing and file deletion are not added.

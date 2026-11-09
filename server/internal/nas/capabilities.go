@@ -14,6 +14,7 @@ const (
 	filesPath        = "/dav"
 	inboxPath        = "/api/uploads"
 	accountPath      = "/api/account"
+	adminPath        = "/api/admin"
 	capabilitiesPath = "/api/capabilities"
 	imagesPath       = "/api/iiif/3"
 )
@@ -44,6 +45,7 @@ func (s *Server) serveCapabilities(w http.ResponseWriter, r *http.Request) {
 	}{1, map[string]serviceCapability{
 		"files":   {Protocol: "webdav", Version: 1, Href: filesPath + "/", Enabled: true, ReadOnly: true},
 		"inbox":   {Protocol: "lantern-dock-inbox", Version: 1, Href: inboxPath, Enabled: true},
+		"admin":   {Protocol: "lantern-dock-admin", Version: 1, Href: adminPath, Enabled: s.identity != nil},
 		"account": {Protocol: "lantern-dock-identity", Version: 2, Href: accountPath, Enabled: s.identity != nil},
 		"images":  {Protocol: "http://iiif.io/api/image", Version: 3, Href: imagesPath, Enabled: true},
 	}}

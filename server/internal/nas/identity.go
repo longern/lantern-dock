@@ -225,6 +225,11 @@ func (s *Server) ConfigureIdentity(cfg IdentityConfig) error {
 	return nil
 }
 func (s *Server) identityUser(r *http.Request) (IdentityUser, error) {
+	return s.identityUserScope(r, "account:read")
+}
+
+// Scopes limit the credential; local role checks separately authorize the user.
+func (s *Server) identityUserScope(r *http.Request, requiredScope string) (IdentityUser, error) {
 	var user IdentityUser
 	if s.identity == nil {
 		return user, fault(503, "IDENTITY_DISABLED", "errors.identityDisabled")
@@ -277,7 +282,7 @@ func (s *Server) identityUser(r *http.Request) (IdentityUser, error) {
 	if err = s.verifyProof(r, raw, claims.CNF.JKT); err != nil {
 		return user, err
 	}
-	if !containsScope(claims.Scope, "account:read") {
+	if !containsScope(claims.Scope, requiredScope) {
 		return user, fault(403, "INSUFFICIENT_SCOPE", "errors.insufficientScope")
 	}
 	user = IdentityUser{Issuer: claims.Issuer, Sub: claims.Subject, Name: claims.Name, Email: claims.Email, Role: "member"}
@@ -391,6 +396,9 @@ func sameProofURI(proof, target string) bool {
 	return a != "" && a == b
 }
 func writeIdentityError(w http.ResponseWriter, r *http.Request, err error) {
+	writeIdentityScopeError(w, r, err, "account:read")
+}
+func writeIdentityScopeError(w http.ResponseWriter, r *http.Request, err error, requiredScope string) {
 	t := responseTranslator(w, r)
 	var f *Fault
 	if !errors.As(err, &f) {
@@ -403,18 +411,20 @@ func writeIdentityError(w http.ResponseWriter, r *http.Request, err error) {
 	case "INVALID_PROOF":
 		code, description = "invalid_dpop_proof", "The DPoP proof is invalid or has already been used."
 	case "INSUFFICIENT_SCOPE":
-		code, description = "insufficient_scope", "The account:read scope is required."
+		code, description = "insufficient_scope", "The "+requiredScope+" scope is required."
+	case "ADMIN_REQUIRED":
+		code, description = "access_denied", "A NAS administrator account is required."
 	}
 	if f.Status == 503 {
 		code, description = "temporarily_unavailable", "Identity verification is temporarily unavailable."
 	}
-	if f.Status == 401 || f.Status == 403 {
+	if f.Status == 401 || f.Code == "INSUFFICIENT_SCOPE" {
 		challenge := `DPoP realm="lantern-dock", algs="ES256"`
 		if f.Code != "LOGIN_REQUIRED" {
 			challenge += `, error="` + code + `"`
 		}
 		if f.Code == "INSUFFICIENT_SCOPE" {
-			challenge += `, scope="account:read"`
+			challenge += `, scope="` + requiredScope + `"`
 		}
 		w.Header().Set("WWW-Authenticate", challenge)
 	}
@@ -444,5 +454,5 @@ func (s *Server) serveAccount(w http.ResponseWriter, r *http.Request) {
 		writeIdentityError(w, r, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"user": user, "administratorConfigured": len(s.identity.admins) > 0})
+	writeJSON(w, 200, map[string]any{"user": user, "administratorConfigured": len(s.identity.admins) > 0, "capabilities": map[string]bool{"adminLinks": user.Role == "admin", "adminInbox": user.Role == "admin"}})
 }

@@ -11,7 +11,7 @@
   "errors.identityDiscoveryUnavailable": "无法获取站点授权配置，请检查 NAS 到站点的 HTTPS 连接。",
   "errors.identityExpired": "身份凭据无效或已过期。",
   "errors.identityMismatch": "身份凭据不匹配。",
-  "errors.insufficientScope": "此凭据没有读取账户的权限。",
+  "errors.insufficientScope": "此凭据没有执行此操作的权限。",
   "errors.invalidProof": "无法验证请求的持有证明，请重新登录。",
   "errors.authStorageUnavailable": "身份验证存储暂不可用，请稍后重试。",
   "errors.authUnavailable": "身份验证暂不可用。",
@@ -53,5 +53,10 @@
   "errors.imageRequestUnsupported": "此图片服务支持完整画面的固定尺寸 JPG 预览。",
   "errors.imageSizeUnsupported": "请使用 info.json 中列出的预览尺寸。",
   "errors.imageTimeout": "图片处理超时，请稍后重试。",
-  "inbox.defaultTitle": "临时收件箱"
+  "inbox.defaultTitle": "临时收件箱",
+  "errors.adminRequired": "需要 NAS 管理员账户。",
+  "errors.jsonRequired": "请使用 application/json 提交收件链接信息。",
+  "errors.invalidLink": "请填写 1–200 字节的标题、未来的到期时间和正整数限制，单文件限制不能超过总容量。",
+  "errors.linkNotFound": "找不到此收件链接。",
+  "errors.invalidListQuery": "每页数量应为 1–200，偏移量不能为负数，收件链接 ID 必须有效。"
 }

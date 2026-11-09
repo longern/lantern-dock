@@ -15,6 +15,7 @@ import {
   AUTHORIZATION_METADATA_PATH,
   SESSION_GRANT_TYPE,
   ACCOUNT_SCOPE,
+  NAS_SCOPES,
   GRANT_SECONDS,
   IDENTITY_PROTOCOL_VERSION,
   canonicalProofURI,
@@ -357,7 +358,7 @@ function authorizationMetadata(site) {
     grant_types_supported: [SESSION_GRANT_TYPE],
     response_types_supported: [],
     token_endpoint_auth_methods_supported: ["none"],
-    scopes_supported: [ACCOUNT_SCOPE],
+    scopes_supported: NAS_SCOPES,
     dpop_signing_alg_values_supported: ["ES256"],
     // This is a session-backed extension grant, not a second OIDC provider.
     lantern_dock: {
@@ -421,12 +422,19 @@ async function issueGrant(request, env, cfg, t) {
       "The requested resource is not allowed.",
       t("server.resourceMismatch"),
     );
-  if (params.has("scope") && params.get("scope") !== ACCOUNT_SCOPE)
+  const requestedScopes = (params.get("scope") ?? ACCOUNT_SCOPE).split(" ");
+  if (
+    requestedScopes.some((scope) => !NAS_SCOPES.includes(scope)) ||
+    new Set(requestedScopes).size !== requestedScopes.length
+  )
     return oauthError(
       "invalid_scope",
       "The requested scope is not allowed.",
       t("server.invalidScope"),
     );
+  // Request scopes only restrict a browser-bound credential. They never assert
+  // an administrator role: NAS checks ADMIN_SUBJECTS on every protected request.
+  const scope = NAS_SCOPES.filter((value) => requestedScopes.includes(value)).join(" ");
   const session = await siteSession(request, env, cfg.site);
   if (!session)
     return oauthError(
@@ -475,7 +483,7 @@ async function issueGrant(request, env, cfg, t) {
   const accessToken = await new SignJWT({
     lantern_dock: { protocol_version: IDENTITY_PROTOCOL_VERSION },
     client_id: cfg.site + "/",
-    scope: ACCOUNT_SCOPE,
+    scope,
     name: session.user.name,
     email: session.user.email,
     cnf: { jkt },
@@ -492,7 +500,7 @@ async function issueGrant(request, env, cfg, t) {
     access_token: accessToken,
     token_type: "DPoP",
     expires_in: GRANT_SECONDS,
-    scope: ACCOUNT_SCOPE,
+    scope,
   });
   response.headers.set("Pragma", "no-cache");
   response.headers.set("DPoP-Nonce", await nextNonce());

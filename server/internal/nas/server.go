@@ -193,14 +193,16 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PROPFIND, POST, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept-Language, Authorization, Content-Type, Depth, DPoP, If-None-Match")
-		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, ETag, Link, WWW-Authenticate, DPoP-Nonce")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept-Language, Authorization, Content-Type, Depth, DPoP, If-None-Match, Range, If-Range")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Content-Disposition, Accept-Ranges, ETag, Link, WWW-Authenticate, DPoP-Nonce")
 	}
 	switch {
 	case r.URL.Path == imagesPath || strings.HasPrefix(r.URL.Path, imagesPath+"/"):
 		s.serveImage(w, r)
 	case r.URL.Path == capabilitiesPath:
 		s.serveCapabilities(w, r)
+	case r.URL.Path == adminPath || strings.HasPrefix(r.URL.Path, adminPath+"/"):
+		s.serveAdmin(w, r)
 	case r.URL.Path == accountPath || strings.HasPrefix(r.URL.Path, accountPath+"/"):
 		s.serveAccount(w, r)
 	case r.URL.Path == "/healthz" && (r.Method == "GET" || r.Method == "HEAD"):

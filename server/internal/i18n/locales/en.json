@@ -11,7 +11,7 @@
   "errors.identityDiscoveryUnavailable": "Unable to retrieve the site authorization configuration. Check the HTTPS connection from the NAS to the site.",
   "errors.identityExpired": "The identity credentials are invalid or expired.",
   "errors.identityMismatch": "The identity credentials do not match.",
-  "errors.insufficientScope": "These credentials do not have permission to read the account.",
+  "errors.insufficientScope": "These credentials do not have permission for this operation.",
   "errors.invalidProof": "Unable to verify the request proof of possession. Please sign in again.",
   "errors.authStorageUnavailable": "Authentication storage is temporarily unavailable. Please try again later.",
   "errors.authUnavailable": "Authentication is temporarily unavailable.",
@@ -53,5 +53,10 @@
   "errors.imageRequestUnsupported": "This image service supports full-frame JPG previews at fixed sizes.",
   "errors.imageSizeUnsupported": "Please use a preview size listed in info.json.",
   "errors.imageTimeout": "Image processing timed out. Please try again later.",
-  "inbox.defaultTitle": "Temporary inbox"
+  "inbox.defaultTitle": "Temporary inbox",
+  "errors.adminRequired": "A NAS administrator account is required.",
+  "errors.jsonRequired": "Send link details as application/json.",
+  "errors.invalidLink": "Provide a title (1–200 bytes), a future expiry, and positive limits with per-file size at most the total size.",
+  "errors.linkNotFound": "This collection link could not be found.",
+  "errors.invalidListQuery": "Use a limit from 1 to 200, a non-negative offset, and a valid collection ID."
 }
