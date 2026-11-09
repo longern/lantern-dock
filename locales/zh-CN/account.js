@@ -1,4 +1,5 @@
 export default {
+  "sessionExpired": "站点登录可能已过期，请重新检查账户后再验证 NAS 权限。",
   "sessionOffline": "当前处于离线状态",
   "sessionOfflineHint": "联网后可重新检查账户。公开浏览不需要登录。",
   "nasOffline": "当前处于离线状态，无法检查 NAS 权限；站点登录状态未改变。",

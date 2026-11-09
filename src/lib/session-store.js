@@ -7,7 +7,8 @@ const nasState = (status = "idle", account = null, error = null) => ({ status, a
 function sessionError(error, online) {
   if (error?.kind) return error;
   const value = error instanceof Error ? error : new Error(String(error));
-  value.kind = !online ? "offline"
+  value.kind = error?.code === "LOGIN_REQUIRED" ? "session-expired"
+    : !online ? "offline"
     : error?.status === 401 || error?.status === 403 ? "unauthorized"
       : error?.code === "NAS_NOT_CONFIGURED" ? "unconfigured"
         : error?.code === "IDENTITY_MISMATCH" ? "identity-mismatch"
@@ -31,7 +32,7 @@ export function createSessionStore({
   let state = { identity: identityState(), nas: nasState() };
   let identityRequest, nasRequest, logoutRequest;
   let identityVersion = 0, nasVersion = 0;
-  let identityAt = -Infinity, nasAt = -Infinity;
+  let identityUntil = -Infinity, nasAt = -Infinity;
   let disposed = false;
   const listeners = new Set();
   const publish = (next) => {
@@ -49,7 +50,7 @@ export function createSessionStore({
     identityVersion++;
     identityRequest?.controller.abort();
     identityRequest = null;
-    identityAt = -Infinity;
+    identityUntil = -Infinity;
     cancelNAS();
   };
   // Bound requests even when a test transport or a broken backend ignores abort.
@@ -79,6 +80,7 @@ export function createSessionStore({
     if (logoutRequest) return logoutRequest.then(() => state.identity, () => state.identity);
     if (identityRequest) return identityRequest.promise;
     cancelNAS();
+    identityUntil = -Infinity;
     publish({ identity: identityState(), nas: nasState() });
     const version = ++identityVersion;
     const controller = new AbortController();
@@ -91,13 +93,18 @@ export function createSessionStore({
         if (disposed || version !== identityVersion) return state.identity;
         if (value?.authenticated === true && typeof value.user?.sub === "string" &&
             value.user.sub && typeof value.user.issuer === "string" && value.user.issuer) {
+          const expires = value.expiresAt == null ? Infinity : Date.parse(value.expiresAt);
+          if ((!Number.isFinite(expires) && expires !== Infinity) || expires <= now()) {
+            throw new Error(t("account.sessionUnavailable"));
+          }
+          identityUntil = Math.min(now() + maxAge, expires);
           publish({ identity: identityState("authenticated", value.user) });
         } else if (value?.authenticated === false) {
+          identityUntil = now() + maxAge;
           publish({ identity: identityState("signed-out") });
         } else {
           throw new Error(t("account.sessionUnavailable"));
         }
-        identityAt = now();
       } catch (error) {
         if (!disposed && version === identityVersion) {
           publish({ identity: identityState("error", null, sessionError(error, isOnline())) });
@@ -110,14 +117,14 @@ export function createSessionStore({
     return pending.promise;
   };
   const ensureIdentity = () => identityRequest?.promise ||
-    (now() - identityAt < maxAge ? Promise.resolve(state.identity) : refreshIdentity());
+    (now() < identityUntil ? Promise.resolve(state.identity) : refreshIdentity());
 
   const refreshNAS = () => {
     if (disposed || logoutRequest) return Promise.resolve(state.nas);
     if (nasRequest) return nasRequest.promise;
     // Starting an identity refresh may invalidate NAS requests. Finish that
     // first, then let concurrent callers join the single NAS request below.
-    if (state.identity.status === "loading" || now() - identityAt >= maxAge) {
+    if (state.identity.status === "loading" || now() >= identityUntil) {
       return ensureIdentity().then(() => state.identity.status === "authenticated" ? refreshNAS() : state.nas);
     }
     if (state.identity.status !== "authenticated") return Promise.resolve(state.nas);
@@ -158,7 +165,7 @@ export function createSessionStore({
     return pending.promise;
   };
   const ensureNAS = () => nasRequest?.promise ||
-    (now() - nasAt < maxAge ? Promise.resolve(state.nas) : refreshNAS());
+    (now() < identityUntil && now() - nasAt < maxAge ? Promise.resolve(state.nas) : refreshNAS());
   const invalidate = () => {
     cancelIdentity();
     publish({ identity: identityState(), nas: nasState() });
@@ -176,7 +183,7 @@ export function createSessionStore({
     logoutRequest = Promise.resolve().then(finishLogout).then(() => {
       cancelIdentity();
       publish({ identity: identityState("signed-out"), nas: nasState() });
-      identityAt = now();
+      identityUntil = now() + maxAge;
       onSessionChange();
     }, (error) => {
       // A failed logout is not evidence that the HttpOnly session disappeared.

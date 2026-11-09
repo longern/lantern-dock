@@ -70,3 +70,17 @@ test("offline is not rendered as a guest, and returning online rechecks the shar
   await expect(page.locator("#my-account")).toContainText("Shared account");
   expect(checks).toBe(2);
 });
+
+test("blocked cross-tab messaging does not interrupt public or account state", async ({ page }) => {
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.addInitScript(() => {
+    window.BroadcastChannel = class { constructor() { throw new DOMException("Blocked", "SecurityError"); } };
+  });
+  await page.route("**/api/auth/session", (route) => route.fulfill({ json: session }));
+  await page.goto("/");
+  await expect(page.locator(".file-card")).toHaveCount(12);
+  await page.evaluate(() => { location.hash = "#/account"; });
+  await expect(page.getByRole("heading", { name: "Shared account", exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});

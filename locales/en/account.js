@@ -1,4 +1,5 @@
 export default {
+  "sessionExpired": "The site session may have expired. Check your account again before retrying NAS permissions.",
   "sessionOffline": "You are offline",
   "sessionOfflineHint": "Reconnect to check your account. Public browsing does not require sign-in.",
   "nasOffline": "You are offline. Your site sign-in has not changed; NAS permissions could not be checked.",

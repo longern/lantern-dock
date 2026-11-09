@@ -196,3 +196,38 @@ test("an unresponsive identity request times out without blocking another attemp
   assert.equal(store.getSnapshot().identity.status, "authenticated");
   store.dispose();
 });
+
+test("Worker expiry bounds identity and NAS metadata freshness", async () => {
+  let time = 0, checks = 0;
+  const store = createSessionStore({
+    now: () => time, maxAge: 60_000,
+    readIdentity: async () => ++checks === 1 ? { ...session, expiresAt: new Date(1000).toISOString() } : { authenticated: false },
+    readNAS: async () => ({ user }),
+  });
+  await store.ensureIdentity();
+  await store.ensureNAS();
+  time = 1001;
+  await store.ensureNAS();
+  assert.equal(checks, 2);
+  assert.equal(store.getSnapshot().identity.status, "signed-out");
+  assert.equal(store.getSnapshot().nas.status, "idle");
+  store.dispose();
+});
+
+test("expired session-grant responses are not mislabeled NAS outages or confirmed logouts", async () => {
+  const store = createSessionStore({ readIdentity: async () => session, readNAS: async () => { throw Object.assign(new Error("Expired"), { status: 400, code: "LOGIN_REQUIRED" }); } });
+  await store.ensureIdentity();
+  await store.ensureNAS();
+  assert.equal(store.getSnapshot().nas.error.kind, "session-expired");
+  assert.equal(store.getSnapshot().identity.status, "authenticated");
+  store.dispose();
+});
+
+test("already expired Worker metadata cannot trigger an unbounded NAS retry loop", async () => {
+  let nasChecks = 0;
+  const store = createSessionStore({ now: () => 2000, readIdentity: async () => ({ ...session, expiresAt: new Date(1000).toISOString() }), readNAS: async () => { nasChecks++; return { user }; } });
+  await store.ensureNAS();
+  assert.equal(store.getSnapshot().identity.status, "error");
+  assert.equal(nasChecks, 0);
+  store.dispose();
+});

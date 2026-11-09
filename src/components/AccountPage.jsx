@@ -24,7 +24,8 @@ export function AccountPage() {
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
   const accountError = nas.status === "error"
-    ? nas.error.kind === "offline" ? t("account.nasOffline")
+    ? nas.error.kind === "session-expired" ? t("account.sessionExpired")
+      : nas.error.kind === "offline" ? t("account.nasOffline")
       : nas.error.kind === "unauthorized" ? t("account.nasPermissionDenied")
         : nas.error.kind === "unconfigured" ? t("account.nasNotConfigured") : nas.error.message
     : "";
@@ -205,8 +206,8 @@ export function AccountPage() {
             {accountError && (
               <div class="account-notice error">
                 <p role="alert">{accountError}</p>
-                <button class="secondary-button" disabled={busy} onClick={refreshNAS}>
-                  {t("account.retryNAS")}
+                <button class="secondary-button" disabled={busy} onClick={nas.error.kind === "session-expired" ? refreshIdentity : refreshNAS}>
+                  {t(nas.error.kind === "session-expired" ? "account.checkAgain" : "account.retryNAS")}
                 </button>
               </div>
             )}

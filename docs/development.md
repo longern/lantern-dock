@@ -156,7 +156,10 @@ An offline/error state keeps public navigation available without offering a
 misleading guest login action.
 
 The page-scoped store in `src/lib/session-store.js` deduplicates pending checks
-and caches successful metadata for up to 60 seconds. It does not persist user
+and caches successful metadata for up to 60 seconds, bounded by the Worker
+session’s reported expiry. New consumers recheck expired state. A grant response
+with `LOGIN_REQUIRED` prompts a Worker recheck instead of claiming the NAS is
+offline. It does not persist user
 metadata, cache grants, or retain the temporary account-check transport.
 `ensureNAS()` loads NAS account metadata only for account/management surfaces;
 `refreshNAS()` retries it without rechecking a still-fresh Worker identity.

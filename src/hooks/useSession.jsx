@@ -7,7 +7,9 @@ const SessionContext = createContext(null);
 export function SessionProvider({ children }) {
   const channel = useRef(null);
   const [store] = useState(() => createSessionStore({
-    onSessionChange: () => channel.current?.postMessage("changed"),
+    onSessionChange: () => {
+      try { channel.current?.postMessage("changed"); } catch { /* Cross-tab sync is optional. */ }
+    },
   }));
   useEffect(() => {
     // Keep the provider above all routes. Account requests never delay children.
@@ -18,8 +20,10 @@ export function SessionProvider({ children }) {
       else void store.ensureIdentity();
     };
     if (typeof BroadcastChannel !== "undefined") {
-      channel.current = new BroadcastChannel("lantern-dock:session");
-      channel.current.onmessage = (event) => { if (event.data === "changed") changed(); };
+      try {
+        channel.current = new BroadcastChannel("lantern-dock:session");
+        channel.current.onmessage = (event) => { if (event.data === "changed") changed(); };
+      } catch { /* Browser privacy settings may disable cross-tab messaging. */ }
     }
     const leaving = () => store.invalidate();
     const offline = () => { store.invalidate(); void store.refreshIdentity(); };
@@ -51,6 +55,7 @@ export function useSession() {
   useEffect(() => {
     const unsubscribe = store.subscribe(setState);
     setState(store.getSnapshot());
+    void store.ensureIdentity();
     return unsubscribe;
   }, [store]);
   return { ...state, ...store };
