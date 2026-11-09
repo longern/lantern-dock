@@ -3,6 +3,7 @@ import { useLayoutEffect, useState } from "preact/hooks";
 import { useSession } from "../hooks/useSession.jsx";
 import { SignInDialog } from "./SignInDialog.jsx";
 import { Icon } from "./Icon.jsx";
+import { AdminEntry } from "./AdminEntry.jsx";
 
 export function MyPage({ active = true, onFavorites, onSettings }) {
   const { identity: state, refreshIdentity } = useSession();
@@ -56,6 +57,7 @@ export function MyPage({ active = true, onFavorites, onSettings }) {
         <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
       )}
       <div class="my-action-list" aria-label={t("library.meActions")}>
+        <AdminEntry />
         <button id="my-favorites" class="my-list-button" onClick={onFavorites} aria-haspopup="dialog">
           <span class="my-list-icon"><Icon name="star" /></span>
           <span>{t("library.myFavorites")}</span><Icon name="chevron-right" />

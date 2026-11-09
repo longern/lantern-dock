@@ -16,6 +16,7 @@ import { Toast } from "./components/Toast.jsx";
 import { SetupWizard } from "./components/SetupWizard.jsx";
 import { UploadPage } from "./components/UploadPage.jsx";
 import { AccountPage } from "./components/AccountPage.jsx";
+import { AdminPage } from "./components/AdminPage.jsx";
 import { MyPage } from "./components/MyPage.jsx";
 import { Favorites } from "./components/Favorites.jsx";
 import { ListingOptionsMenu } from "./components/ListingOptionsMenu.jsx";
@@ -342,23 +343,27 @@ function LibraryApp() {
   );
 }
 
-const currentRoute = () =>
-  location.hash.startsWith("#/account")
-    ? "account"
-    : (location.hash.match(/^#\/upload\/(.*)$/)?.[1] ?? null);
+const currentRoute = () => {
+  if (/^#\/account(?:\?|$)/.test(location.hash)) return { page: "account" };
+  if (/^#\/admin(?:[/?]|$)/.test(location.hash)) return { page: "admin" };
+  const upload = location.hash.match(/^#\/upload\/(.*)$/);
+  return upload ? { page: "upload", token: upload[1] } : { page: "library" };
+};
 
 export function App() {
-  const [token, setToken] = useState(currentRoute);
+  const [route, setRoute] = useState(currentRoute);
   useEffect(() => {
-    const changed = () => setToken(currentRoute());
+    const changed = () => setRoute(currentRoute());
     window.addEventListener("hashchange", changed);
     return () => window.removeEventListener("hashchange", changed);
   }, []);
-  return token === "account" ? (
+  return route.page === "account" ? (
     <AccountPage />
-  ) : token === null ? (
-    <LibraryApp />
+  ) : route.page === "admin" ? (
+    <AdminPage />
+  ) : route.page === "upload" ? (
+    <UploadPage key={route.token} token={route.token} />
   ) : (
-    <UploadPage key={token} token={token} />
+    <LibraryApp />
   );
 }

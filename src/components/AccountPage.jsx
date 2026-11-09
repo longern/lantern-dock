@@ -1,6 +1,7 @@
 import { t } from "../../shared/i18n.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
+import { AdminEntry } from "./AdminEntry.jsx";
 import { useSession } from "../hooks/useSession.jsx";
 
 export function AccountPage() {
@@ -219,6 +220,7 @@ export function AccountPage() {
           </p>
         )}
         <div class="account-actions">
+          <AdminEntry id="account-admin-entry" className="secondary-button" />
           {identity.status === "signed-out" && (
             <button class="primary-button" disabled={busy} onClick={login}>
               <Icon name="user" />
