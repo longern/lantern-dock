@@ -24,7 +24,7 @@ Browse, preview, and download from your own WebDAV server — directly over HTTP
 <img src="docs/assets/mobile.png" width="320" alt="LanternDock mobile image preview with file details and a download action">
 </details>
 
-_Screenshots show the built-in demo. The current interface is in Chinese._
+_Screenshots show the built-in demo in Chinese. The interface follows the browser language, with Chinese and English translations._
 
 ## Why LanternDock?
 
@@ -42,7 +42,8 @@ Give visitors a simple interface to files you already host. LanternDock provides
 - **Set up with guidance.** A first-run wizard generates local or Cloudflare configuration, with an explicit demo option.
 - **Host a public NAS folder.** The optional Go server provides anonymous, read-only WebDAV while keeping private state separate.
 - **Receive files without accounts.** Expiring, revocable upload links enforce file-size, capacity and file-count limits on the NAS.
-- **Use your existing SSO.** OIDC/CIMD login displays a copyable user subject; the NAS recognizes administrators from its environment configuration.
+- **Use your existing SSO.** A shared OIDC/CIMD session displays a copyable site subject without blocking public browsing; the NAS verifies permissions separately.
+- **Manage file drops in the browser.** Verified administrators can create and revoke collection links, inspect their quotas, and download completed private uploads from the management page.
 
 ## Quick start
 
@@ -76,7 +77,7 @@ For a bridge, use `WEBTRANSPORT_URL` instead of `WEBDAV_URL`. They are mutually 
 
 The optional [`server/`](server/) backend combines public read-only WebDAV with private file drops. The NAS issues upload permissions and enforces quotas in SQLite; uploaded files stay in its private inbox until you choose to publish them. Visitors need only their collection link, with no account registration.
 
-Use [`compose.nas.yaml`](compose.nas.yaml) for the NAS backend plus WebTransport bridge. It pulls `ghcr.io/longern/lantern-dock:latest` for amd64 or arm64; no NAS-side build is needed. See the [NAS deployment guide](docs/nas-server.md) for folder mounts, image updates, frontend configuration, and CLI commands to create and revoke collection links.
+Use [`compose.nas.yaml`](compose.nas.yaml) for the NAS backend plus WebTransport bridge. It pulls `ghcr.io/longern/lantern-dock:latest` for amd64 or arm64; no NAS-side build is needed. See the [NAS deployment guide](docs/nas-server.md) for folder mounts, image updates, frontend configuration, browser management, and optional CLI commands to create and revoke collection links.
 
 NAS containers support optional `PUID/PGID` (default `1000:1000`) to match a local NAS account. Startup prepares private database/inbox permissions, then runs the service and CLI as that non-root user. Public-folder ownership and permissions stay under NAS administration; give the selected account read access and keep the mount read-only. Docker's native non-root `user:` takes precedence over the environment defaults.
 
@@ -84,7 +85,17 @@ NAS containers support optional `PUID/PGID` (default `1000:1000`) to match a loc
 
 Set `SITE_ORIGIN` on the NAS and `OIDC_ISSUER_URL` **only on the Worker**; the Worker detects its HTTPS origin automatically. Open **我的账户**, sign in, and copy your 25-character **site** `sub` into the NAS `ADMIN_SUBJECTS` value (separate multiple site subjects with commas). The Worker maps third-party logins to stable site identities and signs short-lived, browser-bound credentials. The NAS discovers the Worker's public keys, verifies tokens locally and determines the role; it has no SSO configuration. See [authentication setup](docs/authentication.md) for deployment and key rotation, or the [identity protocol](docs/identity-protocol.md) for Discovery, JWT and DPoP details. workers-sso requires no changes.
 
-The included NAS uses `/dav/` for files and `/api` for inbox, account and capability metadata. Configure one backend address; individual feature paths need no environment variables. See the [service path contract](docs/backend-protocol.md).
+### Manage file drops
+
+After configuring `ADMIN_SUBJECTS` and rechecking the account, open **Administration** from **Me** on mobile or **My account** on desktop. Both the Worker and NAS must support the management scopes; update them together before using this page. A signed-in ordinary user does not receive administrator permissions.
+
+- Create a collection with a title, expiry, per-file size limit, total capacity and file-count limit. Copy its upload link while the creation dialog is open: the secret is shown only once and cannot be recovered from the list.
+- Review collection status and quota usage, or revoke a link to stop further uploads. Revoking or expiring a link does not delete completed files.
+- Open **Private inbox** to list completed uploads, optionally filter by collection, and download them. Files remain private and are not published into WebDAV.
+
+Recipients need only the upload link, not an account. Treat the full link as a password: anyone holding it can upload within its limits. This phase does not assign personal spaces, grant permissions to named users, or add resumable uploads. The NAS CLI remains available for local administration.
+
+The included NAS uses `/dav/` for files and `/api` for inbox, account, management and capability metadata. Configure one backend address; individual feature paths need no environment variables. See the [service path contract](docs/backend-protocol.md).
 
 ## How it works
 
@@ -96,7 +107,7 @@ flowchart LR
     Bridge -->|"HTTP / WebDAV"| Files
 ```
 
-The Worker serves the frontend and `/api/config`. File contents travel directly between the browser and the configured backend or bridge.
+The Worker serves the frontend, `/api/config` and identity endpoints. It issues short-lived, browser-bound grants; the NAS enforces local roles and the required scope on each management request. File contents, including private inbox downloads, travel directly between the browser and the configured backend or bridge.
 
 Both connection modes use WebDAV for file access. The bridge carries one HTTP/1.1 exchange per WebTransport bidirectional stream using a project-specific mapping. WebTransport requires a compatible browser, a secure frontend context, and a reachable UDP endpoint; there is no automatic HTTPS fallback.
 
@@ -116,7 +127,7 @@ The deploy command builds the Preact frontend into `dist/` and uploads it with t
 
 ## Project status
 
-LanternDock is in early development. Public browsing is **read-only WebDAV**. The optional NAS backend adds **private uploads through scoped collection links** and **OIDC identity/administrator recognition**. Collection management currently uses the NAS CLI. General file editing, public share management, resumable uploads, and task execution remain future work.
+LanternDock is in early development. Public browsing is **read-only WebDAV**. The optional NAS backend adds **private uploads through scoped collection links** and **OIDC identity/administrator recognition**, with **web-based collection and private-inbox management** for verified administrators. The CLI remains available. Personal spaces and named-user grants, general file editing, public share management, resumable uploads, and task execution remain future work.
 
 | Area           | Current behavior                                                                                                                                                                                                                          |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -135,7 +146,9 @@ LanternDock is in early development. Public browsing is **read-only WebDAV**. Th
 - [x] Add OIDC/CIMD login and NAS-enforced administrator identities.
 - [x] Add expiring, revocable guest upload grants with explicit scopes and quotas.
 - [x] Support scoped guest uploads and upload-only entry points.
-- [ ] Support resumable uploads and a web interface for managing collections.
+- [x] Add a web interface for collection links and private inbox downloads.
+- [ ] Support resumable uploads.
+- [ ] Add named-user permissions and isolated personal spaces.
 - [ ] Expose predefined, authorized tasks such as media conversion.
 - [x] Add IIIF image thumbnails, resized previews and bounded caches.
 - [x] Add video posters, native HTTPS playback and page-local WebTransport MP4 playback.
