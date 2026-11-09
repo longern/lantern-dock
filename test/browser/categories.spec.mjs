@@ -1,3 +1,4 @@
+import { openItem } from "../helpers/open-item.mjs";
 import { chooseListingOption, expectListingOptions, listingOptionsButton } from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
 
@@ -75,7 +76,7 @@ test("home shortcuts support keyboard activation and return to recent files", as
   await cards(page).getByRole("button", { name: "相册", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page.locator(".album-item")).toHaveCount(3);
-  await albumSurface(page).getByRole("button", { name: "预览 海边的周末.svg", exact: true }).click();
+  await openItem(albumSurface(page).getByRole("button", { name: "预览 海边的周末.svg", exact: true }));
   await expect(page.locator(".album-media[data-current=true] img").first()).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.locator("#album-viewer")).toHaveCount(0);
@@ -86,7 +87,7 @@ test("home shortcuts support keyboard activation and return to recent files", as
   await expect(page.locator(".file-item")).toHaveCount(1);
   await mainNav(page).getByRole("button", { name: /^文件/ }).click();
   await expect(cards(page)).toHaveCount(0);
-  await page.getByRole("button", { name: "打开文件夹 照片", exact: true }).click();
+  await openItem(page.getByRole("button", { name: "打开文件夹 照片", exact: true }));
   await expect(cards(page)).toHaveCount(0);
   await mainNav(page).getByRole("button", { name: "首页", exact: true }).click();
   await expect(cards(page)).toBeVisible();

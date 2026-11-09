@@ -1,3 +1,4 @@
+import { openItem } from "../helpers/open-item.mjs";
 import { chooseListingOption } from "../helpers/listing-options.mjs";
 import { test as base, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
@@ -51,9 +52,8 @@ test("search, sorting, views, folders and navigation work", async ({
   await expect(list.locator(":scope > li.file-divider > hr")).toHaveCount(11);
   await expect(list.getByRole("listitem")).toHaveCount(12);
   await expect(list.getByRole("separator")).toHaveCount(0);
-  await page
-    .getByRole("button", { name: "打开文件夹 照片", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "打开文件夹 照片", exact: true }));
   await expect(page.locator(".file-item")).toHaveCount(4);
   await expect(
     page.getByRole("navigation", { name: "文件路径" }),
@@ -76,7 +76,7 @@ test("preview switches between panel and modal at viewport boundaries", async ({
     name: "预览 海边的周末.svg",
     exact: true,
   });
-  await trigger.click();
+  await openItem(trigger);
   await expect(page.locator(".preview-content img")).toBeVisible();
   await expect(page.locator(".file-details")).toContainText("1200 × 800");
   for (const width of [1440, 1024, 1000, 768, 701, 700, 390, 320]) {
@@ -112,7 +112,7 @@ test("preview switches between panel and modal at viewport boundaries", async ({
   await page.getByRole("button", { name: "关闭预览" }).click();
   await expect(page.locator("#preview-dialog")).toHaveCount(0);
   await expect(trigger).toBeFocused();
-  await trigger.click();
+  await openItem(trigger);
   await page.keyboard.press("Escape");
   await expect(page.locator("#preview-dialog")).toHaveCount(0);
 });
@@ -120,9 +120,8 @@ test("preview switches between panel and modal at viewport boundaries", async ({
 test("favorites and recent entries survive reload without storing credentials", async ({
   page,
 }) => {
-  await page
-    .getByRole("button", { name: "预览 项目笔记.md", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "预览 项目笔记.md", exact: true }));
   await expect(page.locator(".preview-content pre")).toContainText(
     "欢迎使用 LanternDock",
   );
@@ -142,15 +141,16 @@ test("favorites and recent entries survive reload without storing credentials", 
 test("settings reconnect and credential clearing clean up preview", async ({
   page,
 }) => {
-  await page
-    .getByRole("button", { name: "预览 项目笔记.md", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "预览 项目笔记.md", exact: true }));
   await page.getByRole("button", { name: "关闭预览" }).click();
   await openConnectionSettings(page);
   await page.getByLabel("访问方式", { exact: true }).selectOption("basic");
   await page.getByLabel("用户名", { exact: true }).fill("local-user");
   await page.getByLabel("密码", { exact: true }).fill("memory-only-secret");
   await page.getByRole("button", { name: "连接", exact: true }).click();
+  if (page.viewportSize().width <= 700)
+    await nav(page).getByRole("button", { name: "首页", exact: true }).click();
   await expect(page.locator(".file-item")).toHaveCount(1);
   await openConnectionSettings(page);
   await expect(page.getByLabel("用户名", { exact: true })).toHaveValue(
@@ -164,6 +164,8 @@ test("settings reconnect and credential clearing clean up preview", async ({
     "none",
   );
   await page.getByRole("button", { name: "关闭设置" }).click();
+  if (page.viewportSize().width <= 700)
+    await nav(page).getByRole("button", { name: "首页", exact: true }).click();
   await page.reload();
   await expect(page.locator(".file-item")).toHaveCount(1);
   await openConnectionSettings(page);
@@ -173,9 +175,8 @@ test("settings reconnect and credential clearing clean up preview", async ({
 });
 
 test("text downloads contain file contents", async ({ page }) => {
-  await page
-    .getByRole("button", { name: "预览 阅读清单.txt", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "预览 阅读清单.txt", exact: true }));
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "下载", exact: true }).click();
   const file = await downloaded;
@@ -214,9 +215,8 @@ test("config failures stay visible and reconnect can recover", async ({
 test("error notifications use a translucent black surface below center above preview dialogs", async ({
   page,
 }, testInfo) => {
-  await page
-    .getByRole("button", { name: "预览 归档资料.zip", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "预览 归档资料.zip", exact: true }));
   await page.getByRole("button", { name: "下载", exact: true }).click();
   const notification = page.getByRole("alert");
   await expect(notification).toContainText("连接真实后端");
@@ -253,9 +253,8 @@ test("notifications fade out before removal and respect reduced motion", async (
 }) => {
   await page.clock.install();
   await page.clock.pauseAt(new Date(Date.now() + 1000));
-  await page
-    .getByRole("button", { name: "预览 归档资料.zip", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "预览 归档资料.zip", exact: true }));
   for (const reducedMotion of ["no-preference", "reduce"]) {
     await page.emulateMedia({ reducedMotion });
     await page.getByRole("button", { name: "下载", exact: true }).click();

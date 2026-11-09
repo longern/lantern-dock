@@ -56,7 +56,7 @@
   }
   .content.collection-card {
     margin: 20px 0 0;
-    padding: 0 16px calc(88px + env(safe-area-inset-bottom));
+    padding: 0 0 calc(88px + env(safe-area-inset-bottom));
     border-radius: 20px 20px 0 0;
   }
   .collection-card:not(.home-content) {

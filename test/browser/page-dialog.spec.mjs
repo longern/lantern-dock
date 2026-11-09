@@ -1,3 +1,4 @@
+import { openItem } from "../helpers/open-item.mjs";
 import { test, expect } from "@playwright/test";
 
 const albumDialog = (page) => page.locator("#album-page-dialog");
@@ -57,7 +58,7 @@ test("mobile Back dismisses a photo before the album, and forward reopens the al
   await page.emulateMedia({ reducedMotion: "reduce" });
   await openAlbum(page);
   const photo = albumDialog(page).locator(".album-preview").first();
-  await photo.click();
+  await openItem(photo);
   await expect(page.locator("#album-viewer")).toBeVisible();
   await page.goBack();
   await expect(page.locator("#album-viewer")).toHaveCount(0);
@@ -84,7 +85,7 @@ test("a direct mobile album link closes locally and breakpoint changes release t
   await expect(albumDialog(page)).toHaveCount(0);
   await expect(page).toHaveURL(/\/$/);
   await openAlbum(page);
-  await albumDialog(page).locator(".album-preview").first().click();
+  await openItem(albumDialog(page).locator(".album-preview").first());
   await expect(page.locator("#album-viewer")).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.locator("#album-page-dialog,#album-viewer")).toHaveCount(0);

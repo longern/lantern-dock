@@ -1,5 +1,6 @@
+import { openItem } from "../helpers/open-item.mjs";
 import { test, expect } from "@playwright/test";
-import { openConnectionSettings } from "../helpers/navigation.mjs";
+import { mainNavigation, openConnectionSettings } from "../helpers/navigation.mjs";
 import { tailMoovMP4 } from "../helpers/mp4-fixture.mjs";
 
 async function openFixture(page, fixture) {
@@ -41,7 +42,9 @@ async function openFixture(page, fixture) {
   await page.getByLabel("访问令牌", { exact: true }).fill("fixture-only-token");
   await page.getByRole("button", { name: "连接", exact: true }).click();
   await expect(page.locator(".settings-dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "预览 metadata.mp4", exact: true }).click();
+  if (page.viewportSize().width <= 700)
+    await mainNavigation(page).getByRole("button", { name: "首页", exact: true }).click();
+  await openItem(page.getByRole("button", { name: "预览 metadata.mp4", exact: true }));
   return requests;
 }
 
@@ -62,7 +65,7 @@ test("QuickTime metadata in MP4 plays, seeks and reopens through MSE", async ({ 
   await page.getByRole("button", { name: "关闭预览", exact: true }).click();
   await expect(page.locator("#preview-dialog")).toHaveCount(0);
   const reads = requests.length;
-  await page.getByRole("button", { name: "预览 metadata.mp4", exact: true }).click();
+  await openItem(page.getByRole("button", { name: "预览 metadata.mp4", exact: true }));
   await expect.poll(() => video.evaluate((element) => element.readyState)).toBeGreaterThanOrEqual(1);
   expect(requests.length).toBeGreaterThan(reads);
   for (const headers of requests) {

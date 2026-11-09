@@ -1,3 +1,4 @@
+import { openItem } from "../helpers/open-item.mjs";
 import { test, expect } from "@playwright/test";
 import { mainNavigation, openConnectionSettings, openFavorites } from "../helpers/navigation.mjs";
 import { listingOptionsButton } from "../helpers/listing-options.mjs";
@@ -175,7 +176,7 @@ test("settings and preview dialogs have no outer borders while controls and divi
   await page.keyboard.press("Escape");
   await expect(settings).toHaveCount(0);
   await mainNavigation(page).getByRole("button", { name: /^文件/ }).click();
-  await page.getByRole("button", { name: "预览 项目笔记.md", exact: true }).click();
+  await openItem(page.getByRole("button", { name: "预览 项目笔记.md", exact: true }));
   await expectBorderless(page.locator("#preview-dialog"));
   await expect(page.locator(".preview-header")).toHaveCSS("border-bottom-width", "1px");
 });

@@ -1,0 +1,129 @@
+.file-open {
+  -webkit-touch-callout: none;
+  user-select: none;
+}
+.file-open img {
+  -webkit-user-drag: none;
+}
+.file-item[data-selected="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.album-item[data-selected="true"] .album-preview {
+  opacity: 0.78;
+}
+.selection-mark {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid #b2b1c0;
+  border-radius: 50%;
+  background: var(--surface);
+  pointer-events: none;
+}
+.selection-mark.checked {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.selection-mark svg {
+  width: 16px;
+  height: 16px;
+}
+@media (max-width: 700px) {
+  .list-layout .selection-mark {
+    right: 30px;
+  }
+}
+.album-item .selection-mark,
+.file-grid:not(.list-layout) .selection-mark {
+  top: 10px;
+  right: 10px;
+  transform: none;
+}
+.touch-selecting .favorite-button,
+.touch-selecting .file-copy-button {
+  display: none;
+}
+.app-shell.touch-selecting > .mobile-tabs {
+  visibility: hidden;
+  pointer-events: none;
+}
+.content.touch-selecting {
+  padding-bottom: calc(156px + env(safe-area-inset-bottom));
+}
+.selection-actions,
+.selection-commands,
+.selection-panel-heading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.selection-panel {
+  position: fixed;
+  inset: auto auto max(16px, env(safe-area-inset-bottom)) 50%;
+  transform: translateX(-50%);
+  width: min(480px, calc(100vw - 24px));
+  margin: 0;
+  padding: 8px;
+  border: 0;
+  border-radius: 20px;
+  background: var(--surface);
+  color: inherit;
+  box-shadow: var(--shadow-dialog);
+  z-index: 30;
+  flex-direction: column;
+  align-items: stretch;
+  animation: selection-in var(--motion-enter) var(--ease-standard) both;
+}
+.selection-panel::backdrop {
+  display: none;
+}
+.selection-panel-heading strong {
+  font-size: 14px;
+  font-weight: 500;
+}
+.selection-panel-heading .text-button {
+  margin-left: auto;
+  min-height: 44px;
+}
+.selection-panel .icon-button {
+  width: 44px;
+  height: 44px;
+}
+.selection-command {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  padding: 8px;
+  border-radius: var(--radius-control);
+  color: var(--accent);
+  font-size: 13px;
+}
+.selection-command:active {
+  background: var(--accent-soft);
+}
+@media (hover: hover) {
+  .selection-command:hover {
+    background: var(--surface-subtle);
+  }
+}
+@keyframes selection-in {
+  from {
+    opacity: 0;
+    translate: 0 12px;
+  }
+  to {
+    opacity: 1;
+    translate: 0;
+  }
+}

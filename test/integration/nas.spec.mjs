@@ -1,3 +1,5 @@
+import { openItem } from "../helpers/open-item.mjs";
+import { holdItem } from "../helpers/hold-item.mjs";
 import { flipAlbum } from "../helpers/album-navigation.mjs";
 import { chooseListingOption } from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
@@ -71,6 +73,39 @@ test("default NAS routes and capabilities work through the shared bridge namespa
   });
 });
 
+test("file selection and bulk actions work over WebTransport without exposing DAV addresses", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.selectedLinks = "";
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
+      writeText: async value => { window.selectedLinks = value; },
+    } });
+  });
+  await page.goto(`${fixture.origin}/files/`);
+  const hello = page.getByRole("button", { name: "预览 hello.txt", exact: true });
+  const folder = page.getByRole("button", { name: "打开文件夹 照片", exact: true });
+  await expect(hello).toBeVisible();
+  if (page.viewportSize().width <= 700) {
+    await holdItem(page, hello);
+    await folder.tap();
+    await expect(page.locator(".mobile-tabs")).toBeHidden();
+  } else {
+    await hello.click();
+    await folder.click({ modifiers: ["ControlOrMeta"] });
+    await expect(page.locator(".selection-panel")).toHaveCount(0);
+  }
+  const actions = page.getByRole("toolbar", { name: "所选项目操作" });
+  await actions.getByRole("button", { name: "复制所选链接" }).click();
+  const links = await page.evaluate(() => window.selectedLinks.split("\n").sort());
+  expect(links).toEqual([
+    `${fixture.origin}/files/hello.txt`, `${fixture.origin}/files/${encodeURIComponent("照片")}/`,
+  ].sort());
+  await actions.getByRole("button", { name: "收藏所选项目", exact: true }).click();
+  await expect(actions.getByRole("button", { name: "取消收藏所选项目", exact: true })).toBeVisible();
+  await actions.getByRole("button", { name: "取消选择" }).click();
+  await openItem(hello);
+  await expect(page.locator(".preview-content pre")).toHaveText(textFile);
+});
+
 test("shared file and album URLs reload through the SPA and resolve the real NAS over WebTransport", async ({ page }) => {
   const folder = encodeURIComponent("照片");
   await page.goto(`${fixture.origin}/files/${folder}/photo.png?view=album`);
@@ -96,9 +131,8 @@ test("NAS serves public read-only WebDAV and receives a private file through the
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(fixture.origin);
   await expect(page.locator(".file-item")).toHaveCount(3);
-  await page
-    .getByRole("button", { name: "预览 hello.txt", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "预览 hello.txt", exact: true }));
   await expect(page.locator(".preview-content pre")).toHaveText(textFile);
   const created = await fixture.nas.createLink();
   await page.goto(created.url);
@@ -391,9 +425,8 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(fixture.origin);
-  await page
-    .getByRole("button", { name: "打开文件夹 照片", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "打开文件夹 照片", exact: true }));
   await expect(page.locator(".file-item")).toHaveCount(2);
   const thumbnail = page
     .locator("#file-list .file-item")
@@ -417,10 +450,9 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
   await expect(thumbnail).toBeVisible();
   await expect(page.locator("#file-list .file-info")).toHaveCount(0);
   await expect.poll(() => thumbnail.evaluate((img) => img.naturalWidth)).toBe(384);
-  await page
+  await openItem(page
     .locator("#file-list")
-    .getByRole("button", { name: "预览 photo.png", exact: true })
-    .click();
+    .getByRole("button", { name: "预览 photo.png", exact: true }));
   const preview = page.locator(".album-media[data-current=true] .album-image-high.is-sharp");
   await expect(preview).toBeVisible();
   await expect
@@ -501,7 +533,7 @@ test("album slides from IIIF images to an active MP4Box video over real WebTrans
       .getByRole("button", { name: "相册", exact: true }).click();
     const open = page.locator('.album-preview[data-path="/dav/album-photo.png"]');
     await expect(open.locator("img")).toBeVisible();
-    await open.click();
+    await openItem(open);
     await expect(page.locator(".album-media[data-current=true] .album-image-high.is-sharp")).toHaveCSS("opacity", "1");
     expect(await page.locator("#album-viewer video").count()).toBe(0);
     await flipAlbum(page);
@@ -537,18 +569,16 @@ test("video posters and MP4Box MediaSource playback seek over the real bridge", 
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(fixture.origin);
-  await page
-    .getByRole("button", { name: "打开文件夹 照片", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "打开文件夹 照片", exact: true }));
   const card = page.locator(".file-item").filter({
     has: page.getByRole("button", { name: "预览 video.mp4", exact: true }),
   });
   const poster = card.locator(".thumbnail-slot img");
   await expect(poster).toBeVisible();
   await expect.poll(() => poster.evaluate((img) => img.naturalWidth)).toBe(128);
-  await page
-    .getByRole("button", { name: "预览 video.mp4", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "预览 video.mp4", exact: true }));
   const video = page.locator(".preview-content video");
   await expect(video).toBeVisible();
   await expect
@@ -619,12 +649,10 @@ test("long moov-at-end videos load by Range, seek outside the buffer and seek ba
       };
     });
     await page.goto(fixture.origin);
-    await page
-      .getByRole("button", { name: "打开文件夹 照片", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "预览 long.mp4", exact: true })
-      .click();
+    await openItem(page
+      .getByRole("button", { name: "打开文件夹 照片", exact: true }));
+    await openItem(page
+      .getByRole("button", { name: "预览 long.mp4", exact: true }));
     const video = page.locator(".preview-content video");
     await expect(video).toBeVisible();
     await expect
@@ -698,12 +726,10 @@ test("public HTTPS videos use the original URL and native playback", async ({
       await route.fulfill({ response });
     });
     await page.goto(fixture.origin);
-    await page
-      .getByRole("button", { name: "打开文件夹 照片", exact: true })
-      .click();
-    await page
-      .getByRole("button", { name: "预览 video.mp4", exact: true })
-      .click();
+    await openItem(page
+      .getByRole("button", { name: "打开文件夹 照片", exact: true }));
+    await openItem(page
+      .getByRole("button", { name: "预览 video.mp4", exact: true }));
     const video = page.locator(".preview-content video");
     await expect(video).toBeVisible();
     await expect(video).toHaveAttribute(
@@ -763,13 +789,11 @@ test("rotated MOV playback preserves portrait orientation and releases each Medi
       };
     });
     await page.goto(fixture.origin);
-    await page
-      .getByRole("button", { name: "打开文件夹 照片", exact: true })
-      .click();
+    await openItem(page
+      .getByRole("button", { name: "打开文件夹 照片", exact: true }));
     for (const name of ["portrait.mov", "video.mp4", "portrait.mov"]) {
-      await page
-        .getByRole("button", { name: `预览 ${name}`, exact: true })
-        .click();
+      await openItem(page
+        .getByRole("button", { name: `预览 ${name}`, exact: true }));
       const video = page.locator(".preview-content video");
       await expect(video).toBeVisible();
       await expect
@@ -823,7 +847,7 @@ test("NAS identifies Apple and Android live photos and plays virtual ranges thro
     await expect(page.locator('.album-live-indicator')).toHaveCount(2);
     await expect(page.getByRole('button', { name: '预览视频 different-name.mov', exact: true })).toHaveCount(0);
     for (const name of ['live-apple.heic', 'live-android.jpg']) {
-      await page.locator(`.album-preview[data-path="/dav/${name}"]`).click();
+      await openItem(page.locator(`.album-preview[data-path="/dav/${name}"]`));
       await expect(page.locator('.album-media[data-current=true] .album-image-high.is-sharp')).toHaveCSS('opacity', '1');
       const player = page.locator('.album-media[data-current=true] video.album-live-video');
       expect(await player.getAttribute('src')).toBeNull();

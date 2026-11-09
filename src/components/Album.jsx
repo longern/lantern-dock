@@ -1,5 +1,5 @@
 import { t } from "../../shared/i18n.js";
-import { useEffect, useMemo, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { Thumbnail } from "./Thumbnail.jsx";
 import { artwork } from "../lib/demo.js";
@@ -7,7 +7,7 @@ import { groupMediaByDate } from "../lib/album.js";
 import { useLiveMedia } from "../hooks/useLiveMedia.js";
 import { albumLiveItems } from "../lib/live.js";
 
-export function Album({ entries, loading, demo, client, selected, onPreview }) {
+export function Album({ entries, loading, demo, client, selected, onPreview, selection, onItemsChange }) {
   const live = useLiveMedia(client, entries);
   const media = useMemo(() => albumLiveItems(entries, live), [entries, live]);
   const elements = useRef(new Map());
@@ -33,6 +33,8 @@ export function Album({ entries, loading, demo, client, selected, onPreview }) {
     };
   }, []);
   const groups = useMemo(() => groupMediaByDate(media, today), [media, today]);
+  const orderedItems = useMemo(() => groups.flatMap(group => group.items), [groups]);
+  useLayoutEffect(() => onItemsChange(orderedItems), [orderedItems, onItemsChange]);
   if (loading && !entries.length)
     return (
       <div class="file-grid album-layout">
@@ -56,7 +58,8 @@ export function Album({ entries, loading, demo, client, selected, onPreview }) {
       </h2>
       <div class="file-grid album-layout">
         {group.items.map((item) => (
-          <article class="file-item album-item" key={item.path}>
+          <article class={`file-item album-item${selection.isSelected(item) ? " selected" : ""}`} key={item.path}
+            data-selected={selection.isSelected(item) ? "true" : undefined}>
             <button
               class="file-open album-preview"
               ref={(node) =>
@@ -71,8 +74,8 @@ export function Album({ entries, loading, demo, client, selected, onPreview }) {
                   : "library.previewNamed",
                 { name: item.name },
               )}
-              aria-pressed={selected?.path === item.path}
-              onClick={() =>
+              aria-pressed={selection.isSelected(item) || selected?.path === item.path}
+              {...selection.props(item, () =>
                 onPreview(item, {
                   items: groups.flatMap((group) => group.items),
                   origins: new Map(
@@ -98,7 +101,7 @@ export function Album({ entries, loading, demo, client, selected, onPreview }) {
                       ]),
                   ),
                 })
-              }
+              )}
             >
               {demo && item.kind === "image" ? (
                 <img
@@ -129,6 +132,9 @@ export function Album({ entries, loading, demo, client, selected, onPreview }) {
                 </span>
               )}
             </button>
+            {selection.touch && <span class={`selection-mark${selection.isSelected(item) ? " checked" : ""}`} aria-hidden="true">
+              {selection.isSelected(item) && <Icon name="check" />}
+            </span>}
           </article>
         ))}
       </div>

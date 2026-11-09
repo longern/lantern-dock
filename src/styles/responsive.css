@@ -94,7 +94,17 @@
     font-size: 16px;
   }
   .content {
-    padding: 0 16px 20px;
+    padding: 0 0 20px;
+  }
+  .content > .file-toolbar {
+    padding-inline: 16px;
+  }
+  .content > .file-grid:not(.list-layout) {
+    margin-inline: 16px;
+  }
+  .file-divider hr,
+  .list-layout .skeleton {
+    margin-inline: 16px;
   }
   .file-stats {
     gap: 8px;
@@ -113,7 +123,7 @@
   }
   .list-layout .file-open {
     height: 70px;
-    padding: 0 92px 0 3px;
+    padding: 0 108px 0 19px;
     grid-template-columns: 40px minmax(0, 1fr);
   }
   .list-layout .file-art {
@@ -135,13 +145,13 @@
   .list-layout .favorite-button,
   .list-layout .file-copy-button {
     top: 13px;
-    right: 0;
+    right: 16px;
     opacity: 0.7;
     width: 44px;
     height: 44px;
   }
   .list-layout .file-copy-button {
-    right: 44px;
+    right: 60px;
   }
   .file-grid:not(.list-layout) {
     grid-template-columns: repeat(2, minmax(0, 1fr));

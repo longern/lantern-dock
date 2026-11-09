@@ -1,3 +1,4 @@
+import { openItem } from "../helpers/open-item.mjs";
 import { test, expect } from "@playwright/test";
 import { closeFavorites, openFavorites } from "../helpers/navigation.mjs";
 
@@ -306,7 +307,7 @@ test("English filename interpolation preserves markup, braces and non-English us
     await expect(page.locator(".favorite-button")).toHaveAttribute("aria-label", `Add ${name} to favorites`);
     await page.locator(".favorite-button").click();
     await expect(page.locator(".favorite-button")).toHaveAttribute("aria-label", `Remove ${name} from favorites`);
-    await page.locator(".file-open").click();
+    await openItem(page.locator(".file-open"));
     await expect(page.locator("#preview-name")).toHaveText(name);
     await expect(page.locator(".preview-content pre")).toHaveText(content);
     await expect(page.locator("[data-i18n-probe]")).toHaveCount(0);

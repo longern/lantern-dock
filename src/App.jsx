@@ -95,6 +95,16 @@ function LibraryApp() {
   }, [library.error, toast]);
   const records = useRecords(library.key, toast);
   const transfer = useDownload(library.connection, records.remember, toast);
+  const [touchSelections, setTouchSelections] = useState(() => new Set());
+  const onTouchSelection = useCallback((owner, active) => {
+    setTouchSelections(current => {
+      if (current.has(owner) === active) return current;
+      const next = new Set(current);
+      if (active) next.add(owner);
+      else next.delete(owner);
+      return next;
+    });
+  }, []);
   const [selected, setSelected] = useState(null);
   const [gallery, setGallery] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -268,6 +278,17 @@ function LibraryApp() {
     } catch { toast(t("library.copyLinkFailed"), true); }
   };
   library.copyLink = copyLink;
+  library.copyLinks = async items => {
+    const root = (library.connection?.client.root || "/").replace(/\/?$/, "/");
+    const album = ["album", "image"].includes(library.kind) || albumPresent;
+    try {
+      const links = items.map(item => new URL(filesHref(item.path.slice(root.length), {
+        directory: item.isDirectory, album: album && !item.isDirectory,
+      }), location.origin).href);
+      await navigator.clipboard.writeText(links.join("\n"));
+      toast(t("library.linksCopied", { count: items.length }));
+    } catch { toast(t("library.copyLinkFailed"), true); }
+  };
   const connect = (credentials) => {
     setSettings("closing");
     setSelected(null);
@@ -303,7 +324,7 @@ function LibraryApp() {
       </>
     );
   return (
-    <div class={`app-shell${previewOpen && !gallery ? " preview-open" : ""}`}>
+    <div class={`app-shell${previewOpen && !gallery ? " preview-open" : ""}${touchSelections.size ? " touch-selecting" : ""}`}>
       {!mobile && <Sidebar
         library={library}
         records={records}
@@ -335,11 +356,12 @@ function LibraryApp() {
             {route === "favorites" ? (
               <Favorites mobile={false} onClose={() => navigation.closeFavorites(false)}
                 actions={listingActions(favoritesLibrary, records)}>
-                <FileBrowser library={favoritesLibrary} records={records} selected={selected}
+                <FileBrowser library={favoritesLibrary} records={records} selected={selected} onTouchSelection={onTouchSelection}
                   onPreview={preview} onSettings={showSettings} />
               </Favorites>
             ) : (
               <FileBrowser library={library} records={visibleRecords} selected={selected}
+                onTouchSelection={onTouchSelection}
                 listId={albumPresent ? "background-file-list" : "file-list"}
                 countId={albumPresent ? "background-item-count" : "item-count"}
                 onPreview={preview} onSettings={showSettings} />
@@ -358,6 +380,7 @@ function LibraryApp() {
             aria-label={t("library.refreshDirectory")} disabled={library.loading} aria-busy={library.loading}
             onClick={library.refresh}><Icon name="refresh" /></button>}>
           <FileBrowser library={albumLibrary} records={records} selected={selected}
+            onTouchSelection={onTouchSelection}
             pageDialog onPreview={preview} onSettings={showSettings} />
           {!selected && !settings && feedback}
         </PageDialog>
@@ -373,6 +396,7 @@ function LibraryApp() {
           }}>
           <FileBrowser
             library={favoritesLibrary}
+            onTouchSelection={onTouchSelection}
             records={records} selected={selected} onPreview={preview} onSettings={showSettings}
           />
           {!selected && !settings && feedback}

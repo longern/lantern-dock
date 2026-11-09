@@ -36,6 +36,19 @@ export function useRecords(key, toast) {
     recentError: recentState.error,
     retry: () => setRevision((value) => value + 1),
     isFavorite,
+    setFavorites(items, enabled) {
+      const current = readRecords(key, "favorites");
+      if (current.status !== "ready") {
+        if (current.error) toast(current.error.message, true);
+        return;
+      }
+      const paths = new Set(items.map(item => item.path));
+      const kept = current.items.filter(item => !paths.has(item.path));
+      const saved = save("favorites", enabled ? [...items, ...kept] : kept);
+      if (saved)
+        toast(t(enabled ? "library.favoritesAddedCount" : "library.favoritesRemovedCount", { count: items.length }));
+      return saved;
+    },
     toggleFavorite(item) {
       const current = readRecords(key, "favorites");
       if (current.status !== "ready") {

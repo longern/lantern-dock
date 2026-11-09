@@ -1,3 +1,4 @@
+import { openItem } from "../helpers/open-item.mjs";
 import { chooseListingOption, listingOptionsButton } from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
 import { closeFavorites, mainNavigation as nav, openFavorites } from "../helpers/navigation.mjs";
@@ -25,7 +26,7 @@ test("home and files are separate destinations, with breadcrumbs only in files",
   await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "文件路径" })).toBeVisible();
   await expect(page.locator(".category-cards")).toHaveCount(0);
-  await page.getByRole("button", { name: "打开文件夹 照片", exact: true }).click();
+  await openItem(page.getByRole("button", { name: "打开文件夹 照片", exact: true }));
   await expect(page.locator(".file-item")).toHaveCount(4);
   await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
   await home(page).click();
@@ -53,7 +54,7 @@ test("leaving Home clears search for Files, Favorites, folders and sidebar categ
     await expect(page.locator(".file-item")).toHaveCount(12);
   }
   await page.getByRole("searchbox").fill("照片");
-  await page.getByRole("button", { name: "打开文件夹 照片", exact: true }).click();
+  await openItem(page.getByRole("button", { name: "打开文件夹 照片", exact: true }));
   await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
   await expect(page.locator(".file-item")).toHaveCount(4);
   await page.getByRole("navigation", { name: "文件路径" })
@@ -92,7 +93,7 @@ test("slash focuses Home search without navigating from other destinations", asy
     if (mode === "favorites") await closeFavorites(page);
   }
   await files(page).click();
-  await page.getByRole("button", { name: "打开文件夹 照片", exact: true }).click();
+  await openItem(page.getByRole("button", { name: "打开文件夹 照片", exact: true }));
   const root = page.getByRole("navigation", { name: "文件路径" })
     .getByRole("button", { name: "公开资源库", exact: true });
   await root.focus();
@@ -110,14 +111,14 @@ test("slash focuses Home search without navigating from other destinations", asy
 
 test("home shows actual recent visits, persists them and does not fall back after an unmatched search", async ({ page }) => {
   await chooseListingOption(page, "名称");
-  await page.getByRole("button", { name: "预览 项目笔记.md", exact: true }).click();
+  await openItem(page.getByRole("button", { name: "预览 项目笔记.md", exact: true }));
   await page.getByRole("button", { name: "关闭预览" }).click();
   await expect(page.locator(".file-section-title")).toHaveText("最近文件");
   await expect(page.locator("#file-list")).toHaveAttribute("aria-label", "最近文件列表");
   await expect(page.locator(".file-name")).toHaveText(["项目笔记.md"]);
   await files(page).click();
   await expect(page.locator(".file-item")).toHaveCount(12);
-  await page.getByRole("button", { name: "预览 阅读清单.txt", exact: true }).click();
+  await openItem(page.getByRole("button", { name: "预览 阅读清单.txt", exact: true }));
   await page.getByRole("button", { name: "关闭预览" }).click();
   await home(page).click();
   await expect(page.locator(".file-name")).toHaveText(["阅读清单.txt", "项目笔记.md"]);
@@ -227,7 +228,7 @@ test("mobile Files search opens from the header, focuses and survives query relo
   await expect(searchButton).toBeFocused();
   await expect(page).not.toHaveURL(/[?&]q=/);
   await expect(page.locator(".file-item")).toHaveCount(12);
-  await page.getByRole("button", { name: "打开文件夹 照片", exact: true }).click();
+  await openItem(page.getByRole("button", { name: "打开文件夹 照片", exact: true }));
   await expect(search).toHaveCount(0);
   await searchButton.tap();
   await expect(search).toBeFocused();
@@ -278,7 +279,7 @@ test("desktop account remains keyboard reachable from the sidebar", async ({ pag
 test("mobile home card is edge-to-edge, fills the screen and grows with its contents without negative margins", async ({ page }, testInfo) => {
   test.skip(page.viewportSize().width > 700, "Mobile card layout");
   // One recent file exercises the otherwise empty space below short lists.
-  await page.getByRole("button", { name: "预览 项目笔记.md", exact: true }).click();
+  await openItem(page.getByRole("button", { name: "预览 项目笔记.md", exact: true }));
   await page.getByRole("button", { name: "关闭预览" }).click();
   const inspect = () => page.locator(".home-content").evaluate((node) => {
     const box = node.getBoundingClientRect();

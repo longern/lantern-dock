@@ -1,3 +1,4 @@
+import { openItem } from "../helpers/open-item.mjs";
 import { flipAlbum } from "../helpers/album-navigation.mjs";
 import { test as base, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
@@ -268,7 +269,7 @@ test("a cropped thumbnail opens immediately, then decoded high resolution fades 
     requestAnimationFrame(sample);
   });
   try {
-    await source.click();
+    await openItem(source);
     await expect(viewer(page)).toBeVisible();
     await expect(current(page).locator(".album-image-low")).toBeVisible();
     await expect(current(page).locator(".album-image-high")).toHaveCount(0);
@@ -345,7 +346,7 @@ test("failed high-resolution loading keeps the thumbnail and download action usa
   const state = await install(page, {
     highResponse: (route) => route.fulfill({ status: 503 }),
   });
-  await page.locator(".album-preview").first().click();
+  await openItem(page.locator(".album-preview").first());
   await expect(current(page).locator(".album-image-low")).toBeVisible();
   await expect(current(page).getByRole("status")).toContainText(
     "无法预览此图片",
@@ -360,7 +361,7 @@ test("mixed media pages start only the active video and stop it before returning
   page,
 }) => {
   const state = await install(page);
-  await page.locator(".album-preview").first().click();
+  await openItem(page.locator(".album-preview").first());
   await expect(
     current(page).locator(".album-image-high.is-sharp"),
   ).toBeVisible();
@@ -410,7 +411,7 @@ test("focus stays modal, details dismiss independently, Back closes and cached i
   const state = await install(page);
   const baseline = await page.evaluate(() => window.albumOwnedURLs.size);
   const source = page.locator(".album-preview").first();
-  await source.click();
+  await openItem(source);
   await expect(current(page).locator(".album-image-high.is-sharp")).toHaveCSS(
     "opacity",
     "1",
@@ -432,7 +433,7 @@ test("focus stays modal, details dismiss independently, Back closes and cached i
   await expect
     .poll(() => page.evaluate(() => window.albumOwnedURLs.size))
     .toBe(baseline);
-  await source.click();
+  await openItem(source);
   await expect(
     current(page).locator(".album-image-high.is-cached"),
   ).toBeVisible();
@@ -462,7 +463,7 @@ test("closing before a delayed image completes aborts its request and a late res
   });
   const baseline = await page.evaluate(() => window.albumOwnedURLs.size);
   try {
-    await page.locator(".album-preview").first().click();
+    await openItem(page.locator(".album-preview").first());
     await expect.poll(() => state.high.length).toBe(1);
     await page.keyboard.press("Escape");
     await expect(viewer(page)).toHaveCount(0);
@@ -480,7 +481,7 @@ test("reduced motion disables zoom and sharpening animations without trapping di
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await install(page);
-  await page.locator(".album-preview").first().click();
+  await openItem(page.locator(".album-preview").first());
   await expect(current(page).locator(".album-image-high.is-sharp")).toHaveCSS(
     "transition-duration",
     "0s",
@@ -505,7 +506,7 @@ test("longer albums keep only adjacent media mounted and resize without overflow
   }));
   const state = await install(page, { items: photos });
   const baseline = await page.evaluate(() => window.albumOwnedURLs.size);
-  await page.locator(".album-preview").first().click();
+  await openItem(page.locator(".album-preview").first());
   for (let index = 0; index < photos.length; index++) {
     await expect(page.locator("#album-viewer-name")).toHaveText(
       photos[index].name,
@@ -526,7 +527,7 @@ test("longer albums keep only adjacent media mounted and resize without overflow
     // Moving from the mobile page dialog to the desktop page releases the old
     // native modal before another viewer is opened from the new thumbnail.
     await expect(viewer(page)).toHaveCount(0);
-    await page.locator(".album-preview").last().click();
+    await openItem(page.locator(".album-preview").last());
   }
   await expect
     .poll(() =>
@@ -566,7 +567,7 @@ test("touch swipes follow the finger and pinch zoom remains independent of pagin
   await install(page, {
     items: items.filter((item) => !item.name.endsWith(".mp4")),
   });
-  await page.locator(".album-preview").first().click();
+  await openItem(page.locator(".album-preview").first());
   await expect(current(page).locator(".album-image-high.is-sharp")).toHaveCSS(
     "opacity",
     "1",
@@ -619,7 +620,7 @@ test("verified live pairs merge only in the album and play on hold, stop on rele
   const state = await install(page, liveFixture);
   await expect(page.locator(".album-live-indicator")).toHaveCount(1);
   expect(state.liveReads).toEqual([]);
-  await page.locator(".album-preview").first().click();
+  await openItem(page.locator(".album-preview").first());
   const live = current(page).locator("video.album-live-video");
   await expect(live).toHaveCount(1);
   await page.waitForTimeout(400);
@@ -655,7 +656,7 @@ test("live playback gesture yields to dragging and multiple pointers", async ({
   page,
 }) => {
   const state = await install(page, liveFixture);
-  await page.locator(".album-preview").first().click();
+  await openItem(page.locator(".album-preview").first());
   await expect(viewer(page).locator(".album-live-label")).toBeVisible();
   await current(page).dispatchEvent("pointerdown", {
     pointerId: 1,
@@ -707,7 +708,8 @@ test("a released hold cannot start playback when a delayed video arrives", async
     ...liveFixture,
     liveVideoGate: () => gate,
   });
-  await page.locator(".album-preview").first().click();
+  await openItem(page.locator(".album-preview").first());
+  await expect(current(page).locator("video.album-live-video")).toHaveCount(1);
   const box = await current(page).boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
@@ -743,7 +745,7 @@ test("metadata arriving after opening enables LIVE without remounting the viewer
     expectedCount: 3,
     liveIndexGate: () => gate,
   });
-  await page.locator(".album-preview").first().click();
+  await openItem(page.locator(".album-preview").first());
   await expect(button(page, "播放动态照片")).toHaveCount(0);
   release();
   await expect(button(page, "播放动态照片")).toBeVisible();
@@ -756,7 +758,7 @@ test("real touch holds play and touch release stops without blocking the gallery
 }, testInfo) => {
   test.skip(!testInfo.project.use.isMobile, "Touch viewport");
   await install(page, liveFixture);
-  await page.locator(".album-preview").first().click();
+  await openItem(page.locator(".album-preview").first());
   await expect(viewer(page).locator(".album-live-label")).toBeVisible();
   await page.waitForTimeout(350);
   const box = await current(page).boundingBox();

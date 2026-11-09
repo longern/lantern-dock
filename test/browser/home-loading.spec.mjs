@@ -1,6 +1,7 @@
+import { openItem } from "../helpers/open-item.mjs";
 import { listingOptionsButton } from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
-import { openConnectionSettings } from "../helpers/navigation.mjs";
+import { mainNavigation, openConnectionSettings } from "../helpers/navigation.mjs";
 
 const recentKey = "lantern-dock:demo::/:recent";
 const visit = {
@@ -83,7 +84,7 @@ test("corrupt history is not overwritten by previewing a file and can be retried
   await expect(page.getByRole("heading", { name: "无法读取最近文件记录", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "查看文件", exact: true }).click();
   await expect(page.locator(".file-item")).toHaveCount(12);
-  await page.getByRole("button", { name: `预览 ${visit.name}`, exact: true }).click();
+  await openItem(page.getByRole("button", { name: `预览 ${visit.name}`, exact: true }));
   await page.getByRole("button", { name: "关闭预览", exact: true }).click();
   expect(await page.evaluate((key) => localStorage.getItem(key), recentKey)).toBe("{corrupt");
   const nav = page.getByRole("navigation", {
@@ -124,6 +125,8 @@ for (const switchBackend of [false, true]) {
     try {
       await openConnectionSettings(page);
       await page.getByRole("button", { name: "连接", exact: true }).click();
+      if (page.viewportSize().width <= 700)
+        await mainNavigation(page).getByRole("button", { name: "首页", exact: true }).click();
       await expect(page.locator(".file-section-title")).toHaveText("最近文件");
       await expect(page.locator("#file-list")).toHaveAttribute("aria-busy", "true");
       await expect(page.locator(".file-item")).toHaveCount(0);

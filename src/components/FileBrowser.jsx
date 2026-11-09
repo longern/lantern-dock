@@ -1,6 +1,6 @@
 import { t } from "../../shared/i18n.js";
 import { Fragment } from "preact";
-import { useMemo } from "preact/hooks";
+import { useCallback, useMemo, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { artwork } from "../lib/demo.js";
 import { bytes, date } from "../lib/format.js";
@@ -8,6 +8,10 @@ import { Thumbnail } from "./Thumbnail.jsx";
 import { categoryLabel } from "../lib/categories.js";
 import { fileListing } from "../lib/file-listing.js";
 import { Album } from "./Album.jsx";
+import { useFileSelection } from "../hooks/useFileSelection.js";
+import { SelectionActions } from "./SelectionActions.jsx";
+
+const noEntries = [];
 
 function FileItem({
   item,
@@ -17,20 +21,22 @@ function FileItem({
   selected,
   favorite,
   recent,
+  selection,
   onOpen,
   onFavorite,
   onCopyLink,
 }) {
   return (
     <li
-      class={`file-item${item.isDirectory ? " folder-item" : ""}${selected ? " selected" : ""}`}
+      class={`file-item${item.isDirectory ? " folder-item" : ""}${selected || selection.isSelected(item) ? " selected" : ""}`}
+      data-selected={selection.isSelected(item) ? "true" : undefined}
     >
       <button
         class="file-open"
         data-path={item.path}
         aria-label={t(item.isDirectory ? "library.openFolderNamed" : "library.previewNamed", { name: item.name })}
-        aria-pressed={item.isDirectory ? undefined : selected}
-        onClick={() => onOpen(item)}
+        aria-pressed={selection.isSelected(item) || (!item.isDirectory && selected)}
+        {...selection.props(item, onOpen)}
       >
         <span class={`file-art ${item.kind}`}>
           {demo && item.kind === "image" ? (
@@ -69,6 +75,9 @@ function FileItem({
           {item.isDirectory ? "—" : bytes(item.size)}
         </span>
       </button>
+      {selection.touch && <span class={`selection-mark${selection.isSelected(item) ? " checked" : ""}`} aria-hidden="true">
+        {selection.isSelected(item) && <Icon name="check" />}
+      </span>}
       <button class="file-copy-button" aria-label={t("library.copyLinkNamed", { name: item.name })} onClick={() => onCopyLink(item)}><Icon name="copy" /></button>
       <button
         class={`favorite-button${favorite ? " selected" : ""}`}
@@ -88,6 +97,7 @@ export function FileBrowser({
   selected,
   onPreview,
   onSettings,
+  onTouchSelection,
   listId = "file-list",
   countId = "item-count",
   pageDialog = false,
@@ -117,6 +127,12 @@ export function FileBrowser({
   const error = recordsError ||
     ((usesDirectory || recordsPending) ? library.error : null);
   const busy = !error && (recordsPending || (library.loading && usesDirectory));
+  const [albumOrder, setAlbumOrder] = useState(null);
+  const onAlbumItems = useCallback(items => setAlbumOrder(current =>
+    current?.source === entries && current.items === items ? current : { source: entries, items }), [entries]);
+  const selectable = error ? noEntries : album ? albumOrder?.source === entries ? albumOrder.items : noEntries : entries;
+  const selection = useFileSelection(selectable,
+    JSON.stringify([library.key, library.mode, library.path, library.kind, library.query]), onTouchSelection, library.copyLinks);
   const status = recordsError
     ? t("library.recordsError")
     : library.error
@@ -128,8 +144,12 @@ export function FileBrowser({
           : t("library.connected");
   return (
     <section
-      class={`content${card ? " collection-card" : ""}${home ? " home-content" : ""}${album ? " album-content" : ""}`}
+      class={`content${card ? " collection-card" : ""}${home ? " home-content" : ""}${album ? " album-content" : ""}${selection.touch ? " touch-selecting" : ""}`}
       aria-label={t("library.fileBrowser")}
+      onKeyDown={selection.keyDown}
+      onPointerDown={event => {
+        if (event.pointerType === "mouse" && !event.target.closest("button,.file-item,.selection-actions")) selection.clear(false);
+      }}
     >
       {album && !pageDialog && (
         <div class="album-heading">
@@ -142,7 +162,7 @@ export function FileBrowser({
             <h2 class="file-section-title">{recent ? t("library.recentFiles") : t("library.files")}</h2>
           )}
           <strong id={countId}>
-            {busy
+            {selection.mode === "desktop" ? t("library.selectedCount", { count: selection.items.length }) : busy
               ? t("library.loading")
               : error
                 ? t("library.readFailed")
@@ -171,7 +191,9 @@ export function FileBrowser({
             </button>
           )}
         </div>
-        {!recent && (
+        {selection.mode === "desktop" ? (
+          <SelectionActions selection={selection} entries={selectable} records={records} onCopyLinks={library.copyLinks} favoritesPage={library.mode === "favorites"} />
+        ) : !recent && (
           <div class="view-tools">
             <button
               class="icon-button mobile-refresh"
@@ -225,6 +247,8 @@ export function FileBrowser({
         <span />
       </div>
       <Collection
+        ref={selection.list}
+        tabIndex={-1}
         id={listId}
         role={album ? undefined : "list"}
         class={album ? "album-timeline" : `file-grid${view === "list" ? " list-layout" : ""}`}
@@ -234,11 +258,13 @@ export function FileBrowser({
       >
         {album ? (
           <Album
-            entries={error ? [] : entries}
+            entries={error ? noEntries : entries}
             loading={busy}
             client={library.connection?.client}
             demo={library.backend?.transport === "demo"}
             selected={selected}
+            selection={selection}
+            onItemsChange={onAlbumItems}
             onPreview={onPreview}
           />
         ) : busy && !entries.length
@@ -256,6 +282,7 @@ export function FileBrowser({
                 side={view === "list" ? 128 : 384}
                 demo={library.backend?.transport === "demo"}
                 selected={selected?.path === item.path}
+                selection={selection}
                 favorite={records.isFavorite(item)}
                 recent={recent}
                 onFavorite={records.toggleFavorite}
@@ -269,6 +296,7 @@ export function FileBrowser({
             </Fragment>
             ))}
       </Collection>
+      {selection.touch && <SelectionActions selection={selection} entries={selectable} records={records} onCopyLinks={library.copyLinks} favoritesPage={library.mode === "favorites"} />}
       {!busy && !entries.length && !error && (
         <div class="empty-state">
           <span class="empty-symbol">

@@ -1,3 +1,5 @@
+import { openItem } from "../helpers/open-item.mjs";
+import { mainNavigation, openConnectionSettings } from "../helpers/navigation.mjs";
 import { test as base, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { parseLocalVariables } from "../../scripts/local-env.mjs";
@@ -24,6 +26,7 @@ const test = base.extend({
   },
 });
 let fixture;
+test.use({ locale: "zh-CN" });
 test.beforeAll(async () => {
   test.setTimeout(180000);
   fixture = await startFixture();
@@ -33,13 +36,13 @@ test.afterAll(async () => {
 });
 
 async function login(page, gateway = gatewayToken, backend = backendToken) {
-  await page
-    .locator(".topbar")
-    .getByRole("button", { name: "连接设置", exact: true })
-    .click();
+  await openConnectionSettings(page);
   await page.getByLabel("访问令牌", { exact: true }).fill(backend);
   await page.getByLabel("网关令牌", { exact: true }).fill(gateway);
   await page.getByRole("button", { name: "连接", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "连接设置", exact: true })).toHaveCount(0);
+  if (page.viewportSize().width <= 700)
+    await mainNavigation(page).getByRole("button", { name: "首页", exact: true }).click();
 }
 
 test("real bridge distinguishes gateway 407 and backend 401, then browses, previews and downloads", async ({
@@ -55,27 +58,24 @@ test("real bridge distinguishes gateway 407 and backend 401, then browses, previ
     name: page.viewportSize().width <= 700 ? "移动端资源导航" : "资源导航",
     exact: true,
   }).getByRole("button", { name: /^文件/ }).click();
-  await page
-    .getByRole("button", { name: "预览 hello.txt", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "预览 hello.txt", exact: true }));
   await expect(page.locator(".preview-content pre")).toHaveText(textFile);
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "下载", exact: true }).click();
   const file = await downloaded;
   expect(await readFile(await file.path(), "utf8")).toBe(textFile);
   await page.getByRole("button", { name: "关闭预览" }).click();
-  await page
-    .getByRole("button", { name: "预览 coast.svg", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "预览 coast.svg", exact: true }));
   await expect(page.locator(".file-details")).toContainText("1200 × 800");
   await page.screenshot({
     path: testInfo.outputPath("bridge-preview.png"),
     fullPage: false,
   });
   await page.getByRole("button", { name: "关闭预览" }).click();
-  await page
-    .getByRole("button", { name: "打开文件夹 照片", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "打开文件夹 照片", exact: true }));
   await expect(
     page.getByRole("navigation", { name: "文件路径" }),
   ).toContainText("照片");
@@ -206,9 +206,8 @@ test("download progress stays actionable inside a mobile preview and cancels the
   await login(page);
   await expect(page.locator(".file-item")).toHaveCount(5);
   const before = fixture.cancellations.length;
-  await page
-    .getByRole("button", { name: "预览 slow.bin", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "预览 slow.bin", exact: true }));
   await page.getByRole("button", { name: "下载", exact: true }).click();
   const progress = page.locator(".download-panel");
   await expect(progress).toBeVisible();

@@ -1,3 +1,4 @@
+import { openItem } from "../helpers/open-item.mjs";
 import { test, expect } from "@playwright/test";
 import { closeFavorites, mainNavigation, openFavorites } from "../helpers/navigation.mjs";
 import {
@@ -153,7 +154,7 @@ test("Favorites menu Escape does not dismiss its parent or a later nested previe
   await expect(listingOptionsMenu(page)).toHaveCount(0);
   await expect(page).toHaveURL(/\/favorites$/);
   await expect(listingOptionsButton(page)).toBeFocused();
-  await preview(page, names[1]).click();
+  await openItem(preview(page, names[1]));
   await expect(dialog(page)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog(page)).toHaveCount(0);
@@ -227,7 +228,7 @@ test("reduced motion completes repeated recent visits without leaving a frozen l
   await page.emulateMedia({ reducedMotion: "reduce" });
   await seedRecent(page);
   for (const name of [names[1], names[0], names[1]]) {
-    await preview(page, name).click();
+    await openItem(preview(page, name));
     await expect(fileNames(page).first()).toHaveText(name);
     await page.getByRole("button", { name: "关闭预览", exact: true }).click();
     await expect(dialog(page)).toHaveCount(0);

@@ -1,3 +1,4 @@
+import { openItem } from "../helpers/open-item.mjs";
 import { listingOptionsButton } from "../helpers/listing-options.mjs";
 import { test as base, expect } from "@playwright/test";
 import { closeFavorites, mainNavigation, openConnectionSettings, openFavorites } from "../helpers/navigation.mjs";
@@ -205,14 +206,14 @@ test("Escape closes only the nested preview and removing the final favorite keep
   await openFavorites(page);
   const dialog = favoritesDialog(page);
   const trigger = dialog.getByRole("button", { name: "预览 项目笔记.md", exact: true });
-  await trigger.click();
+  await openItem(trigger);
   await expect(page.locator(".preview-content pre")).toContainText("欢迎使用 LanternDock");
   await page.keyboard.press("Escape");
   await expect(page.locator("#preview-dialog")).toHaveCount(0);
   await expect(dialog).toHaveAttribute("data-state", "open");
   await expect(page).toHaveURL(/\/favorites$/);
   await expect(trigger).toBeFocused();
-  await trigger.click();
+  await openItem(trigger);
   await page.getByRole("button", { name: "取消收藏文件", exact: true }).click();
   await page.getByRole("button", { name: "关闭预览", exact: true }).click();
   await expect(page.locator("#preview-dialog")).toHaveCount(0);
@@ -304,7 +305,7 @@ test("favorites remain one destination when resizing with a nested preview", asy
   await prepareFavorite(page);
   await openFavorites(page);
   for (const width of [1440, 700, 701, 320]) {
-    await page.getByRole("button", { name: "预览 项目笔记.md", exact: true }).click();
+    await openItem(page.getByRole("button", { name: "预览 项目笔记.md", exact: true }));
     await expect(page.locator("#preview-dialog")).toBeVisible();
     // Cross the actual breakpoint on every pass, regardless of project start.
     const target = page.viewportSize().width <= 700 ? Math.max(width, 701) : Math.min(width, 700);

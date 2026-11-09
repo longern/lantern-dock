@@ -1,3 +1,4 @@
+import { openItem } from "../helpers/open-item.mjs";
 import { test as base, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { flipAlbum } from "../helpers/album-navigation.mjs";
@@ -79,15 +80,13 @@ test("folder navigation, reload, Back and Forward restore the URL's resource", a
 }) => {
   await install(page);
   await page.goto("/files/");
-  await page
-    .getByRole("button", { name: "打开文件夹 旅行 #?%", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "打开文件夹 旅行 #?%", exact: true }));
   await expect(page).toHaveURL(new RegExp(`/files/${folder}/$`));
   await page.reload();
   await expect(page.locator("#file-list .file-item")).toHaveCount(4);
-  await page
-    .getByRole("button", { name: "预览 说明 #?%.txt", exact: true })
-    .click();
+  await openItem(page
+    .getByRole("button", { name: "预览 说明 #?%.txt", exact: true }));
   await expect(page).toHaveURL(new RegExp(`/files/${folder}/${name}$`));
   await expect(page.locator(".preview-content pre")).toHaveText(
     "A shared document",
@@ -140,9 +139,8 @@ test("a direct album photo link restores the gallery and paging replaces one pre
     page.viewportSize().width <= 700
       ? page.locator("#album-page-dialog")
       : page.locator("#file-list");
-  await grid
-    .getByRole("button", { name: "预览 first.jpg", exact: true })
-    .click();
+  await openItem(grid
+    .getByRole("button", { name: "预览 first.jpg", exact: true }));
   await expect(page).toHaveURL(
     new RegExp(`/files/${folder}/first.jpg\\?view=album$`),
   );
