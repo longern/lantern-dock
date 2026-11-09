@@ -87,7 +87,6 @@
   color: var(--accent);
 }
 .listing-options-menu svg {
-  flex-shrink: 0;
   width: 17px;
   height: 17px;
 }

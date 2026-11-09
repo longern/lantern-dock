@@ -15,9 +15,6 @@
   gap: 8px;
   padding: 0 10px 28px;
 }
-.sidebar-heading > .icon-button {
-  margin-left: auto;
-}
 .brand {
   display: flex;
   align-items: center;
@@ -121,7 +118,7 @@
   height: var(--topbar-height);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
   padding: 0 28px;
   border-bottom: 1px solid var(--line);
 }
@@ -157,7 +154,7 @@
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 4px;
 }
 .search-box {
   display: flex;
@@ -274,7 +271,7 @@
   padding: 0 28px 24px;
 }
 .file-toolbar {
-  min-height: 72px;
+  min-height: 48px;
   display: flex;
   align-items: center;
   justify-content: space-between;

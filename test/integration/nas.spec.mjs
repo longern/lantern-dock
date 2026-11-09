@@ -396,7 +396,7 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
     .click();
   await expect(page.locator(".file-item")).toHaveCount(2);
   const thumbnail = page
-    .locator(".file-item")
+    .locator("#file-list .file-item")
     .filter({
       has: page.getByRole("button", { name: "预览 photo.png", exact: true }),
     })
@@ -410,14 +410,15 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
     .poll(() => thumbnail.evaluate((img) => img.naturalWidth))
     .toBe(384);
   if (page.viewportSize().width <= 700)
-    await page.getByRole("button", { name: "打开导航", exact: true }).click();
-  await page.getByRole("navigation", { name: "文件类型", exact: true })
+    await page.goto(fixture.origin + "/album/" + encodeURIComponent("照片") + "/");
+  else await page.getByRole("navigation", { name: "文件类型", exact: true })
     .getByRole("button", { name: "图片", exact: true }).click();
   await expect(page.locator("#file-list")).toHaveClass(/album-timeline/);
   await expect(thumbnail).toBeVisible();
   await expect(page.locator("#file-list .file-info")).toHaveCount(0);
   await expect.poll(() => thumbnail.evaluate((img) => img.naturalWidth)).toBe(384);
   await page
+    .locator("#file-list")
     .getByRole("button", { name: "预览 photo.png", exact: true })
     .click();
   const preview = page.locator(".album-media[data-current=true] .album-image-high.is-sharp");
@@ -431,7 +432,7 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
   await page.getByRole("button", { name: "关闭预览", exact: true }).click();
   await expect(page.locator("#album-viewer")).toHaveCount(0);
   const oldThumbnail = await thumbnail.getAttribute("src");
-  await page.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await page.locator(page.viewportSize().width <= 700 ? "#album-refresh" : "#refresh-button").click();
   await expect(thumbnail).toBeVisible();
   await expect(thumbnail).not.toHaveAttribute("src", oldThumbnail);
   await expect

@@ -44,17 +44,14 @@ export async function closeFavorites(page, language = "zh-CN") {
 }
 
 export const connectionSettingsReturnTarget = (page) => page.viewportSize().width <= 700
-  ? page.getByRole("button", { name: "打开导航", exact: true })
+  ? page.locator(new URL(page.url()).pathname === "/me" ? "#my-settings" : ".mobile-tabs button:last-child")
   : page.locator("#sidebar").getByRole("button", { name: "连接设置", exact: true });
 
 export async function openConnectionSettings(page) {
-  const sidebar = page.locator("#sidebar");
   if (page.viewportSize().width <= 700) {
-    await page.getByRole("button", { name: "打开导航", exact: true }).click();
-    await expect(sidebar).toBeVisible();
-  }
-  await sidebar.getByRole("button", { name: "连接设置", exact: true }).click();
+    await mainNavigation(page).getByRole("button", { name: "我的", exact: true }).click();
+    await page.locator("#my-settings").click();
+  } else await page.locator("#connection-settings").click();
   await expect(page.getByRole("dialog", { name: "连接设置", exact: true })).toBeVisible();
-  if (page.viewportSize().width <= 700) await expect(sidebar).not.toHaveAttribute("open");
   return connectionSettingsReturnTarget(page);
 }

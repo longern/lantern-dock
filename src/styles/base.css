@@ -46,9 +46,7 @@ html {
 }
 button,
 input,
-select {
-  font: inherit;
-}
+select,
 textarea {
   font: inherit;
 }
@@ -60,9 +58,13 @@ select {
 }
 button {
   cursor: pointer;
-}
-button {
   color: inherit;
+  border: 0;
+  background: none;
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast),
+    box-shadow var(--motion-fast);
 }
 button:disabled {
   cursor: default;
@@ -71,22 +73,11 @@ button:disabled {
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
-select:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
-}
+select:focus-visible,
 summary:focus-visible,
 textarea:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 3px;
-}
-button {
-  border: 0;
-  background: none;
-  transition:
-    background-color var(--motion-fast),
-    color var(--motion-fast),
-    box-shadow var(--motion-fast);
 }
 a {
   color: inherit;

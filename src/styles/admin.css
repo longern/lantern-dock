@@ -18,8 +18,7 @@
 .admin-panel-heading h2 { margin: 0 0 6px; font-size: 19px; font-weight: 600; }
 .admin-panel-heading p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
 .admin-panel-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.admin-page .primary-button, .admin-page .secondary-button, .admin-dialog .primary-button, .admin-dialog .secondary-button { min-height: 44px; }
-.admin-page .icon-button, .admin-dialog .icon-button { flex-shrink: 0; width: 44px; height: 44px; }
+.admin-page .icon-button, .admin-dialog .icon-button { width: 44px; height: 44px; }
 .admin-link-list, .admin-inbox-list { margin: 0; padding: 0; list-style: none; }
 .admin-link-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .admin-link-card { min-width: 0; border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
@@ -60,7 +59,6 @@
 .admin-gate-icon { display: inline-flex; align-items: center; justify-content: center; background: var(--accent-soft); color: var(--accent); padding: 14px; border-radius: 50%; }
 .admin-gate h2 { font-size: 20px; margin: 18px 0 10px; }
 .admin-gate p { max-width: 500px; color: var(--muted); font-size: 13px; line-height: 1.8; margin: 0 auto 24px; }
-.admin-gate .primary-button, .admin-gate .secondary-button { display: inline-flex; }
 .admin-dialog { width: min(560px, calc(100vw - 32px)); max-height: calc(100svh - 40px); overflow-y: auto; overscroll-behavior: contain; }
 .admin-dialog .dialog-heading { margin-bottom: 18px; }
 .admin-dialog .dialog-heading h2 { padding-right: 10px; }

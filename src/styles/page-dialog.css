@@ -6,7 +6,6 @@
   height: 100dvh;
   max-height: none;
   padding: 0 0 max(20px, env(safe-area-inset-bottom));
-  border: 0;
   border-radius: 0;
   color: inherit;
   background: var(--canvas);
@@ -18,7 +17,6 @@
   display: grid;
   grid-template-columns: var(--topbar-button-size) minmax(0, 1fr) var(--topbar-button-size);
   align-items: center;
-  gap: 0;
   position: sticky;
   top: 0;
   z-index: 3;
@@ -32,7 +30,7 @@
   height: var(--topbar-button-size);
 }
 .page-dialog-header .icon-button svg { width: 24px; height: 24px; }
-.page-dialog-header > .header-actions { margin-left: 0; justify-self: end; }
+.page-dialog-header > .header-actions { justify-self: end; }
 .page-dialog-header > h1 {
   min-width: 0;
   margin: 0;

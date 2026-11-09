@@ -2,8 +2,6 @@
   inset: auto 24px 24px auto;
   margin: 0;
   position: fixed;
-  bottom: 24px;
-  right: 24px;
   z-index: 30;
   display: flex;
   align-items: center;
@@ -84,6 +82,5 @@ progress {
 @media (max-width: 700px) {
   .toast {
     top: 72dvh;
-    bottom: auto;
   }
 }

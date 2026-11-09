@@ -64,9 +64,7 @@ test("leaving Home clears search for Files, Favorites, folders and sidebar categ
   await expect(page.getByRole("searchbox")).toHaveValue("");
 
   await page.getByRole("searchbox").fill("no-matching-file");
-  if (page.viewportSize().width <= 700)
-    await page.getByRole("button", { name: "打开导航", exact: true }).click();
-  await page.getByRole("navigation", { name: "文件类型", exact: true })
+  await page.getByRole("navigation", { name: "文件分类", exact: true })
     .getByRole("button", { name: "文档", exact: true }).click();
   await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
   await expect(page.locator(".file-item")).toHaveCount(4);
@@ -141,7 +139,7 @@ test("home shows actual recent visits, persists them and does not fall back afte
 });
 
 test("Home and Files headers have no divider above their collection cards", async ({ page }) => {
-  const headerRow = page.locator(page.viewportSize().width <= 700 ? ".mobile-file-tools" : ".topbar");
+  const headerRow = page.locator(page.viewportSize().width <= 700 ? ".mobile-home-search,.mobile-file-tools" : ".topbar");
   await expect(headerRow).toHaveCSS("border-bottom-width", "0px");
   await expect(page.locator(".category-cards")).toHaveCSS("border-top-width", "0px");
   await files(page).click();
@@ -169,7 +167,77 @@ test("Home search stays 36px tall with and without the clear control after retur
   }
 });
 
-test("account entry stays absent while only headers with listing actions add a third mobile column", async ({ page }) => {
+test("mobile Files search opens from the header, focuses and survives query reloads", async ({ page }, testInfo) => {
+  test.skip(page.viewportSize().width > 700, "Mobile Files search");
+  await files(page).click();
+  const header = page.locator(".topbar");
+  await expect(header.locator(".mobile-brand")).toHaveText("文件");
+  await expect(header.getByRole("link", { name: "LanternDock" })).toHaveCount(0);
+  const searchButton = header.getByRole("button", { name: "搜索文件", exact: true });
+  const closeSearch = header.getByRole("button", { name: "关闭搜索", exact: true });
+  await expect(searchButton).toHaveAttribute("aria-expanded", "false");
+  const searchBounds = await searchButton.boundingBox();
+  const menuBounds = await listingOptionsButton(header).boundingBox();
+  expect(menuBounds.x - (searchBounds.x + searchBounds.width)).toBe(4);
+  const tools = page.locator(".mobile-file-tools");
+  const toolsBounds = await tools.boundingBox();
+  const contentY = (await page.locator(".content").boundingBox()).y;
+  expect(toolsBounds.height).toBe(40);
+  await searchButton.tap();
+  const search = page.getByRole("searchbox");
+  await expect(search).toBeFocused();
+  await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(0);
+  expect(await tools.boundingBox()).toEqual(toolsBounds);
+  expect((await page.locator(".content").boundingBox()).y).toBe(contentY);
+  await expect(closeSearch).toHaveAttribute("aria-expanded", "true");
+  await search.fill("照片");
+  await expect(page.locator(".file-item")).toHaveCount(1);
+  await page.reload();
+  await expect(search).toBeVisible();
+  await expect(search).toHaveValue("照片");
+  await expect(search).not.toBeFocused();
+  await expect(page.locator(".file-item")).toHaveCount(1);
+  await page.getByRole("button", { name: "清除搜索", exact: true }).click();
+  await expect(search).toBeFocused();
+  await expect(page.locator(".file-item")).toHaveCount(12);
+  await expect(page.locator(".search-box")).toHaveCSS("height", "36px");
+  const field = await page.locator(".search-box").boundingBox();
+  expect(field.y).toBe(toolsBounds.y + 2);
+  expect(await tools.boundingBox()).toEqual(toolsBounds);
+  expect((await page.locator(".content").boundingBox()).y).toBe(contentY);
+  expect(await tools.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("files-search.png") });
+  await search.fill("照片");
+  await header.locator(".mobile-brand").click();
+  await expect(search).toBeVisible();
+  await expect(search).toHaveValue("照片");
+  await closeSearch.tap();
+  await expect(search).toHaveCount(0);
+  await expect(searchButton).toBeFocused();
+  await expect(page.getByRole("navigation", { name: "文件路径" })).toBeVisible();
+  expect(await tools.boundingBox()).toEqual(toolsBounds);
+  expect((await page.locator(".content").boundingBox()).y).toBe(contentY);
+  await expect(page).not.toHaveURL(/[?&]q=/);
+  await expect(page.locator(".file-item")).toHaveCount(12);
+  await searchButton.tap();
+  await expect(search).toHaveValue("");
+  await search.fill("照片");
+  await search.press("Escape");
+  await expect(search).toHaveCount(0);
+  await expect(searchButton).toBeFocused();
+  await expect(page).not.toHaveURL(/[?&]q=/);
+  await expect(page.locator(".file-item")).toHaveCount(12);
+  await page.getByRole("button", { name: "打开文件夹 照片", exact: true }).click();
+  await expect(search).toHaveCount(0);
+  await searchButton.tap();
+  await expect(search).toBeFocused();
+  await home(page).click();
+  await expect(header.locator(".mobile-brand")).toHaveText("LanternDock");
+  await files(page).click();
+  await expect(search).toHaveCount(0);
+});
+
+test("mobile headers keep page titles and listing actions without a navigation drawer", async ({ page }) => {
   for (const destination of [home(page), files(page)]) {
     await destination.click();
     const header = page.locator(".topbar");
@@ -177,10 +245,9 @@ test("account entry stays absent while only headers with listing actions add a t
     await expect(header.locator(".account-entry")).toHaveCount(0);
     await expect(header.getByRole("button", { name: "连接设置", includeHidden: true })).toHaveCount(0);
     if (page.viewportSize().width <= 700) {
-      const columns = await header.evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(" "));
-      expect(columns).toHaveLength(3);
+      await expect(header).toHaveCSS("display", "flex");
       await expect(listingOptionsButton(header)).toBeVisible();
-      await expect(header.getByRole("button", { name: "打开导航", exact: true })).toBeVisible();
+      await expect(page.locator("#sidebar,#navigation-toggle")).toHaveCount(0);
     }
     expect(await header.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
   }
@@ -194,8 +261,7 @@ test("account entry stays absent while only headers with listing actions add a t
   const recentHeader = page.locator(".topbar");
   await expect(listingOptionsButton(recentHeader)).toHaveCount(0);
   if (page.viewportSize().width <= 700) {
-    const columns = await recentHeader.evaluate((node) => getComputedStyle(node).gridTemplateColumns.split(" "));
-    expect(columns).toHaveLength(2);
+    await expect(recentHeader).toHaveCSS("display", "flex");
   }
 });
 

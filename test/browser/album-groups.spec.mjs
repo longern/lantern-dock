@@ -230,13 +230,8 @@ test("video-only albums are not empty, while truly empty albums have no date gro
 });
 
 test("separate sidebar image and video filters do not mix file types", async ({ page }) => {
-  if (page.viewportSize().width <= 700) {
-    await page.locator("#album-back").click();
-    await expect(page.locator("#album-page-dialog")).toHaveCount(0);
-  }
+  test.skip(page.viewportSize().width <= 700, "Dedicated sidebar filters are desktop only; mobile uses Home categories");
   for (const [label, count] of [["图片", 12], ["视频", 2]]) {
-    if (page.viewportSize().width <= 700)
-      await page.getByRole("button", { name: "打开导航", exact: true }).click();
     await page.getByRole("navigation", { name: "文件类型", exact: true })
       .getByRole("button", { name: label, exact: true }).click();
     await expect(page.locator(".filter-chip")).toContainText(label);

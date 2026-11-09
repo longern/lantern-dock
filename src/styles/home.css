@@ -7,7 +7,8 @@
   flex-shrink: 0;
 }
 .collection-page .topbar,
-.collection-page .mobile-file-tools {
+.collection-page .mobile-file-tools,
+.collection-page .mobile-home-search {
   border-bottom: 0;
 }
 .collection-card {
@@ -17,6 +18,9 @@
   padding: 0 20px 24px;
   border-radius: var(--radius-panel);
   background: var(--surface);
+}
+.collection-card:not(.home-content) {
+  margin-top: 12px;
 }
 .file-section-title {
   margin: 0;
@@ -54,5 +58,8 @@
     margin: 20px 0 0;
     padding: 0 16px calc(88px + env(safe-area-inset-bottom));
     border-radius: 20px 20px 0 0;
+  }
+  .collection-card:not(.home-content) {
+    margin-top: 8px;
   }
 }

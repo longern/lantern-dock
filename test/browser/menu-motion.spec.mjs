@@ -174,17 +174,16 @@ test("settings and preview dialogs have no outer borders while controls and divi
   await expect(settings.locator("select").first()).toHaveCSS("border-top-width", "1px");
   await page.keyboard.press("Escape");
   await expect(settings).toHaveCount(0);
+  await mainNavigation(page).getByRole("button", { name: /^文件/ }).click();
   await page.getByRole("button", { name: "预览 项目笔记.md", exact: true }).click();
   await expectBorderless(page.locator("#preview-dialog"));
   await expect(page.locator(".preview-header")).toHaveCSS("border-bottom-width", "1px");
 });
 
-test("mobile navigation, login, action menu and Favorites keep borderless outer surfaces", async ({ page }) => {
+test("mobile My, login, action menu and Favorites keep borderless outer surfaces", async ({ page }) => {
   test.skip(page.viewportSize().width > 700, "These surfaces are mobile only");
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.getByRole("button", { name: "打开导航", exact: true }).click();
-  await expectBorderless(page.locator("#sidebar"));
-  await page.keyboard.press("Escape");
+  await expect(page.locator("#sidebar,#navigation-toggle")).toHaveCount(0);
   await mainNavigation(page).getByRole("button", { name: "我的", exact: true }).click();
   await expectBorderless(page.locator(".my-action-list"));
   await page.getByRole("button", { name: "游客", exact: true }).click();

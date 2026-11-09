@@ -42,7 +42,7 @@ export function ConnectionDialog({
       open={open}
       onClose={onClose}
       onExited={onExited}
-      fallbackFocus={!mobile ? "#connection-settings" : fallbackFocus || "#navigation-toggle"}
+      fallbackFocus={!mobile ? "#connection-settings" : fallbackFocus || ".mobile-tabs button:last-child"}
       class="settings-dialog"
       aria-labelledby="settings-title"
     >

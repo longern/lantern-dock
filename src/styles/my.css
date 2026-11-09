@@ -5,8 +5,8 @@
 }
 .my-action-list {
   background: var(--surface);
-  border: 0;
   border-radius: 20px;
+  overflow: hidden;
   box-shadow: 0 2px 8px #24283b03;
 }
 .my-account { padding: 24px 4px 18px; margin-bottom: 22px; }
@@ -27,7 +27,6 @@
 .my-account-copy p { margin: 6px 0 0; font-size: 13px; color: var(--muted); line-height: 1.7; }
 .my-account-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
 .my-account-actions:empty { display: none; }
-.my-action-list { padding: 4px 0; }
 .my-list-button {
   display: flex;
   align-items: center;
@@ -38,9 +37,9 @@
   text-align: left;
   font-size: 15px;
   font-weight: 550;
-  border-radius: 16px;
 }
-.my-list-button + .my-list-button { border-top: 1px solid var(--line); border-top-left-radius: 0; border-top-right-radius: 0; }
+.my-list-button + .my-list-button { border-top: 1px solid var(--line); }
+.my-list-button:focus-visible { outline-offset: -3px; }
 .my-list-button > svg:last-child { margin-left: auto; color: #aaaab8; width: 18px; }
 .my-list-icon { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; color: var(--accent); background: #f4f3fc; flex-shrink: 0; }
 .my-list-button:active { background: var(--accent-soft); }
@@ -53,18 +52,12 @@
   width: fit-content;
   max-width: 100%;
   min-height: 60px;
-  color: inherit;
-  text-decoration: none;
   padding: 0;
   text-align: left;
-  border: 0;
   border-radius: var(--radius-control);
-  background: none;
-  box-shadow: none;
 }
 .my-identity-control .my-account-symbol { background: none; }
 .my-guest-title { font-size: 19px; line-height: 1.4; font-weight: 650; }
 .sign-in-dialog .dialog-heading { gap: 12px; }
 .sign-in-dialog .dialog-heading h2 { min-width: 0; overflow-wrap: anywhere; }
-.sign-in-dialog .dialog-heading .icon-button { flex-shrink: 0; }
 .sign-in-dialog .account-notice { overflow-wrap: anywhere; }

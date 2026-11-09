@@ -9,7 +9,7 @@ const labels = {
     categoryNames: ["Albums", "Videos", "Documents", "Books", "Audio"],
     documents: "Documents", path: "File path", clearSearch: "Clear search",
     settings: "Connection settings", closeSettings: "Close settings",
-    openNavigation: "Open navigation", authentication: "Authentication",
+    me: "Me", authentication: "Authentication",
     basic: "Username and password (Basic)", username: "Username",
     count: "12 items", emptyCount: "0 items",
     title: "LanternDock · Public file portal",
@@ -22,7 +22,7 @@ const labels = {
     categoryNames: ["相册", "视频", "文档", "图书", "音频"],
     documents: "文档", path: "文件路径", clearSearch: "清除搜索",
     settings: "连接设置", closeSettings: "关闭设置",
-    openNavigation: "打开导航", authentication: "访问方式",
+    me: "我的", authentication: "访问方式",
     basic: "用户名与密码（Basic）", username: "用户名",
     count: "12 个项目", emptyCount: "0 个项目",
     title: "LanternDock · 公开资源门户",
@@ -94,7 +94,7 @@ for (const { locale, expected } of [
   { locale: "en-US", expected: "en" },
   { locale: "fr-FR", expected: "en" },
 ]) {
-  test(`${locale} localizes Home, categories and metadata while search stays Home-only`, async ({ browser }, testInfo) => {
+  test(`${locale} localizes Home, categories, metadata and mobile Files search`, async ({ browser }, testInfo) => {
     await withLocale(browser, testInfo, { locale }, async (page, origin) => {
       const copy = labels[expected];
       await page.route("**/api/config", (route) => route.fulfill({ json: { backend: backend(origin) } }));
@@ -139,6 +139,12 @@ for (const { locale, expected } of [
         await expect(destination).toBeFocused();
         await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
         await expect(page.locator(".category-cards")).toHaveCount(0);
+        if (mode === "files" && page.viewportSize().width <= 700) {
+          await expect(page.locator(".topbar .mobile-brand")).toHaveText(copy.files);
+          await page.locator(".topbar").getByRole("button", { name: copy.search, exact: true }).tap();
+          await expect(search).toBeFocused();
+          await expect(search).toHaveAttribute("placeholder", copy.search);
+        }
         if (mode === "favorites") await closeFavorites(page, expected);
         await home.click();
         await expect(search).toHaveValue("");
@@ -177,11 +183,11 @@ for (const locale of ["en-US", "zh-CN"]) {
       await expect(page.locator(".file-item")).toHaveCount(12);
       const mobile = page.viewportSize().width <= 700;
       for (const dismiss of ["button", "escape"]) {
-        if (mobile) await page.getByRole("button", { name: copy.openNavigation, exact: true }).click();
-        await page.locator("#connection-settings").click();
+        if (mobile) await mainNavigation(page, copy).getByRole("button", { name: copy.me, exact: true }).click();
+        await page.locator(mobile ? "#my-settings" : "#connection-settings").click();
         const dialog = page.getByRole("dialog", { name: copy.settings, exact: true });
         await expect(dialog).toBeVisible();
-        if (mobile) await expect(page.locator("#sidebar")).not.toHaveAttribute("open");
+        if (mobile) await expect(page.locator("#sidebar")).toHaveCount(0);
         const authentication = dialog.getByLabel(copy.authentication, { exact: true });
         await expect(authentication).toHaveValue("none");
         await authentication.selectOption({ label: copy.basic });
@@ -190,7 +196,7 @@ for (const locale of ["en-US", "zh-CN"]) {
         if (dismiss === "button") await dialog.getByRole("button", { name: copy.closeSettings, exact: true }).click();
         else await page.keyboard.press("Escape");
         await expect(dialog).toHaveCount(0);
-        await expect(page.locator(mobile ? "#navigation-toggle" : "#connection-settings")).toBeFocused();
+        await expect(page.locator(mobile ? "#my-settings" : "#connection-settings")).toBeFocused();
       }
     });
   });

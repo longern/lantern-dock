@@ -31,7 +31,7 @@
   border-radius: var(--radius-control);
 }
 .settings-dialog {
-  border: 0;
+  color: inherit;
   border-radius: var(--radius-panel);
   width: min(460px, calc(100% - 32px));
   padding: 24px;

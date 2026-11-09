@@ -121,12 +121,10 @@ function LibraryApp() {
       : records;
   useLayoutEffect(() => setRecentSnapshot(null), [library.key, library.mode]);
   const [settings, setSettings] = useState(null);
-  const [menu, setMenu] = useState(false);
   const previousRoute = useRef(route);
   const previousMobile = useRef(mobile);
   useLayoutEffect(() => {
     if (previousRoute.current !== route) {
-      setMenu(false);
       setSettings((current) => current ? "closing" : null);
       setSelected(null);
       setPreviewOpen(false);
@@ -147,7 +145,6 @@ function LibraryApp() {
   useEffect(() => {
     if (library.setup) {
       setSettings(null);
-      setMenu(false);
       setMessage(null);
     }
   }, [library.setup]);
@@ -203,8 +200,7 @@ function LibraryApp() {
   useLayoutEffect(() => {
     const keyboard = (event) => {
       if (event.key === "Escape" && !settings && !event.defaultPrevented) {
-        if (menu) setMenu(false);
-        else if (selected && !document.querySelector("#preview-dialog:modal, #album-viewer:modal")) {
+        if (selected && !document.querySelector("#preview-dialog:modal, #album-viewer:modal")) {
           event.preventDefault();
           closePreview();
         }
@@ -221,7 +217,6 @@ function LibraryApp() {
         !settings &&
         !selected &&
         !albumPresent &&
-        !menu &&
         !myPage &&
         library.mode === "home"
       ) {
@@ -231,7 +226,7 @@ function LibraryApp() {
     };
     document.addEventListener("keydown", keyboard);
     return () => document.removeEventListener("keydown", keyboard);
-  }, [selected, settings, menu, library.mode, myPage, albumPresent]);
+  }, [selected, settings, library.mode, myPage, albumPresent]);
   useEffect(() => {
     const stop = () => {
       transfer.cancel();
@@ -242,7 +237,6 @@ function LibraryApp() {
   }, [library.connection]);
 
   const showSettings = () => {
-    setMenu(false);
     setSettings("open");
   };
   const preview = (item, gallery = null) => {
@@ -310,13 +304,11 @@ function LibraryApp() {
     );
   return (
     <div class={`app-shell${previewOpen && !gallery ? " preview-open" : ""}`}>
-      <Sidebar
+      {!mobile && <Sidebar
         library={library}
         records={records}
-        open={menu}
-        onClose={() => setMenu(false)}
         onSettings={showSettings}
-      />
+      />}
       <main class={`main-area${collectionPage ? " collection-page" : ""}${basePage && library.mode === "home" ? " home-page" : ""}${myPage ? " my-main" : ""}`}>
         {routeError && <div class="route-error" role="alert"><p>{routeError}</p><button class="text-button" onClick={closePreview}>{t("library.backToFolder")}</button></div>}
         {myPage ? (
@@ -330,8 +322,6 @@ function LibraryApp() {
             <Topbar
               library={library}
               actions={route === "favorites" ? null : listingActions(library, visibleRecords)}
-              menuOpen={menu}
-              onMenu={() => setMenu((value) => !value)}
             />
             {library.mode === "home" && <CategoryCards library={library} albumOpen={albumOpen} />}
             {library.demoPreview && (
@@ -357,7 +347,7 @@ function LibraryApp() {
           </>
         )}
       </main>
-      <MobileTabs library={library} onCloseMenu={() => setMenu(false)} />
+      <MobileTabs library={library} />
       {albumPresent && (
         <PageDialog id="album-page-dialog" className="album-page-dialog"
           title={t("core.category.album")} backId="album-back" backLabel={t("library.backToHome")}
