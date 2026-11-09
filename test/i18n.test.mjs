@@ -73,7 +73,7 @@ test("application source keeps Chinese copy in translation catalogs", async () =
       else if (/\.(?:jsx?|html)$/.test(entry.name)) {
         const source = await readFile(path, "utf8");
         assert.doesNotMatch(source, /\p{Script=Han}/u, path);
-        for (const match of source.matchAll(/["'](app|library|account|core|server|demo)\.([A-Za-z0-9_.]+)["']/g)) {
+        for (const match of source.matchAll(/["'](app|library|account|admin|core|server|demo)\.([A-Za-z0-9_.]+)["']/g)) {
           if (match[2].endsWith(".")) continue;
           const namespace = resources.en[match[1]];
           assert.ok(Object.hasOwn(namespace, match[2]) || Object.hasOwn(namespace, match[2] + "_other"), `${path}: ${match[1]}.${match[2]}`);
