@@ -21,6 +21,7 @@ import {
   Image,
   House,
   Images,
+  Info,
   List,
   Lock,
   Menu,
@@ -40,6 +41,8 @@ import {
   Copy,
   LogOut,
   X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-preact";
 
 const icons = {
@@ -65,6 +68,9 @@ const icons = {
   file: File,
   image: Image,
   album: Images,
+  info: Info,
+  "zoom-in": ZoomIn,
+  "zoom-out": ZoomOut,
   play: Play,
   book: BookOpen,
   camera: Video,

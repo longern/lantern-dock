@@ -124,9 +124,9 @@ test("refreshed listings prune empty groups and preview closes back to the same 
   const photo = page.getByRole("button", { name: "预览 yesterday-late.png", exact: true });
   await photo.focus();
   await page.keyboard.press("Enter");
-  await expect(page.locator(".preview-content img")).toBeVisible();
+  await expect(page.locator(".album-media[data-current=true] img").first()).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.locator("#preview-dialog")).toHaveCount(0);
+  await expect(page.locator("#album-viewer")).toHaveCount(0);
   await expect(photo).toBeFocused();
   await replaceListing(page, []);
   await expect(page.locator(".album-group")).toHaveCount(0);
@@ -181,7 +181,7 @@ test("a video-only album opens the existing player without autoplay and restores
   expect(videoRequests.get(page)).toHaveLength(0);
   await open.focus();
   await page.keyboard.press("Enter");
-  const video = page.locator(".preview-content video");
+  const video = page.locator("#album-viewer video");
   await expect(video).toBeVisible();
   await expect.poll(() => video.evaluate((node) => node.readyState)).toBeGreaterThanOrEqual(1);
   expect(await video.evaluate((node) => ({ paused: node.paused, autoplay: node.autoplay, controls: node.controls })))
@@ -189,7 +189,7 @@ test("a video-only album opens the existing player without autoplay and restores
   await video.evaluate((node) => { node.muted = true; return node.play(); });
   await expect.poll(() => video.evaluate((node) => node.currentTime)).toBeGreaterThan(0.2);
   await page.keyboard.press("Escape");
-  await expect(page.locator("#preview-dialog")).toHaveCount(0);
+  await expect(page.locator("#album-viewer")).toHaveCount(0);
   await expect(open).toBeFocused();
   await expect(page.locator(".album-item")).toHaveCount(1);
 });

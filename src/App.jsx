@@ -10,6 +10,7 @@ import { Sidebar, Topbar, MobileTabs } from "./components/Navigation.jsx";
 import { FileBrowser } from "./components/FileBrowser.jsx";
 import { CategoryCards } from "./components/CategoryCards.jsx";
 import { FilePreview } from "./components/FilePreview.jsx";
+import { AlbumViewer } from "./components/AlbumViewer.jsx";
 import { ConnectionDialog } from "./components/ConnectionDialog.jsx";
 import { DownloadPanel } from "./components/DownloadPanel.jsx";
 import { Toast } from "./components/Toast.jsx";
@@ -94,6 +95,7 @@ function LibraryApp() {
   const records = useRecords(library.key, toast);
   const transfer = useDownload(library.connection, records.remember, toast);
   const [selected, setSelected] = useState(null);
+  const [gallery, setGallery] = useState(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [recentSnapshot, setRecentSnapshot] = useState(null);
   // Persist visits immediately, but keep the clicked list still until the
@@ -143,6 +145,7 @@ function LibraryApp() {
     const path = selected?.path;
     setRecentSnapshot(null);
     setSelected(null);
+    setGallery(null);
     requestAnimationFrame(() =>
       ([...document.querySelectorAll(".file-open")]
         .find((node) => node.dataset.path === path) ||
@@ -153,7 +156,7 @@ function LibraryApp() {
     const keyboard = (event) => {
       if (event.key === "Escape" && !settings && !event.defaultPrevented) {
         if (menu) setMenu(false);
-        else if (selected && !document.getElementById("preview-dialog")?.matches(":modal")) {
+        else if (selected && !document.querySelector("#preview-dialog:modal, #album-viewer:modal")) {
           event.preventDefault();
           closePreview();
         }
@@ -193,7 +196,7 @@ function LibraryApp() {
     setMenu(false);
     setSettings("open");
   };
-  const preview = (item) => {
+  const preview = (item, gallery = null) => {
     if (library.mode === "home" && (!previewOpen || selected?.path !== item.path)) {
       setRecentSnapshot((current) => current?.key === library.key ? current : {
         key: library.key,
@@ -205,6 +208,7 @@ function LibraryApp() {
       });
     }
     records.remember(item);
+    setGallery(gallery);
     setSelected(item);
     setPreviewOpen(true);
   };
@@ -242,7 +246,7 @@ function LibraryApp() {
       </>
     );
   return (
-    <div class={`app-shell${previewOpen ? " preview-open" : ""}`}>
+    <div class={`app-shell${previewOpen && !gallery ? " preview-open" : ""}`}>
       <Sidebar
         library={library}
         records={records}
@@ -304,7 +308,22 @@ function LibraryApp() {
           {!selected && !settings && feedback}
         </Favorites>
       )}
-      {selected && library.connection && (
+      {selected && library.connection && gallery && (
+        <AlbumViewer
+          gallery={gallery}
+          item={selected}
+          client={library.connection.client}
+          open={previewOpen}
+          onSelect={(item) => preview(item, gallery)}
+          favorite={records.isFavorite(selected)}
+          onFavorite={records.toggleFavorite}
+          onDownload={transfer.download}
+          onClose={closePreview}
+          onExited={finishPreview}
+          feedback={feedback}
+        />
+      )}
+      {selected && library.connection && !gallery && (
         <FilePreview
           key={selected.path}
           item={selected}

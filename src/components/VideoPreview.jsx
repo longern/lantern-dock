@@ -1,5 +1,5 @@
 import { t } from "../../shared/i18n.js";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { createVideoSource, unsupportedVideo } from "../lib/video.js";
 import { Icon } from "./Icon.jsx";
 
@@ -9,16 +9,17 @@ export function VideoPreview({ item, client, open, onDimensions, onError }) {
   const [ready, setReady] = useState(false);
   const [poster, setPoster] = useState(null);
   const [error, setError] = useState("");
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) return;
+    const element = player.current;
     const controller = new AbortController();
     let connection, posterURL;
     const stop = () => {
       controller.abort();
-      player.current?.pause();
-      if (player.current) {
-        player.current.removeAttribute("src");
-        player.current.load();
+      element?.pause();
+      if (element) {
+        element.removeAttribute("src");
+        element.load();
       }
       connection?.dispose();
       if (posterURL) {
@@ -43,7 +44,7 @@ export function VideoPreview({ item, client, open, onDimensions, onError }) {
       }
       connection = value;
       try {
-        value.attach(player.current, fail);
+        value.attach(element, fail);
         setReady(true);
       } catch (reason) {
         fail(reason);

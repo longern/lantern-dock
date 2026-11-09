@@ -117,5 +117,11 @@ export default {
   "resources": "资源",
   "loadingVideo": "正在加载视频…",
   "videoLoadFailed": "视频加载失败，请重试或下载后播放。",
-  "videoPreviewNamed": "{{name}} 视频预览"
+  "videoPreviewNamed": "{{name}} 视频预览",
+  "albumPaging": "浏览照片和视频",
+  "previousMedia": "上一张照片或视频",
+  "nextMedia": "下一张照片或视频",
+  "zoomIn": "放大",
+  "zoomOut": "缩小",
+  "mediaDetails": "文件详情"
 };

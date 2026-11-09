@@ -129,12 +129,19 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  height: 36px;
+  padding: 2px 0;
   min-width: 0;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
   white-space: nowrap;
 }
 .breadcrumbs button {
-  padding: 8px 2px;
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 2px;
   font-weight: 400;
   color: var(--muted);
 }

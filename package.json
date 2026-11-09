@@ -30,6 +30,7 @@
     "jose": "^6.2.12",
     "lucide-preact": "^1.69.0",
     "mp4box": "^2.5.0",
-    "preact": "^11.1.1"
+    "preact": "^11.1.1",
+    "react-photo-view": "^1.2.7"
   }
 }

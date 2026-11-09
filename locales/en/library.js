@@ -117,5 +117,11 @@ export default {
   "resources": "Resources",
   "loadingVideo": "Loading video…",
   "videoLoadFailed": "Could not load the video. Try again or download it to play.",
-  "videoPreviewNamed": "Video preview of {{name}}"
+  "videoPreviewNamed": "Video preview of {{name}}",
+  "albumPaging": "Browse photos and videos",
+  "previousMedia": "Previous photo or video",
+  "nextMedia": "Next photo or video",
+  "zoomIn": "Zoom in",
+  "zoomOut": "Zoom out",
+  "mediaDetails": "File details"
 };

@@ -70,13 +70,13 @@ for (const service of ["unavailable", "unsupported", "broken-image"]) {
     expect(originalReads).toBe(0);
     await open.focus();
     await page.keyboard.press("Enter");
-    await expect(page.locator("#preview-name")).toHaveText("photo.svg");
+    await expect(page.locator("#album-viewer-name")).toHaveText("photo.svg");
     if (service !== "broken-image") {
-      await expect(page.locator(".preview-content img")).toBeVisible();
+      await expect(page.locator(".album-media[data-current=true] .album-image-high.is-sharp")).toBeVisible();
       await expect.poll(() => originalReads).toBe(1);
     }
     await page.keyboard.press("Escape");
-    await expect(page.locator("#preview-dialog")).toHaveCount(0);
+    await expect(page.locator("#album-viewer")).toHaveCount(0);
     await expect(open).toBeFocused();
   });
 }

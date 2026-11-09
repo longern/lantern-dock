@@ -1,11 +1,12 @@
 import { t } from "../../shared/i18n.js";
-import { useEffect, useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { Thumbnail } from "./Thumbnail.jsx";
 import { artwork } from "../lib/demo.js";
 import { groupMediaByDate } from "../lib/album.js";
 
 export function Album({ entries, loading, demo, client, selected, onPreview }) {
+  const elements = useRef(new Map());
   const [today, setToday] = useState(() => new Date());
   useEffect(() => {
     let timer;
@@ -40,10 +41,21 @@ export function Album({ entries, loading, demo, client, selected, onPreview }) {
           <article class="file-card album-item" key={item.path}>
             <button
               class="file-open album-preview"
+              ref={(node) => node ? elements.current.set(item.path, node) : elements.current.delete(item.path)}
               data-path={item.path}
               aria-label={t(item.kind === "video" ? "library.previewVideoNamed" : "library.previewNamed", { name: item.name })}
               aria-pressed={selected?.path === item.path}
-              onClick={() => onPreview(item)}
+              onClick={() => onPreview(item, {
+                items: groups.flatMap((group) => group.items),
+                origins: new Map(groups.flatMap((group) => group.items).map((entry) => [entry.path, {
+                  get current() {
+                    const button = elements.current.get(entry.path);
+                    const rect = button?.getBoundingClientRect();
+                    if (!rect || rect.bottom <= 0 || rect.top >= innerHeight) return null;
+                    return button?.querySelector("img") || button || null;
+                  },
+                }])),
+              })}
             >
               {demo && item.kind === "image" ? (
                 <img

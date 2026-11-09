@@ -62,9 +62,9 @@ test("home shortcuts support keyboard activation and return to recent files", as
   await page.keyboard.press("Enter");
   await expect(page.locator(".file-card")).toHaveCount(3);
   await page.getByRole("button", { name: "预览 海边的周末.svg", exact: true }).click();
-  await expect(page.locator(".preview-content img")).toBeVisible();
+  await expect(page.locator(".album-media[data-current=true] img").first()).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.locator("#preview-dialog")).toHaveCount(0);
+  await expect(page.locator("#album-viewer")).toHaveCount(0);
   await mainNav(page).getByRole("button", { name: "首页", exact: true }).click();
   await expect(cards(page)).toBeVisible();
   await expect(page.getByRole("heading", { name: "最近文件", exact: true })).toBeVisible();
@@ -107,9 +107,9 @@ test("album is a compact square preview-only grid with accessible file opening",
   const photo = gallery.getByRole("button", { name: "预览 海边的周末.svg", exact: true });
   await photo.focus();
   await page.keyboard.press("Enter");
-  await expect(page.locator(".preview-content img")).toBeVisible();
+  await expect(page.locator(".album-media[data-current=true] img").first()).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.locator("#preview-dialog")).toHaveCount(0);
+  await expect(page.locator("#album-viewer")).toHaveCount(0);
   await expect(photo).toBeFocused();
   await expect(gallery).toHaveClass(/album-timeline/);
   await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);

@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { resolve, extname } from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
+import { build } from "vite";
 import { Readable } from "node:stream";
 import { X509Certificate, createHash } from "node:crypto";
 import worker from "../../worker/index.js";
@@ -39,6 +40,23 @@ export const textFile =
   "LanternDock → real WebTransport bridge → WebDAV\n中文路径与流式传输。\n";
 const picture =
   '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="1200" height="800" fill="#cbdedb"/><circle cx="900" cy="180" r="80" fill="#f4cd88"/></svg>';
+let protocolModules;
+function testProtocolModules() {
+  // Browser protocol probes need the same i18n dependency graph as production.
+  // Bundle these isolated entries in memory; never expose arbitrary source files.
+  return protocolModules ||= build({
+    configFile: false,
+    logLevel: "silent",
+    build: {
+      write: false,
+      lib: {
+        entry: Object.fromEntries(["transport", "dav", "uploads"].map((name) => [name, resolve("src/lib", name + ".js")])),
+        formats: ["es"],
+      },
+      rollupOptions: { output: { entryFileNames: "[name].js", chunkFileNames: "chunks/[name]-[hash].js" } },
+    },
+  }).then((result) => new Map([result].flat().flatMap((bundle) => bundle.output).map((chunk) => [chunk.fileName, chunk.code])));
+}
 const items = [
   { name: "照片", folder: true },
   { name: "hello.txt", data: textFile, mime: "text/plain; charset=utf-8" },
@@ -229,23 +247,14 @@ export async function startFixture({ nas = false, identity = false } = {}) {
           }
           if (req.url.startsWith("/__test/lib/")) {
             const name = req.url.slice("/__test/lib/".length);
-            if (
-              ![
-                "transport.js",
-                "dav.js",
-                "cache.js",
-                "images.js",
-                "content.js",
-                "http-wire.js",
-                "uploads.js",
-              ].includes(name)
-            ) {
+            const code = (await testProtocolModules()).get(name);
+            if (code === undefined) {
               res.writeHead(404);
               res.end();
               return;
             }
             res.writeHead(200, { "Content-Type": "text/javascript" });
-            res.end(await readFile(resolve("src/lib", name)));
+            res.end(code);
             return;
           }
           const method = req.method || "GET";

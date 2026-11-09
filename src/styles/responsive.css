@@ -105,6 +105,10 @@
     padding: 0 16px 12px;
     border-bottom: 1px solid var(--line);
   }
+  .mobile-file-tools:has(.breadcrumbs) {
+    height: 40px;
+    padding: 2px 16px;
+  }
   .mobile-menu {
     display: inline-flex;
   }
@@ -116,7 +120,8 @@
   }
   .breadcrumbs {
     font-size: 13px;
-    padding-top: 6px;
+    height: 100%;
+    padding: 0;
   }
   .topbar-right {
     display: none;
@@ -320,6 +325,7 @@ body:has(dialog:modal) {
 .breadcrumb {
   display: inline-flex;
   align-items: center;
+  height: 100%;
   gap: 8px;
   flex-shrink: 0;
 }

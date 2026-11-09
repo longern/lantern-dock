@@ -1,0 +1,218 @@
+/* Keep the reserved desktop scrollbar gutter dark without resizing the grid. */
+html:has(.album-viewer[open]) {
+  background: #000;
+}
+.album-viewer {
+  --motion-exit: 240ms;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  color: #fff;
+  background: transparent;
+  overflow: hidden;
+}
+.album-viewer::backdrop {
+  background: transparent;
+}
+.album-viewer:not([open]) {
+  display: none;
+}
+.album-viewer .PhotoView-Portal {
+  width: 100vw;
+  height: 100dvh;
+}
+.album-viewer .PhotoView-Slider__Overlay {
+  opacity: 1;
+}
+.album-viewer[data-state="closed"] .album-viewer-controls {
+  opacity: 0;
+  pointer-events: none;
+}
+.album-viewer-controls {
+  transition: opacity 180ms ease;
+}
+.album-media {
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  cursor: grab;
+}
+.album-media:active {
+  cursor: grabbing;
+}
+.album-media > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  pointer-events: none;
+}
+.album-image-high {
+  opacity: 0;
+  transition: opacity 180ms ease-out;
+}
+.album-image-high.is-sharp {
+  opacity: 1;
+}
+.album-image-high.is-cached {
+  transition: none;
+}
+.album-media-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #bbb;
+  font-size: 13px;
+}
+.album-media-placeholder svg {
+  width: 36px;
+  height: 36px;
+}
+.album-image-error {
+  position: absolute;
+  bottom: 0;
+  padding: 8px 16px;
+  background: #000b;
+  font-size: 12px;
+}
+.album-video-player {
+  position: absolute;
+  inset: 0;
+}
+.album-video-player video {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: contain;
+}
+.album-video-player .preview-placeholder {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #0008;
+}
+.album-viewer-header,
+.album-viewer-actions,
+.album-viewer-pager,
+.album-viewer-details {
+  position: absolute;
+  z-index: 30;
+}
+.album-viewer-header {
+  inset: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: calc(60px + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 20px 0;
+  background: linear-gradient(#0009, #0000);
+}
+.album-viewer .icon-button {
+  color: #fff;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+.album-viewer .icon-button svg {
+  width: 24px;
+  height: 24px;
+}
+.album-viewer .icon-button:hover {
+  background: #ffffff20;
+}
+.album-viewer .icon-button:focus-visible {
+  outline-color: #fff;
+  outline-offset: -3px;
+}
+.album-viewer .icon-button[aria-pressed="true"] {
+  color: #f3d588;
+}
+.album-viewer-header > .icon-button:first-child {
+  margin-left: -12px;
+}
+.album-viewer-header strong {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+}
+.album-viewer-counter {
+  color: #ddd;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.album-viewer-pager {
+  inset: 50% 12px auto;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+.album-viewer-pager button {
+  pointer-events: auto;
+  background: #0005;
+}
+.album-viewer-actions {
+  inset: auto 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+  background: linear-gradient(#0000, #0009);
+}
+.album-viewer-details {
+  right: 16px;
+  bottom: calc(80px + env(safe-area-inset-bottom));
+  width: min(360px, calc(100% - 32px));
+  padding: 8px 20px;
+  border-radius: 16px;
+  background: #202024f5;
+  box-shadow: 0 8px 32px #0003;
+}
+.album-viewer-details .file-details {
+  margin: 8px 0;
+}
+.album-viewer-details dt {
+  color: #bbb;
+}
+.album-viewer-details dd {
+  color: #fff;
+}
+.album-viewer-details .file-details > div {
+  border-color: #ffffff20;
+}
+@media (max-width: 700px) {
+  .album-viewer-header {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .album-viewer-pager {
+    inset: auto 12px calc(86px + env(safe-area-inset-bottom));
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* The library normally clears its fade class on animationend. No animation
+     means no event, so explicitly keep the black backdrop visible. */
+  .album-viewer .PhotoView-Slider__Backdrop {
+    opacity: 1;
+  }
+}

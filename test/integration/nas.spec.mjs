@@ -1,9 +1,11 @@
 import { chooseListingOption } from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
-import { readFile, readdir } from "node:fs/promises";
+import { copyFile, readFile, readdir, rm, utimes } from "node:fs/promises";
 import { resolve } from "node:path";
 import { startFixture, textFile } from "./fixture.mjs";
 import { backendPaths } from "../../shared/backend-paths.js";
+
+test.use({ locale: "zh-CN" });
 
 let fixture;
 test.beforeAll(async () => {
@@ -345,15 +347,16 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
   await page
     .getByRole("button", { name: "预览 photo.png", exact: true })
     .click();
-  const preview = page.locator(".preview-content img");
+  const preview = page.locator(".album-media[data-current=true] .album-image-high.is-sharp");
   await expect(preview).toBeVisible();
   await expect
     .poll(() => preview.evaluate((img) => img.naturalWidth))
     .toBe(1600);
-  await expect(page.locator(".file-details")).toContainText("2400 × 1600");
+  await page.getByRole("button", { name: "文件详情", exact: true }).click();
+  await expect(page.locator("#album-viewer-details")).toContainText("2400 × 1600");
   await page.screenshot({ path: testInfo.outputPath("iiif-preview.png") });
   await page.getByRole("button", { name: "关闭预览", exact: true }).click();
-  await expect(page.locator("#preview-dialog")).toHaveCount(0);
+  await expect(page.locator("#album-viewer")).toHaveCount(0);
   const oldThumbnail = await thumbnail.getAttribute("src");
   await page.getByRole("button", { name: "刷新目录", exact: true }).click();
   await expect(thumbnail).toBeVisible();
@@ -406,6 +409,52 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
     cached.filter((name) => name.endsWith(".jpg")).length,
   ).toBeGreaterThanOrEqual(3);
   expect(errors).toEqual([]);
+});
+
+test("album slides from IIIF images to an active MP4Box video over real WebTransport", async ({ page }, testInfo) => {
+  const photo = resolve(fixture.nas.publicDir, "album-photo.png");
+  const videoPath = resolve(fixture.nas.publicDir, "album-video.mp4");
+  await copyFile(resolve("test/fixtures/photo.png"), photo);
+  await copyFile(resolve("test/fixtures/video.mp4"), videoPath);
+  const now = Date.now() / 1000;
+  await utimes(photo, now + 2, now + 2);
+  await utimes(videoPath, now + 1, now + 1);
+  const errors = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  try {
+    await page.goto(fixture.origin);
+    await page.getByRole("navigation", { name: "文件分类", exact: true })
+      .getByRole("button", { name: "相册", exact: true }).click();
+    const open = page.getByRole("button", { name: "预览 album-photo.png", exact: true });
+    await expect(open.locator("img")).toBeVisible();
+    await open.click();
+    await expect(page.locator(".album-media[data-current=true] .album-image-high.is-sharp")).toHaveCSS("opacity", "1");
+    expect(await page.locator("#album-viewer video").count()).toBe(0);
+    await page.getByRole("button", { name: "下一张照片或视频", exact: true }).click();
+    await expect(page.locator("#album-viewer-name")).toHaveText("album-video.mp4");
+    const player = page.locator("#album-viewer video");
+    await expect(player).toBeVisible();
+    await expect.poll(() => player.evaluate((video) => video.readyState)).toBeGreaterThanOrEqual(1);
+    expect(await player.getAttribute("src")).toMatch(/^blob:/);
+    expect(await player.evaluate((video) => video.paused)).toBe(true);
+    await player.evaluate((video) => { window.albumBridgeVideo = video; video.muted = true; return video.play(); });
+    await expect.poll(() => player.evaluate((video) => video.currentTime)).toBeGreaterThan(.2);
+    await player.evaluate((video) => { video.currentTime = 6; });
+    await expect.poll(() => player.evaluate((video) => !video.seeking && video.currentTime >= 6)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath("album-webtransport-video.png") });
+    await page.getByRole("button", { name: "上一张照片或视频", exact: true }).click();
+    await expect(page.locator("#album-viewer-name")).toHaveText("album-photo.png");
+    expect(await page.evaluate(() => ({ paused: window.albumBridgeVideo.paused, src: window.albumBridgeVideo.getAttribute("src") })))
+      .toEqual({ paused: true, src: null });
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#album-viewer")).toHaveCount(0);
+    await expect(open).toBeFocused();
+    expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
+    expect(errors).toEqual([]);
+  } finally {
+    await rm(photo, { force: true });
+    await rm(videoPath, { force: true });
+  }
 });
 
 test("video posters and MP4Box MediaSource playback seek over the real bridge", async ({
