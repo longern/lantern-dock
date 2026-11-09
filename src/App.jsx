@@ -12,7 +12,7 @@ import { CategoryCards } from "./components/CategoryCards.jsx";
 import { FilePreview } from "./components/FilePreview.jsx";
 import { AlbumViewer } from "./components/AlbumViewer.jsx";
 import { ConnectionDialog } from "./components/ConnectionDialog.jsx";
-import { DownloadPanel } from "./components/DownloadPanel.jsx";
+import { TransferCenter } from "./components/TransferCenter.jsx";
 import { Toast } from "./components/Toast.jsx";
 import { SetupWizard } from "./components/SetupWizard.jsx";
 import { UploadPage } from "./components/UploadPage.jsx";
@@ -29,6 +29,7 @@ import { useLibraryRoute } from "./hooks/useLibraryRoute.js";
 import { useLibrary } from "./hooks/useLibrary.js";
 import { useRecords } from "./hooks/useRecords.js";
 import { useDownload } from "./hooks/useDownload.js";
+import { useTransferPanel } from "./hooks/useTransferPanel.js";
 import { useRouter } from "./hooks/useRouter.jsx";
 import { albumHref, filesHref } from "../shared/routes.js";
 import { groupMediaByDate } from "./lib/album.js";
@@ -94,7 +95,8 @@ function LibraryApp() {
     if (library.error) toast(library.error.message, true);
   }, [library.error, toast]);
   const records = useRecords(library.key, toast);
-  const transfer = useDownload(library.connection, records.remember, toast);
+  const transfer = useDownload(library.connection, records.rememberMany, toast);
+  const transferPanel = useTransferPanel(transfer, mobile);
   const [touchSelections, setTouchSelections] = useState(() => new Set());
   const onTouchSelection = useCallback((owner, active) => {
     setTouchSelections(current => {
@@ -278,6 +280,8 @@ function LibraryApp() {
     } catch { toast(t("library.copyLinkFailed"), true); }
   };
   library.copyLink = copyLink;
+  library.downloadMany = transfer.downloadMany;
+  library.downloading = !!transfer.progress;
   library.copyLinks = async items => {
     const root = (library.connection?.client.root || "/").replace(/\/?$/, "/");
     const album = ["album", "image"].includes(library.kind) || albumPresent;
@@ -301,9 +305,10 @@ function LibraryApp() {
     sort: favoritesSort, setSort: setFavoritesSort,
   };
   const albumLibrary = { ...library, mode: "all", kind: "album", query: "" };
+  const topbarActions = route === "favorites" ? null : listingActions(library, visibleRecords);
   const feedback = (
     <>
-      <DownloadPanel progress={transfer.progress} onCancel={transfer.cancel} />
+      <TransferCenter transfer={transfer} mobile={mobile} {...transferPanel} />
       {message && <Toast message={message} />}
     </>
   );
@@ -342,7 +347,14 @@ function LibraryApp() {
           <>
             <Topbar
               library={library}
-              actions={route === "favorites" ? null : listingActions(library, visibleRecords)}
+              transferAction={library.mode === "home" && <button id="transfers-button" class={`icon-button transfer-trigger${topbarActions ? "" : " edge-end"}`}
+                aria-label={t("library.openTransfers")} title={t("library.transfers")} aria-expanded={transferPanel.open}
+                aria-controls={mobile ? "transfer-dialog" : "transfer-window"} aria-haspopup={mobile ? "dialog" : undefined}
+                onClick={transferPanel.open ? transferPanel.onClose : transferPanel.onOpen}>
+                <Icon name="transfers" />
+                {transfer.tasks.some(task => ["queued", "preparing", "running"].includes(task.status)) && <span class="transfer-badge">{transfer.tasks.filter(task => ["queued", "preparing", "running"].includes(task.status)).length}</span>}
+              </button>}
+              actions={topbarActions}
             />
             {library.mode === "home" && <CategoryCards library={library} albumOpen={albumOpen} />}
             {library.demoPreview && (

@@ -2,7 +2,15 @@ import { useLayoutEffect, useRef } from "preact/hooks";
 import { t } from "../../shared/i18n.js";
 import { Icon } from "./Icon.jsx";
 
-export function SelectionActions({ selection, entries, records, onCopyLinks, favoritesPage }) {
+export function SelectionActions({
+  selection,
+  entries,
+  records,
+  onCopyLinks,
+  onDownload,
+  downloading,
+  favoritesPage,
+}) {
   const panel = useRef(null);
   const floating = selection.touch;
   const all = entries.length > 0 && selection.items.length === entries.length;
@@ -45,6 +53,27 @@ export function SelectionActions({ selection, entries, records, onCopyLinks, fav
       <div class="selection-commands">
         <button
           class={floating ? "selection-command" : "icon-button"}
+          aria-label={t("library.downloadSelectedFiles")}
+          title={
+            selection.items.some((item) => item.isDirectory)
+              ? t("library.downloadFilesOnly")
+              : undefined
+          }
+          disabled={
+            !selection.items.length ||
+            downloading ||
+            selection.items.some((item) => item.isDirectory)
+          }
+          onClick={() => {
+            onDownload(selection.items);
+            if (floating) selection.clear();
+          }}
+        >
+          <Icon name="download" />
+          {floating && <span>{t("library.download")}</span>}
+        </button>
+        <button
+          class={floating ? "selection-command" : "icon-button"}
           aria-label={t(
             favorites
               ? "library.unfavoriteSelected"
@@ -55,7 +84,8 @@ export function SelectionActions({ selection, entries, records, onCopyLinks, fav
             const saved = records.setFavorites(selection.items, !favorites);
             // The selected rows and this toolbar disappear when unfavorited
             // here. Keep focus on the surviving list instead of the body.
-            if (saved && favoritesPage && favorites) selection.list.current?.focus({ preventScroll: true });
+            if (saved && favoritesPage && favorites)
+              selection.list.current?.focus({ preventScroll: true });
           }}
         >
           <Icon name="star" />

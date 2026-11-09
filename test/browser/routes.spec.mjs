@@ -109,9 +109,10 @@ test("copied links use the portal and relative paths even with a custom DAV moun
 }) => {
   const log = await install(page, "/custom/share/");
   await page.goto("/files/");
-  await page
-    .getByRole("button", { name: "复制 旅行 #?% 的链接", exact: true })
-    .click();
+  const folderItem = page.getByRole("button", { name: "打开文件夹 旅行 #?%", exact: true });
+  await folderItem.focus();
+  await folderItem.press("Space");
+  await page.getByRole("button", { name: "复制所选链接", exact: true }).click();
   await expect
     .poll(() => page.evaluate(() => window.copiedLinks.at(-1)))
     .toBe(`http://127.0.0.1:8788/files/${folder}/`);

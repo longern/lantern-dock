@@ -1,3 +1,4 @@
+import { favoriteItem } from "../helpers/favorite-item.mjs";
 import { openItem } from "../helpers/open-item.mjs";
 import { chooseListingOption, listingOptionsButton } from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
@@ -36,7 +37,7 @@ test("home and files are separate destinations, with breadcrumbs only in files",
 });
 
 test("leaving Home clears search for Files, Favorites, folders and sidebar categories", async ({ page }) => {
-  await page.getByRole("button", { name: "收藏 项目笔记.md", exact: true }).click();
+  await favoriteItem(page.getByRole("button", { name: "预览 项目笔记.md", exact: true }));
   for (const [mode, count] of [["files", 12], ["favorites", 1]]) {
     await page.getByRole("searchbox").fill("no-matching-file");
     await expect(page.locator(".file-item")).toHaveCount(0);

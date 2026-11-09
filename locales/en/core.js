@@ -43,6 +43,8 @@ export default {
   "error.AUTH_METHOD_REQUIRED": "Choose a backend authentication method.",
   "error.CERTIFICATE_MODE_REQUIRED": "Choose a gateway certificate type.",
   "error.DOWNLOAD_MEMORY_LIMIT": "The file exceeds this browser’s 256 MB in-memory download limit.",
+  "error.DOWNLOAD_BATCH_MEMORY_LIMIT": "This browser limits a download batch to 256 MB. Select fewer files, or use a browser with directory saving support.",
+  "error.DOWNLOAD_NAME_CONFLICT": "Could not choose an unused destination filename.",
   "error.DOWNLOAD_FILE_API_REQUIRED": "This browser limits in-memory downloads to 256 MB. Use a browser with the file-saving API to download larger files.",
   "connectionCancelled": "Connection cancelled",
   "connectionClosed": "Connection closed",

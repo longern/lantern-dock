@@ -1,3 +1,4 @@
+import { favoriteItem } from "../helpers/favorite-item.mjs";
 import { openItem } from "../helpers/open-item.mjs";
 import { test, expect } from "@playwright/test";
 import { closeFavorites, mainNavigation, openFavorites } from "../helpers/navigation.mjs";
@@ -116,7 +117,7 @@ test("recent files stay a newest-first list without changing Files or Favorites 
   await goFiles(page);
   await chooseListingOption(page, "大小");
   await chooseListingOption(page, "网格视图");
-  await page.getByRole("button", { name: "收藏 项目笔记.md", exact: true }).click();
+  await favoriteItem(page.getByRole("button", { name: "预览 项目笔记.md", exact: true }));
   await goHome(page);
   await expect(page.locator("#file-list")).toHaveClass(/list-layout/);
   await expect(fileNames(page)).toHaveText(names);
@@ -147,7 +148,7 @@ test("recent files stay a newest-first list without changing Files or Favorites 
 
 test("Favorites menu Escape does not dismiss its parent or a later nested preview", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "收藏 项目笔记.md", exact: true }).click();
+  await favoriteItem(page.getByRole("button", { name: "预览 项目笔记.md", exact: true }));
   await openFavorites(page);
   await openListingOptions(page);
   await page.keyboard.press("Escape");

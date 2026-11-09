@@ -105,7 +105,7 @@ export function Sidebar({ library, records, onSettings }) {
   );
 }
 
-export function Topbar({ library, actions }) {
+export function Topbar({ library, actions, transferAction }) {
   const mobile = useMediaQuery("(max-width: 700px)");
   const home = library.mode === "home";
   const mobileFiles = mobile && library.mode === "all";
@@ -202,7 +202,7 @@ export function Topbar({ library, actions }) {
         }
       }}
     >
-      <header class={`topbar${actions ? " has-actions" : ""}`}>
+      <header class={`topbar${actions || transferAction ? " has-actions" : ""}`}>
         {mobileFiles ? (
           <span class="mobile-brand">{t("library.files")}</span>
         ) : (
@@ -222,7 +222,7 @@ export function Topbar({ library, actions }) {
           {!mobile && home && search}
           <button
             id="refresh-button"
-            class={`icon-button${actions ? "" : " edge-end"}`}
+            class={`icon-button${actions || transferAction ? "" : " edge-end"}`}
             aria-label={t("library.refreshDirectory")}
             title={t("library.refresh")}
             aria-busy={library.loading}
@@ -252,6 +252,7 @@ export function Topbar({ library, actions }) {
               <Icon name={filesSearchVisible ? "x" : "search"} />
             </button>
           )}
+          {transferAction}
           {actions && <div class="header-actions">{actions}</div>}
         </div>
       </header>

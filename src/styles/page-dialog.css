@@ -41,5 +41,4 @@
   font-size: 16px;
   font-weight: normal;
 }
-.page-dialog .download-panel { bottom: max(20px, env(safe-area-inset-bottom)); }
 .album-page-dialog .mobile-refresh { display: none; }

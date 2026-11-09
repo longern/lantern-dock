@@ -17,14 +17,14 @@ const snapshot = () => ({
 export function RouterProvider({ children }) {
   const [value, setValue] = useState(() => ({ ...snapshot(), initial: true }));
   const pendingPop = useRef(null);
-  const commit = useCallback((href, { replace = false, state = {} } = {}) => {
+  const commit = useCallback((href, { replace = false, push = false, state = {} } = {}) => {
     const url = new URL(href, location.origin);
     if (url.origin !== location.origin)
       throw new Error("External navigation denied");
     const next = url.pathname + url.search + url.hash;
     if (
       next !== location.pathname + location.search + location.hash ||
-      replace
+      replace || push
     ) {
       history[replace ? "replaceState" : "pushState"](
         { lanternDockRoute: state },

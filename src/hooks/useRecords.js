@@ -27,6 +27,17 @@ export function useRecords(key, toast) {
   };
   const isFavorite = (item) =>
     favorites.some((entry) => entry.path === item.path);
+  const rememberMany = items => {
+    const current = readRecords(key, "recent");
+    if (current.status !== "ready") {
+      if (current.error) toast(current.error.message, true);
+      return;
+    }
+    const visitedAt = Date.now();
+    const added = [...new Map(items.map(item => [item.path, item])).values()].slice(-30).reverse();
+    const paths = new Set(added.map(item => item.path));
+    save("recent", [...added.map(item => ({ ...item, visitedAt })), ...current.items.filter(item => !paths.has(item.path))].slice(0, 30));
+  };
   return {
     favorites,
     favoritesStatus: favoriteState.status,
@@ -64,19 +75,7 @@ export function useRecords(key, toast) {
       );
       if (saved) toast(exists ? t("core.favoriteRemoved") : t("core.favoriteAdded"));
     },
-    remember(item) {
-      const current = readRecords(key, "recent");
-      if (current.status !== "ready") {
-        if (current.error) toast(current.error.message, true);
-        return;
-      }
-      save(
-        "recent",
-        [
-          { ...item, visitedAt: Date.now() },
-          ...current.items.filter((entry) => entry.path !== item.path),
-        ].slice(0, 30),
-      );
-    },
+    rememberMany,
+    remember: item => rememberMany([item]),
   };
 }

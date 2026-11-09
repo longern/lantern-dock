@@ -209,11 +209,11 @@ test("download progress stays actionable inside a mobile preview and cancels the
   await openItem(page
     .getByRole("button", { name: "预览 slow.bin", exact: true }));
   await page.getByRole("button", { name: "下载", exact: true }).click();
-  const progress = page.locator(".download-panel");
+  const progress = page.locator(".transfer-window:popover-open, .transfer-summary:popover-open");
   await expect(progress).toBeVisible();
   await expect(progress).toContainText(/KB|MB/);
   await page.getByRole("button", { name: "取消下载", exact: true }).click();
-  await expect(progress).toHaveCount(0);
+  await expect(page.locator(".transfer-running, .transfer-preparing, .transfer-summary")).toHaveCount(0);
   await expect(page.locator(".toast")).toHaveText("已取消下载");
   await expect.poll(() => fixture.cancellations.length).toBeGreaterThan(before);
 });

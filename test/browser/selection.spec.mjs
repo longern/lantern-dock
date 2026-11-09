@@ -1,3 +1,4 @@
+import { favoriteItem } from "../helpers/favorite-item.mjs";
 import { test as base, expect } from "@playwright/test";
 import { openFavorites } from "../helpers/navigation.mjs";
 import { chooseListingOption } from "../helpers/listing-options.mjs";
@@ -151,7 +152,7 @@ test("a legacy mobile MouseEvent click still opens after a touch pointer gesture
 });
 
 test("removing the last selected favorites keeps focus inside the surviving list", async ({ page }) => {
-  await page.getByRole("button", { name: "收藏 项目笔记.md", exact: true }).click();
+  await favoriteItem(page.getByRole("button", { name: "预览 项目笔记.md", exact: true }));
   await openFavorites(page);
   const scope = touch(page) ? page.locator("#favorites-dialog") : page.locator(".favorites-page");
   const item = scope.locator(".file-open").first();
@@ -166,7 +167,7 @@ test("removing the last selected favorites keeps focus inside the surviving list
 
 test("selection works inside mobile Favorites and Escape exits selection before the page dialog", async ({ page }) => {
   test.skip(!touch(page), "Native mobile page dialog");
-  await page.getByRole("button", { name: "收藏 项目笔记.md", exact: true }).click();
+  await favoriteItem(page.getByRole("button", { name: "预览 项目笔记.md", exact: true }));
   await openFavorites(page);
   const dialog = page.locator("#favorites-dialog");
   await hold(page, dialog.locator(".file-open").first());

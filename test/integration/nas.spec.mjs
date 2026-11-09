@@ -106,6 +106,24 @@ test("file selection and bulk actions work over WebTransport without exposing DA
   await expect(page.locator(".preview-content pre")).toHaveText(textFile);
 });
 
+test("selected NAS files download separately through WebTransport without an archive", async ({ page }) => {
+  await page.addInitScript(() => { window.showSaveFilePicker = undefined; window.showDirectoryPicker = undefined; });
+  await page.goto(`${fixture.origin}/files/`);
+  const hello = page.getByRole("button", { name: "预览 hello.txt", exact: true });
+  const coast = page.getByRole("button", { name: "预览 coast.svg", exact: true });
+  await expect(hello).toBeVisible();
+  if (page.viewportSize().width <= 700) { await holdItem(page, hello); await coast.tap(); }
+  else { await hello.click(); await coast.click({ modifiers: ["ControlOrMeta"] }); }
+  const downloads = [];
+  page.on("download", item => downloads.push(item));
+  await page.getByRole("button", { name: "下载所选文件", exact: true }).click();
+  await expect.poll(() => downloads.length).toBe(2);
+  const text = downloads.find(item => item.suggestedFilename() === "hello.txt");
+  const picture = downloads.find(item => item.suggestedFilename() === "coast.svg");
+  expect(await readFile(await text.path(), "utf8")).toBe(textFile);
+  expect(await readFile(await picture.path(), "utf8")).toContain("<svg");
+});
+
 test("shared file and album URLs reload through the SPA and resolve the real NAS over WebTransport", async ({ page }) => {
   const folder = encodeURIComponent("照片");
   await page.goto(`${fixture.origin}/files/${folder}/photo.png?view=album`);

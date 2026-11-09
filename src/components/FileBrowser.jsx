@@ -19,12 +19,9 @@ function FileItem({
   client,
   side,
   selected,
-  favorite,
   recent,
   selection,
   onOpen,
-  onFavorite,
-  onCopyLink,
 }) {
   return (
     <li
@@ -78,15 +75,6 @@ function FileItem({
       {selection.touch && <span class={`selection-mark${selection.isSelected(item) ? " checked" : ""}`} aria-hidden="true">
         {selection.isSelected(item) && <Icon name="check" />}
       </span>}
-      <button class="file-copy-button" aria-label={t("library.copyLinkNamed", { name: item.name })} onClick={() => onCopyLink(item)}><Icon name="copy" /></button>
-      <button
-        class={`favorite-button${favorite ? " selected" : ""}`}
-        aria-label={t(favorite ? "library.unfavoriteNamed" : "library.favoriteNamed", { name: item.name })}
-        aria-pressed={favorite}
-        onClick={() => onFavorite(item)}
-      >
-        <Icon name="star" />
-      </button>
     </li>
   );
 }
@@ -192,7 +180,7 @@ export function FileBrowser({
           )}
         </div>
         {selection.mode === "desktop" ? (
-          <SelectionActions selection={selection} entries={selectable} records={records} onCopyLinks={library.copyLinks} favoritesPage={library.mode === "favorites"} />
+          <SelectionActions selection={selection} entries={selectable} records={records} onCopyLinks={library.copyLinks} onDownload={library.downloadMany} downloading={library.downloading} favoritesPage={library.mode === "favorites"} />
         ) : !recent && (
           <div class="view-tools">
             <button
@@ -244,7 +232,6 @@ export function FileBrowser({
         <span>{t("library.fileName")}</span>
         <span>{recent ? t("library.accessedAt") : t("library.modifiedAt")}</span>
         <span>{t("library.size")}</span>
-        <span />
       </div>
       <Collection
         ref={selection.list}
@@ -283,10 +270,7 @@ export function FileBrowser({
                 demo={library.backend?.transport === "demo"}
                 selected={selected?.path === item.path}
                 selection={selection}
-                favorite={records.isFavorite(item)}
                 recent={recent}
-                onFavorite={records.toggleFavorite}
-                onCopyLink={library.copyLink}
                 onOpen={(item) =>
                   item.isDirectory
                     ? library.navigate(item.path)
@@ -296,7 +280,7 @@ export function FileBrowser({
             </Fragment>
             ))}
       </Collection>
-      {selection.touch && <SelectionActions selection={selection} entries={selectable} records={records} onCopyLinks={library.copyLinks} favoritesPage={library.mode === "favorites"} />}
+      {selection.touch && <SelectionActions selection={selection} entries={selectable} records={records} onCopyLinks={library.copyLinks} onDownload={library.downloadMany} downloading={library.downloading} favoritesPage={library.mode === "favorites"} />}
       {!busy && !entries.length && !error && (
         <div class="empty-state">
           <span class="empty-symbol">

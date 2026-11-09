@@ -3,10 +3,11 @@ import { t } from "../../shared/i18n.js";
 import { useSession } from "../hooks/useSession.jsx";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { useDownload } from "../hooks/useDownload.js";
+import { useTransferPanel } from "../hooks/useTransferPanel.js";
 import { AdminClient, adminAccess, createLinkInput, linkState, localDateTime } from "../lib/admin.js";
 import { bytes, date } from "../lib/format.js";
 import { Dialog } from "./Dialog.jsx";
-import { DownloadPanel } from "./DownloadPanel.jsx";
+import { TransferCenter } from "./TransferCenter.jsx";
 import { Icon } from "./Icon.jsx";
 import { useRouter } from "../hooks/useRouter.jsx";
 import { accountHref } from "../../shared/routes.js";
@@ -98,6 +99,8 @@ function AdminWorkspace({ account, refreshNAS, refreshIdentity }) {
     catch (error) { if (!signal?.aborted) onError(error); throw error; }
   } } }), [client, onError]);
   const transfer = useDownload(downloadConnection, ignore, report);
+  const mobile = useMediaQuery("(max-width: 700px)");
+  const transferPanel = useTransferPanel(transfer, mobile);
   useEffect(() => {
     const stop = () => { transfer.cancel(); client.close(); setCreate(false); setRevoke(null); };
     const resume = (event) => { if (event.persisted) void refreshNAS(); };
@@ -119,6 +122,8 @@ function AdminWorkspace({ account, refreshNAS, refreshIdentity }) {
         {account.capabilities.adminInbox && <button type="button" aria-current={tab === "inbox" ? "page" : undefined}
           onClick={() => setTab("inbox")}><Icon name="lock" />{t("admin.inbox")}</button>}
       </nav>
+      {transfer.tasks.length > 0 && <button id="transfers-button" class="text-button" aria-label={t("library.openTransfers")} aria-expanded={transferPanel.open}
+        onClick={transferPanel.open ? transferPanel.onClose : transferPanel.onOpen}><Icon name="transfers" />{t("library.transfers")}</button>}
       {notice && <div class={`admin-notice${notice.error ? " error" : ""}`} role={notice.error ? "alert" : "status"}>
         <span>{notice.text}</span><button class="icon-button" aria-label={t("admin.dismissNotice")} onClick={() => setNotice(null)}><Icon name="x" /></button>
       </div>}
@@ -130,7 +135,7 @@ function AdminWorkspace({ account, refreshNAS, refreshIdentity }) {
       {create && <CreateLinkDialog client={client} onExit={() => setCreate(false)} onCreated={refresh} onError={onError} />}
       {revoke && <RevokeDialog client={client} link={revoke} onExit={() => setRevoke(null)} onError={onError}
         onRevoked={() => { refresh(); report(t("admin.revokedNotice")); }} />}
-      <DownloadPanel progress={transfer.progress} onCancel={transfer.cancel} />
+      <TransferCenter transfer={transfer} mobile={mobile} {...transferPanel} />
     </>
   );
 }

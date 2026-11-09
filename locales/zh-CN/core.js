@@ -43,6 +43,8 @@ export default {
   "error.AUTH_METHOD_REQUIRED": "请选择后端认证方式。",
   "error.CERTIFICATE_MODE_REQUIRED": "请选择网关证书类型。",
   "error.DOWNLOAD_MEMORY_LIMIT": "文件超过此浏览器的 256 MB 内存下载限制。",
+  "error.DOWNLOAD_BATCH_MEMORY_LIMIT": "此浏览器每批下载上限为 256 MB，请分批选择文件，或使用支持保存到目录的浏览器。",
+  "error.DOWNLOAD_NAME_CONFLICT": "无法找到可用的目标文件名。",
   "error.DOWNLOAD_FILE_API_REQUIRED": "此浏览器的内存下载上限为 256 MB，请使用支持文件保存 API 的浏览器下载大文件。",
   "connectionCancelled": "连接已取消",
   "connectionClosed": "连接已关闭",
