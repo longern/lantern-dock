@@ -245,7 +245,9 @@ export async function accountConnection(signal) {
         signal,
       }),
     );
-    return { transport, backend: config.backend, ...info };
+    // Connection ownership and destination come from local configuration, not
+    // overridable fields in the resource server response.
+    return { ...info, transport, backend: config.backend };
   } catch (error) {
     transport.close();
     throw error;
