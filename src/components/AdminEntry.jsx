@@ -9,7 +9,10 @@ export function AdminEntry({ className = "my-list-button", id = "my-admin" }) {
   useEffect(() => {
     if (identity.status === "authenticated") void ensureNAS();
   }, [identity.status, ensureNAS]);
-  if (adminAccess(identity, nas) !== "ready") return null;
+  const access = adminAccess(identity, nas);
+  // A verified administrator can open the upgrade guidance on an older NAS.
+  // Management operations still require explicit capabilities in AdminPage.
+  if (access !== "ready" && access !== "unsupported") return null;
   return (
     <a id={id} class={className} href="#/admin">
       <span class="my-list-icon"><Icon name="shield" /></span>

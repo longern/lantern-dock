@@ -80,6 +80,46 @@ async function assertNoOverflow(page) {
     expect(await element.evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
 }
 
+for (const legacy of [false, true]) {
+  test(`${legacy ? "older" : "current"} NAS administrators find the entry between favorites and settings`, async ({ page }) => {
+    test.skip(page.viewportSize().width > 700, "Me is the mobile account destination");
+    const state = await install(page, { legacy });
+    await page.goto("/#/me");
+    await expect(page.locator("#my-admin")).toBeVisible();
+    expect(await page.locator(".my-action-list > *").evaluateAll((nodes) => nodes.map((node) => node.id)))
+      .toEqual(["my-favorites", "my-admin", "my-settings"]);
+    await page.locator("#my-account-link").click();
+    await expect(page.locator(".account-details").first()).toContainText("管理员");
+    await expect(page.locator("#account-admin-entry")).toBeVisible();
+    await page.goBack();
+    await page.locator("#my-admin").click();
+    if (legacy) {
+      await expect(page.getByRole("heading", { name: "需要更新 NAS", exact: true })).toBeVisible();
+      await expect(page.locator("#admin-create-link,.admin-navigation")).toHaveCount(0);
+      expect(state.requests).toEqual([]);
+      expect(state.scopes).toEqual([]);
+    } else {
+      await expect(page.locator("#admin-create-link")).toBeVisible();
+    }
+    await assertNoOverflow(page);
+  });
+}
+
+for (const [name, options] of [
+  ["guest", { signedOut: true }],
+  ["ordinary user", { role: "user" }],
+  ["unverified account", { accountStatus: 403 }],
+]) {
+  test(`${name} does not see an administrator entry in account details`, async ({ page }) => {
+    const state = await install(page, options);
+    await page.goto("/#/account");
+    await expect(page.locator("#account-title")).toBeVisible();
+    await expect(page.locator(".upload-message")).toHaveCount(0);
+    await expect(page.locator("#account-admin-entry")).toHaveCount(0);
+    expect(state.requests).toEqual([]);
+  });
+}
+
 for (const language of ["zh-CN", "en"]) {
   test.describe(`${language} administration`, () => {
     test.use({ locale: language });

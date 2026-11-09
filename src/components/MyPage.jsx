@@ -57,11 +57,11 @@ export function MyPage({ active = true, onFavorites, onSettings }) {
         <SignInDialog open={signInOpen} onClose={() => setSignInOpen(false)} />
       )}
       <div class="my-action-list" aria-label={t("library.meActions")}>
-        <AdminEntry />
         <button id="my-favorites" class="my-list-button" onClick={onFavorites} aria-haspopup="dialog">
           <span class="my-list-icon"><Icon name="star" /></span>
           <span>{t("library.myFavorites")}</span><Icon name="chevron-right" />
         </button>
+        <AdminEntry />
         <button id="my-settings" class="my-list-button" onClick={onSettings} aria-haspopup="dialog">
           <span class="my-list-icon"><Icon name="settings" /></span>
           <span>{t("library.settings")}</span><Icon name="chevron-right" />

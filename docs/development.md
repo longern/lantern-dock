@@ -111,9 +111,15 @@ The Worker fixture leaves `SITE_ORIGIN` unset to exercise automatic HTTPS reques
 
 `test/integration/worker-runtime.spec.mjs` additionally bundles the LanternDock Worker itself and runs its Discovery request in workerd, using deployment compatibility flags. It checks successful login initiation and rejects a redirected Discovery response without following it. This covers runtime differences hidden by the other tests' Node-based portal adapter, including Workers' unsupported `redirect: "error"` mode; OIDC subrequests use `manual` and reject non-success statuses instead.
 
+## Administration checks
+
+`test/admin.test.mjs` checks permission gates, fixed endpoint paths, scope selection, secret-free list metadata, one-time upload URLs, validation, cancellation and bounded metadata requests. Metadata transactions have a 30-second deadline covering grant acquisition, headers and JSON bodies; file downloads retain user cancellation without a short whole-file deadline. An uncertain create request is never automatically retried. Worker tests exercise allowed/rejected scope requests; Go management tests enforce the scope plus the local role, validate inputs and quotas, and test private downloads, ranges and symlink denial.
+
+`test/browser/admin.spec.mjs` exercises responsive Chinese/English management flows, gate states, one-time secret handling, confirmation, navigation interruptions and timeouts through an explicit identity fixture. `test/integration/admin.spec.mjs` instead uses the production frontend, real workers-sso/Worker grants and NAS verification. It covers both WebTransport and direct HTTPS: administrator creation, an independent signed-out guest upload, byte-exact private downloads, revocation that retains completed files, and rejection after administrator removal. Direct HTTPS routing forwards signed requests unchanged to the local NAS; the WebTransport case uses the actual bridge. Run these with the browser/bridge commands above. Test discovery or syntax checks alone do not verify these browser flows.
+
 ## NAS backend
 
-The optional `server/` Go module implements public read-only WebDAV, private file drops and local management commands. It uses `os.Root` for filesystem confinement, `golang.org/x/net/webdav` for DAV and pure-Go SQLite for persistent grants and transactional quota reservations. See the [NAS guide](nas-server.md) for its API and deployment.
+The optional `server/` Go module implements public read-only WebDAV, private file drops, scoped administrator APIs and local management commands. It uses `os.Root` for filesystem confinement, `golang.org/x/net/webdav` for DAV and pure-Go SQLite for persistent grants and transactional quota reservations. See the [NAS guide](nas-server.md) for its API and deployment.
 
 ```sh
 cd server
