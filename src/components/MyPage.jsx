@@ -1,43 +1,20 @@
 import { t } from "../../shared/i18n.js";
-import { useEffect, useLayoutEffect, useState } from "preact/hooks";
-import { identitySession } from "../lib/identity.js";
+import { useLayoutEffect, useState } from "preact/hooks";
+import { useSession } from "../hooks/useSession.jsx";
 import { SignInDialog } from "./SignInDialog.jsx";
 import { Icon } from "./Icon.jsx";
 
 export function MyPage({ active = true, onFavorites, onSettings }) {
-  const [state, setState] = useState({ status: "loading" });
+  const { identity: state, refreshIdentity } = useSession();
   const [signInOpen, setSignInOpen] = useState(false);
   useLayoutEffect(() => {
     if (!active || state.status !== "signed-out") setSignInOpen(false);
   }, [active, state.status]);
-  const [revision, setRevision] = useState(0);
-  useEffect(() => {
-    const refresh = () => setRevision((value) => value + 1);
-    window.addEventListener("lantern-dock:session-changed", refresh);
-    return () => window.removeEventListener("lantern-dock:session-changed", refresh);
-  }, []);
-  useEffect(() => {
-    const controller = new AbortController();
-    setState({ status: "loading" });
-    identitySession(controller.signal).then((session) => {
-      if (controller.signal.aborted) return;
-      if (session.authenticated === true && session.user) {
-        setState({ status: "authenticated", user: session.user });
-      } else if (session.authenticated === false) {
-        setState({ status: "signed-out" });
-      } else {
-        setState({ status: "error" });
-      }
-    }, () => {
-      if (!controller.signal.aborted) setState({ status: "error" });
-    });
-    return () => controller.abort();
-  }, [revision]);
   const signedIn = state.status === "authenticated";
   const title = state.status === "loading"
     ? t("account.checkingAccount")
     : state.status === "error"
-      ? t("account.sessionUnavailable")
+      ? t(state.error?.kind === "offline" ? "account.sessionOffline" : "account.sessionUnavailable")
       : signedIn
         ? state.user.name || state.user.email || t("account.myAccount")
         : t("account.guest");
@@ -64,12 +41,12 @@ export function MyPage({ active = true, onFavorites, onSettings }) {
           <span class="my-account-symbol" aria-hidden="true"><Icon name="user" /></span>
           <div class="my-account-copy" aria-live="polite">
             <h2>{title}</h2>
-            {state.status === "error" && <p>{t("account.sessionRetryHint")}</p>}
+            {state.status === "error" && <p>{t(state.error?.kind === "offline" ? "account.sessionOfflineHint" : "account.sessionRetryHint")}</p>}
           </div>
         </div>}
         <div class="my-account-actions">
           {state.status === "error" && (
-            <button id="my-account-retry" class="secondary-button" onClick={() => setRevision((value) => value + 1)}>
+            <button id="my-account-retry" class="secondary-button" onClick={refreshIdentity}>
               <Icon name="refresh" />{t("library.retry")}
             </button>
           )}

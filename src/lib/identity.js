@@ -106,6 +106,7 @@ async function result(response, parsed) {
         t("core.error.ACCOUNT_SERVICE_ERROR", { status: response.status }),
     );
     error.code = value.code;
+    error.status = response.status;
     throw error;
   }
   return value;
@@ -149,7 +150,7 @@ export async function endLogin() {
   );
 }
 let tokenNonce;
-export async function requestNASGrant(signal) {
+export async function requestNASGrant(signal, scope = ACCOUNT_SCOPE) {
   const metadata = await result(
     await fetch(AUTHORIZATION_METADATA_PATH, { cache: "no-store", headers: { "Accept-Language": locale }, signal }),
   );
@@ -181,7 +182,7 @@ export async function requestNASGrant(signal) {
         grant_type: SESSION_GRANT_TYPE,
         client_id: location.origin + "/",
         resource: location.origin + "/nas",
-        scope: ACCOUNT_SCOPE,
+        scope,
       }),
     });
     const value = await response.json().catch(() => ({}));
@@ -244,7 +245,7 @@ export async function accountConnection(signal) {
         signal,
       }),
     );
-    return { transport, ...info };
+    return { transport, backend: config.backend, ...info };
   } catch (error) {
     transport.close();
     throw error;

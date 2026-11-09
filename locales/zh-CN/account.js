@@ -1,4 +1,11 @@
 export default {
+  "sessionOffline": "当前处于离线状态",
+  "sessionOfflineHint": "联网后可重新检查账户。公开浏览不需要登录。",
+  "nasOffline": "当前处于离线状态，无法检查 NAS 权限；站点登录状态未改变。",
+  "nasPermissionDenied": "NAS 未授权此账户，站点登录状态未改变。",
+  "nasNotConfigured": "尚未配置 NAS，站点账户仍已登录。",
+  "retryNAS": "重新检查 NAS 权限",
+
   "closeSignIn": "关闭登录",
   "signInFailed": "暂时无法开始登录，请重试。",
   "guest": "游客",

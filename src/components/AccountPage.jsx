@@ -1,12 +1,7 @@
 import { t } from "../../shared/i18n.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
-import {
-  identitySession,
-  accountConnection,
-  beginLogin,
-  endLogin,
-} from "../lib/identity.js";
+import { useSession } from "../hooks/useSession.jsx";
 
 export function AccountPage() {
   const [returnToMe] = useState(() => {
@@ -21,16 +16,20 @@ export function AccountPage() {
       return requested;
     }
   });
-  const [session, setSession] = useState(null);
-  const [account, setAccount] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { identity, nas, ensureNAS, refreshIdentity, refreshNAS, login: beginLogin, logout: endLogin } = useSession();
+  const session = identity.status === "authenticated" ? identity : null;
+  const account = nas.status === "ready" ? nas.account : null;
+  const loading = identity.status === "loading";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [accountError, setAccountError] = useState("");
   const [copied, setCopied] = useState("");
-  const [revision, setRevision] = useState(0);
-  const connection = useRef(null);
-  const request = useRef(null);
+  const accountError = nas.status === "error"
+    ? nas.error.kind === "offline" ? t("account.nasOffline")
+      : nas.error.kind === "unauthorized" ? t("account.nasPermissionDenied")
+        : nas.error.kind === "unconfigured" ? t("account.nasNotConfigured") : nas.error.message
+    : "";
+  const sessionFailure = identity.status === "error"
+    ? identity.error.kind === "offline" ? t("account.sessionOffline") : identity.error.message : "";
   const loginRequest = useRef(null);
   const mounted = useRef(true);
   useEffect(() => () => {
@@ -51,52 +50,8 @@ export function AccountPage() {
     history.replaceState(null, "", `#/account${suffix ? `?${suffix}` : ""}`);
   }, []);
   useEffect(() => {
-    const controller = new AbortController();
-    request.current = controller;
-    setLoading(true);
-    setSession(null);
-    setAccount(null);
-    setAccountError("");
-    (async () => {
-      try {
-        const value = await identitySession(controller.signal);
-        if (controller.signal.aborted) return;
-        setSession(value.authenticated ? value : null);
-        if (value.authenticated) {
-          try {
-            const info = await accountConnection(controller.signal);
-            if (controller.signal.aborted) {
-              info.transport.close();
-              return;
-            }
-            if (
-              info.user.sub !== value.user.sub ||
-              info.user.issuer !== value.user.issuer
-            ) {
-              info.transport.close();
-              throw new Error(t("account.identityMismatch"));
-            }
-            connection.current = info.transport;
-            setAccount(info);
-          } catch (err) {
-            if (!controller.signal.aborted) setAccountError(err.message);
-          }
-        }
-      } catch (err) {
-        if (!controller.signal.aborted) setError(err.message);
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    })();
-    const stop = () => connection.current?.close();
-    window.addEventListener("pagehide", stop);
-    return () => {
-      controller.abort();
-      stop();
-      connection.current = null;
-      window.removeEventListener("pagehide", stop);
-    };
-  }, [revision]);
+    if (identity.status === "authenticated") void ensureNAS();
+  }, [identity.status, identity.user, ensureNAS]);
   const copy = async (value, successMessage) => {
     try {
       await navigator.clipboard.writeText(value);
@@ -106,6 +61,7 @@ export function AccountPage() {
     }
   };
   const login = async () => {
+    if (busy || loginRequest.current) return;
     const controller = new AbortController();
     loginRequest.current = controller;
     setBusy(true);
@@ -120,6 +76,7 @@ export function AccountPage() {
         try { sessionStorage.removeItem("lantern-dock:account-return"); } catch { /* Optional navigation hint. */ }
       }
       if (mounted.current && !controller.signal.aborted) {
+        loginRequest.current = null;
         setError(err.message);
         setBusy(false);
       }
@@ -130,19 +87,7 @@ export function AccountPage() {
     setError("");
     try {
       await endLogin();
-      // Logout may finish after a user has returned to My. Refresh that real
-      // session rather than leaving the account summary with the old identity.
-      window.dispatchEvent(new Event("lantern-dock:session-changed"));
-      if (!mounted.current) return;
-      // Do not let a pending NAS response put the old identity back after logout.
-      request.current?.abort();
-      connection.current?.close();
-      connection.current = null;
-      setSession(null);
-      setAccount(null);
-      setAccountError("");
-      setCopied("");
-      setLoading(false);
+      if (mounted.current) setCopied("");
     } catch (err) {
       if (mounted.current) setError(err.message);
     } finally {
@@ -163,18 +108,19 @@ export function AccountPage() {
           <h1 id="account-title">
             {session
               ? session.user.name || t("account.signedIn")
-              : t("account.signInTitle")}
+              : loading ? t("account.checkingAccount")
+                : sessionFailure ? t("account.sessionUnavailable") : t("account.signInTitle")}
           </h1>
-          {!session && <p>{t("account.signInDescription")}</p>}
+          {identity.status === "signed-out" && <p>{t("account.signInDescription")}</p>}
         </div>
-        {loading && (
+        {(loading || nas.status === "loading") && (
           <p class="upload-message" role="status">
             {t("account.checkingAccount")}
           </p>
         )}
-        {error && (
+        {(error || sessionFailure) && (
           <p class="account-notice error" role="alert">
-            {error}
+            {error || sessionFailure}
           </p>
         )}
         {session && (
@@ -257,9 +203,12 @@ export function AccountPage() {
               <p class="account-notice">{t("account.administratorEnabled")}</p>
             )}
             {accountError && (
-              <p class="account-notice error" role="alert">
-                {accountError}
-              </p>
+              <div class="account-notice error">
+                <p role="alert">{accountError}</p>
+                <button class="secondary-button" disabled={busy} onClick={refreshNAS}>
+                  {t("account.retryNAS")}
+                </button>
+              </div>
             )}
           </>
         )}
@@ -269,7 +218,7 @@ export function AccountPage() {
           </p>
         )}
         <div class="account-actions">
-          {!session && !loading && (
+          {identity.status === "signed-out" && (
             <button class="primary-button" disabled={busy} onClick={login}>
               <Icon name="user" />
               {busy ? t("account.redirectingToSignIn") : t("account.signIn")}
@@ -286,7 +235,7 @@ export function AccountPage() {
             disabled={loading || busy}
             onClick={() => {
               setError("");
-              setRevision((value) => value + 1);
+              void refreshIdentity();
             }}
           >
             {t("account.checkAgain")}

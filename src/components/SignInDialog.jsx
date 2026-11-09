@@ -1,12 +1,13 @@
 import { t } from "../../shared/i18n.js";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
-import { beginLogin } from "../lib/identity.js";
+import { useSession } from "../hooks/useSession.jsx";
 import { Dialog } from "./Dialog.jsx";
 import { Icon } from "./Icon.jsx";
 
 const returnKey = "lantern-dock:account-return";
 
 export function SignInDialog({ open, onClose }) {
+  const { login: beginLogin } = useSession();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const request = useRef(null);
