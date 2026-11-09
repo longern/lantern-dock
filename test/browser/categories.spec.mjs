@@ -9,7 +9,7 @@ const mainNav = (page) => page.getByRole("navigation", {
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
 });
 
 test("home cards show an icon-only album above its label and match the light gray canvas", async ({ page }, testInfo) => {
@@ -42,25 +42,25 @@ test("category shortcuts open the file view and clear search", async ({ page }) 
     await expect(cards(page)).toHaveCount(0);
     await expect(mainNav(page).getByRole("button", { name: /^文件/ })).toHaveAttribute("aria-current", "page");
     await expect(page.locator(".filter-chip")).toContainText(label);
-    await expect(page.locator(".file-card")).toHaveCount(count);
+    await expect(page.locator(".file-item")).toHaveCount(count);
     if (!count) {
       await expect(page.locator(".empty-state")).toContainText("当前文件夹没有此类文件");
       await page.getByRole("button", { name: "查看全部文件" }).click();
     } else {
       await page.getByRole("button", { name: "清除类型筛选" }).click();
     }
-    await expect(page.locator(".file-card")).toHaveCount(12);
+    await expect(page.locator(".file-item")).toHaveCount(12);
     await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
     await mainNav(page).getByRole("button", { name: "首页", exact: true }).click();
     await expect(page.getByRole("searchbox")).toHaveValue("");
-    await expect(page.locator(".file-card")).toHaveCount(12);
+    await expect(page.locator(".file-item")).toHaveCount(12);
   }
 });
 
 test("home shortcuts support keyboard activation and return to recent files", async ({ page }) => {
   await cards(page).getByRole("button", { name: "相册", exact: true }).focus();
   await page.keyboard.press("Enter");
-  await expect(page.locator(".file-card")).toHaveCount(3);
+  await expect(page.locator(".file-item")).toHaveCount(3);
   await page.getByRole("button", { name: "预览 海边的周末.svg", exact: true }).click();
   await expect(page.locator(".album-media[data-current=true] img").first()).toBeVisible();
   await page.keyboard.press("Escape");
@@ -68,7 +68,7 @@ test("home shortcuts support keyboard activation and return to recent files", as
   await mainNav(page).getByRole("button", { name: "首页", exact: true }).click();
   await expect(cards(page)).toBeVisible();
   await expect(page.getByRole("heading", { name: "最近文件", exact: true })).toBeVisible();
-  await expect(page.locator(".file-card")).toHaveCount(1);
+  await expect(page.locator(".file-item")).toHaveCount(1);
   await mainNav(page).getByRole("button", { name: /^文件/ }).click();
   await expect(cards(page)).toHaveCount(0);
   await page.getByRole("button", { name: "打开文件夹 照片", exact: true }).click();

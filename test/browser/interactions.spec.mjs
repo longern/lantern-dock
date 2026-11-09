@@ -7,7 +7,7 @@ import {
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
 });
 
 test("mobile drawer fades its backdrop both ways, contains focus and restores it after exit", async ({
@@ -218,7 +218,7 @@ test("search and type empty states offer recovery without losing keyboard access
     .locator(".empty-state")
     .getByRole("button", { name: "清除搜索" })
     .click();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   await page.getByRole("searchbox").fill("山间");
   await page
     .locator(".search-box")
@@ -235,5 +235,5 @@ test("search and type empty states offer recovery without losing keyboard access
     "当前文件夹没有此类文件",
   );
   await page.getByRole("button", { name: "查看全部文件" }).click();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
 });

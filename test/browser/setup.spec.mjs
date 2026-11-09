@@ -245,7 +245,7 @@ test("missing configuration opens a responsive wizard and demo is an explicit te
     page.getByRole("heading", { name: "连接你的文件空间", exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
-  await expect(page.locator(".file-card")).toHaveCount(0);
+  await expect(page.locator(".file-item")).toHaveCount(0);
   if (page.viewportSize().height >= 844)
     expect(
       await page.evaluate(
@@ -263,7 +263,7 @@ test("missing configuration opens a responsive wizard and demo is an explicit te
   });
   const before = count;
   await page.getByRole("button", { name: "先体验演示", exact: true }).click();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   expect(count).toBe(before);
   await page.getByRole("button", { name: "返回配置向导", exact: true }).click();
   await expect(
@@ -390,7 +390,7 @@ test("wizard exports real configuration, keeps form values on retry, and detects
   expect(requests.join("\n")).not.toContain(key);
   configured = true;
   await page.getByRole("button", { name: "重新检测", exact: true }).click();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   await expect(
     page.getByRole("heading", { name: "连接你的文件空间", exact: true }),
   ).toHaveCount(0);

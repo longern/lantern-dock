@@ -99,7 +99,7 @@ for (const { locale, expected } of [
       const copy = labels[expected];
       await page.route("**/api/config", (route) => route.fulfill({ json: { backend: backend(origin) } }));
       await page.goto("/");
-      await expect(page.locator(".file-card")).toHaveCount(12);
+      await expect(page.locator(".file-item")).toHaveCount(12);
       await expectMetadata(page, expected);
       const nav = mainNavigation(page, copy);
       const home = nav.getByRole("button", { name: copy.home, exact: true });
@@ -119,12 +119,12 @@ for (const { locale, expected } of [
       await expect(search).toHaveValue("");
       await expect(search).toBeFocused();
       await categories.getByRole("button", { name: copy.documents, exact: true }).click();
-      await expect(page.locator(".file-card")).toHaveCount(4);
+      await expect(page.locator(".file-item")).toHaveCount(4);
       await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
       await expect(page.getByRole("navigation", { name: copy.path, exact: true })).toBeVisible();
       await home.click();
       await expect(search).toHaveValue("");
-      await expect(page.locator(".file-card")).toHaveCount(12);
+      await expect(page.locator(".file-item")).toHaveCount(12);
 
       for (const mode of ["files", "favorites"]) {
         await search.fill("no-matching-i18n-file");
@@ -158,7 +158,7 @@ for (const scenario of [
     await withLocale(browser, testInfo, scenario, async (page, origin) => {
       await page.route("**/api/config", (route) => route.fulfill({ json: { backend: backend(origin) } }));
       await page.goto("/");
-      await expect(page.locator(".file-card")).toHaveCount(12);
+      await expect(page.locator(".file-item")).toHaveCount(12);
       await expectMetadata(page, scenario.expected);
       const copy = labels[scenario.expected];
       await expect(mainNavigation(page, copy).getByRole("button", { name: copy.home, exact: true }))
@@ -174,7 +174,7 @@ for (const locale of ["en-US", "zh-CN"]) {
       const copy = labels[locale === "zh-CN" ? "zh-CN" : "en"];
       await page.route("**/api/config", (route) => route.fulfill({ json: { backend: backend(origin) } }));
       await page.goto("/");
-      await expect(page.locator(".file-card")).toHaveCount(12);
+      await expect(page.locator(".file-item")).toHaveCount(12);
       const mobile = page.viewportSize().width <= 700;
       for (const dismiss of ["button", "escape"]) {
         if (mobile) await page.getByRole("button", { name: copy.openNavigation, exact: true }).click();
@@ -236,7 +236,7 @@ test("English setup export, demo and return labels survive navigation", async ({
     await page.getByRole("button", { name: "Back", exact: true }).click();
     await expect(page.getByLabel("WebDAV service address", { exact: true })).toHaveValue(`${origin}/dav/`);
     await page.getByRole("button", { name: "Try the demo", exact: true }).click();
-    await expect(page.locator(".file-card")).toHaveCount(12);
+    await expect(page.locator(".file-item")).toHaveCount(12);
     await expect(page.getByText("You are exploring demo files", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Back to setup", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Connect your file space", exact: true })).toBeVisible();
@@ -293,7 +293,7 @@ test("English filename interpolation preserves markup, braces and non-English us
       ? route.fulfill({ status: 207, contentType: "application/xml", body: listing })
       : route.fulfill({ contentType: "text/plain", body: content }));
     await page.goto("/");
-    await expect(page.locator(".file-card")).toHaveCount(1);
+    await expect(page.locator(".file-item")).toHaveCount(1);
     await expect(page.locator("#item-count")).toHaveText("1 item");
     await expect(page.locator(".file-name")).toHaveText(name);
     await expect(page.locator(".file-open")).toHaveAttribute("aria-label", `Preview ${name}`);

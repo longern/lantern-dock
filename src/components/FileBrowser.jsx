@@ -1,4 +1,5 @@
 import { t } from "../../shared/i18n.js";
+import { Fragment } from "preact";
 import { useMemo } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { artwork } from "../lib/demo.js";
@@ -8,7 +9,7 @@ import { categoryLabel } from "../lib/categories.js";
 import { fileListing } from "../lib/file-listing.js";
 import { Album } from "./Album.jsx";
 
-function FileCard({
+function FileItem({
   item,
   demo,
   client,
@@ -20,8 +21,8 @@ function FileCard({
   onFavorite,
 }) {
   return (
-    <article
-      class={`file-card${item.isDirectory ? " folder-card" : ""}${selected ? " selected" : ""}`}
+    <li
+      class={`file-item${item.isDirectory ? " folder-item" : ""}${selected ? " selected" : ""}`}
     >
       <button
         class="file-open"
@@ -30,7 +31,7 @@ function FileCard({
         aria-pressed={item.isDirectory ? undefined : selected}
         onClick={() => onOpen(item)}
       >
-        <div class={`file-art ${item.kind}`}>
+        <span class={`file-art ${item.kind}`}>
           {demo && item.kind === "image" ? (
             <img
               src={`data:image/svg+xml,${encodeURIComponent(artwork(item.name))}`}
@@ -49,17 +50,17 @@ function FileCard({
               )}
             </>
           )}
-        </div>
-        <div class="file-info">
-          <div class="file-name" title={item.name}>
+        </span>
+        <span class="file-info">
+          <span class="file-name" title={item.name}>
             {item.name}
-          </div>
-          <div class="file-meta">
+          </span>
+          <span class="file-meta">
             <span>{item.isDirectory ? t("library.folder") : bytes(item.size)}</span>
             <span class="separator">·</span>
             <span>{date(recent ? item.visitedAt : item.modified)}</span>
-          </div>
-        </div>
+          </span>
+        </span>
         <span class="row-modified">
           {date(recent ? item.visitedAt : item.modified, true)}
         </span>
@@ -75,7 +76,7 @@ function FileCard({
       >
         <Icon name="star" />
       </button>
-    </article>
+    </li>
   );
 }
 
@@ -106,6 +107,7 @@ export function FileBrowser({
     ],
   );
   const home = library.mode === "home";
+  const Collection = album ? "div" : "ul";
   const error = recordsError ||
     ((usesDirectory || recordsPending) ? library.error : null);
   const busy = !error && (recordsPending || (library.loading && usesDirectory));
@@ -216,8 +218,9 @@ export function FileBrowser({
         <span>{t("library.size")}</span>
         <span />
       </div>
-      <div
+      <Collection
         id="file-list"
+        role={album ? undefined : "list"}
         class={album ? "album-timeline" : `file-grid${view === "list" ? " list-layout" : ""}`}
         aria-live="polite"
         aria-busy={busy}
@@ -234,11 +237,14 @@ export function FileBrowser({
           />
         ) : busy && !entries.length
           ? Array.from({ length: 8 }, (_, index) => (
-              <div class="skeleton" key={index} />
+              <li class="skeleton" key={index} aria-hidden="true" />
             ))
-          : entries.map((item) => (
-              <FileCard
-                key={item.path}
+          : entries.map((item, index) => (
+            <Fragment key={item.path}>
+              {view === "list" && index > 0 && (
+                <li class="file-divider" role="presentation" aria-hidden="true"><hr /></li>
+              )}
+              <FileItem
                 item={item}
                 client={library.connection?.client}
                 side={view === "list" ? 128 : 384}
@@ -253,8 +259,9 @@ export function FileBrowser({
                     : onPreview(item)
                 }
               />
+            </Fragment>
             ))}
-      </div>
+      </Collection>
       {!busy && !entries.length && !error && (
         <div class="empty-state">
           <span class="empty-symbol">

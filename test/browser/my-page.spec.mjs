@@ -31,7 +31,7 @@ const copyByLanguage = {
 
 async function enterMyPage(page, language) {
   await page.goto("/");
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   const me = mainNavigation(page, language).getByRole("button", {
     name: copyByLanguage[language].me, exact: true,
   });

@@ -258,7 +258,7 @@ test("scrolled Favorites can reopen the menu inside the viewport and select an o
   await page.goto("/#/favorites");
   await expect(fileNames(page)).toHaveCount(40);
   for (let pass = 0; pass < 2; pass++) {
-    await page.locator("#file-list .file-card").last().scrollIntoViewIfNeeded();
+    await page.locator("#file-list .file-item").last().scrollIntoViewIfNeeded();
     const menu = await openListingOptions(page);
     const bounds = await menu.boundingBox();
     expect(bounds.x).toBeGreaterThanOrEqual(0);

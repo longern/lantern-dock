@@ -21,30 +21,40 @@ const nav = (page) =>
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
 });
 
 test("search, sorting, views, folders and navigation work", async ({
   page,
 }) => {
+  const list = page.locator("#file-list");
+  await expect(list).toHaveJSProperty("tagName", "UL");
+  await expect(list.getByRole("listitem")).toHaveCount(12);
+  await expect(list.locator(":scope > :not(li)")).toHaveCount(0);
+  await expect(list.locator(".file-open button")).toHaveCount(0);
   await page.getByRole("searchbox").fill("山间");
-  await expect(page.locator(".file-card")).toHaveCount(1);
+  await expect(page.locator(".file-item")).toHaveCount(1);
   await page.getByRole("searchbox").fill("no-such-file");
   await expect(page.getByText("没有找到匹配的文件")).toBeVisible();
   await expect(page.locator(".list-head")).toBeHidden();
   await page.getByRole("searchbox").fill("");
   await chooseListingOption(page, "大小");
   await expect(
-    page.locator(".file-card").nth(4).locator(".file-name"),
+    page.locator(".file-item").nth(4).locator(".file-name"),
   ).toHaveText("归档资料.zip");
   await chooseListingOption(page, "网格视图");
   await expect(page.locator("#file-list")).not.toHaveClass(/list-layout/);
+  await expect(list.getByRole("listitem")).toHaveCount(12);
+  await expect(list.locator(".file-divider")).toHaveCount(0);
   await chooseListingOption(page, "列表视图");
   await expect(page.locator("#file-list")).toHaveClass(/list-layout/);
+  await expect(list.locator(":scope > li.file-divider > hr")).toHaveCount(11);
+  await expect(list.getByRole("listitem")).toHaveCount(12);
+  await expect(list.getByRole("separator")).toHaveCount(0);
   await page
     .getByRole("button", { name: "打开文件夹 照片", exact: true })
     .click();
-  await expect(page.locator(".file-card")).toHaveCount(4);
+  await expect(page.locator(".file-item")).toHaveCount(4);
   await expect(
     page.getByRole("navigation", { name: "文件路径" }),
   ).toContainText("照片");
@@ -52,9 +62,9 @@ test("search, sorting, views, folders and navigation work", async ({
     .getByRole("navigation", { name: "文件路径" })
     .getByRole("button", { name: "公开资源库", exact: true })
     .click();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   await nav(page).getByRole("button", { name: /首页/ }).click();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(0);
 });
 
@@ -119,12 +129,12 @@ test("favorites and recent entries survive reload without storing credentials", 
   await page.getByRole("button", { name: "收藏文件", exact: true }).click();
   await page.getByRole("button", { name: "关闭预览" }).click();
   await openFavorites(page);
-  await expect(page.locator(".file-card")).toHaveCount(1);
+  await expect(page.locator(".file-item")).toHaveCount(1);
   await closeFavorites(page);
   await nav(page).getByRole("button", { name: /首页/ }).click();
-  await expect(page.locator(".file-card")).toHaveCount(1);
+  await expect(page.locator(".file-item")).toHaveCount(1);
   await page.reload();
-  await expect(page.locator(".file-card")).toHaveCount(1);
+  await expect(page.locator(".file-item")).toHaveCount(1);
   await openFavorites(page);
   await expect(page.locator(".file-name")).toHaveText("项目笔记.md");
 });
@@ -141,7 +151,7 @@ test("settings reconnect and credential clearing clean up preview", async ({
   await page.getByLabel("用户名", { exact: true }).fill("local-user");
   await page.getByLabel("密码", { exact: true }).fill("memory-only-secret");
   await page.getByRole("button", { name: "连接", exact: true }).click();
-  await expect(page.locator(".file-card")).toHaveCount(1);
+  await expect(page.locator(".file-item")).toHaveCount(1);
   await openConnectionSettings(page);
   await expect(page.getByLabel("用户名", { exact: true })).toHaveValue(
     "local-user",
@@ -155,7 +165,7 @@ test("settings reconnect and credential clearing clean up preview", async ({
   );
   await page.getByRole("button", { name: "关闭设置" }).click();
   await page.reload();
-  await expect(page.locator(".file-card")).toHaveCount(1);
+  await expect(page.locator(".file-item")).toHaveCount(1);
   await openConnectionSettings(page);
   await expect(page.getByLabel("访问方式", { exact: true })).toHaveValue(
     "none",
@@ -186,7 +196,7 @@ test("config failures stay visible and reconnect can recover", async ({
   await expect(page.getByRole("alert")).toContainText(
     "No unexpired certificate pins",
   );
-  await expect(page.locator(".file-card")).toHaveCount(0);
+  await expect(page.locator(".file-item")).toHaveCount(0);
   await expect(page.locator(".list-head")).toBeHidden();
   const settings = page.locator(".empty-state").getByRole("button", { name: "连接设置", exact: true });
   await settings.click();
@@ -197,7 +207,7 @@ test("config failures stay visible and reconnect can recover", async ({
   await page.unroute("**/api/config");
   await settings.click();
   await page.getByRole("button", { name: "连接", exact: true }).click();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   await expect(page.locator(".list-head")).not.toHaveAttribute("hidden");
 });
 

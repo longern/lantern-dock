@@ -20,7 +20,7 @@ const dialogFor = (page, copy) => page.getByRole("dialog", { name: copy.title, e
 
 async function openGuest(page, copy) {
   await page.goto("/");
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   await page.evaluate(() => { location.hash = "#/me"; });
   const trigger = page.getByRole("button", { name: copy.guest, exact: true });
   await expect(trigger).toBeVisible();
@@ -259,7 +259,7 @@ test("the authenticated account callback consumes the Me hint and keeps the acco
     user: { sub: "fixture-user", issuer: "https://identity.example", name: "Signed-in visitor", email: "visitor@example.test" },
   } }));
   await page.goto("/");
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   await page.evaluate((key) => {
     sessionStorage.setItem(key, "me");
     location.hash = "#/account";

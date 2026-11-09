@@ -30,12 +30,12 @@ for (const history of [[], [visit]]) {
       await expect(page.locator("#file-list")).toHaveAttribute("aria-busy", "true");
       await expect(page.locator("#file-list")).toHaveAttribute("aria-label", "最近文件列表");
       await expect(page.locator(".skeleton")).toHaveCount(8);
-      await expect(page.locator(".file-card,.empty-state")).toHaveCount(0);
+      await expect(page.locator(".file-item,.empty-state")).toHaveCount(0);
       await expect(listingOptionsButton(page)).toHaveCount(0);
     } finally {
       release();
     }
-    await expect(page.locator(".file-card")).toHaveCount(history.length || 12);
+    await expect(page.locator(".file-item")).toHaveCount(history.length || 12);
     await expect(page.locator(".file-section-title")).toHaveText(history.length ? "最近文件" : "文件");
     await expect.poll(() => page.evaluate(() => window.homeTitles))
       .toEqual(history.length ? ["最近文件"] : ["最近文件", "文件"]);
@@ -50,7 +50,7 @@ test("configuration failure remains an error without pretending history is empty
   await expect(page.locator(".file-section-title")).toHaveText("最近文件");
   await expect(page.getByRole("heading", { name: "无法读取文件", exact: true })).toBeVisible();
   await expect(page.locator("#file-list")).toHaveAttribute("aria-busy", "false");
-  await expect(page.locator(".file-card,.skeleton")).toHaveCount(0);
+  await expect(page.locator(".file-item,.skeleton")).toHaveCount(0);
   await expect(listingOptionsButton(page)).toHaveCount(0);
 });
 
@@ -68,7 +68,7 @@ test("denied history reads stay errors and retry recovers without a directory fl
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "无法读取最近文件记录", exact: true })).toBeVisible();
   await expect(page.locator(".file-section-title")).toHaveText("最近文件");
-  await expect(page.locator(".file-card,.skeleton")).toHaveCount(0);
+  await expect(page.locator(".file-item,.skeleton")).toHaveCount(0);
   await expect(page.locator("#file-list")).toHaveAttribute("aria-busy", "false");
   await page.evaluate(() => { window.blockRecentReads = false; });
   await page.getByRole("button", { name: "重试", exact: true }).click();
@@ -82,7 +82,7 @@ test("corrupt history is not overwritten by previewing a file and can be retried
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "无法读取最近文件记录", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "查看文件", exact: true }).click();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   await page.getByRole("button", { name: `预览 ${visit.name}`, exact: true }).click();
   await page.getByRole("button", { name: "关闭预览", exact: true }).click();
   expect(await page.evaluate((key) => localStorage.getItem(key), recentKey)).toBe("{corrupt");
@@ -94,7 +94,7 @@ test("corrupt history is not overwritten by previewing a file and can be retried
   await page.evaluate((key) => localStorage.setItem(key, "[]"), recentKey);
   await page.getByRole("button", { name: "重试", exact: true }).click();
   await expect(page.locator(".file-section-title")).toHaveText("文件");
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
 });
 
 for (const switchBackend of [false, true]) {
@@ -103,7 +103,7 @@ for (const switchBackend of [false, true]) {
       key: recentKey, history: switchBackend ? [visit] : [],
     });
     await page.goto("/");
-    await expect(page.locator(".file-card")).toHaveCount(switchBackend ? 1 : 12);
+    await expect(page.locator(".file-item")).toHaveCount(switchBackend ? 1 : 12);
     await expect(page.locator(".status-pill")).toContainText("演示空间");
     await page.evaluate(() => {
       window.sawEmptyDirectory = false;
@@ -126,12 +126,12 @@ for (const switchBackend of [false, true]) {
       await page.getByRole("button", { name: "连接", exact: true }).click();
       await expect(page.locator(".file-section-title")).toHaveText("最近文件");
       await expect(page.locator("#file-list")).toHaveAttribute("aria-busy", "true");
-      await expect(page.locator(".file-card")).toHaveCount(0);
+      await expect(page.locator(".file-item")).toHaveCount(0);
       await expect(page.locator(".skeleton")).toHaveCount(8);
     } finally {
       release();
     }
-    await expect(page.locator(".file-card")).toHaveCount(12);
+    await expect(page.locator(".file-item")).toHaveCount(12);
     await expect(page.locator(".file-section-title")).toHaveText("文件");
     expect(await page.evaluate(() => window.sawEmptyDirectory)).toBe(false);
   });

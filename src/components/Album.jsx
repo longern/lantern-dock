@@ -38,7 +38,7 @@ export function Album({ entries, loading, demo, client, selected, onPreview }) {
       </h2>
       <div class="file-grid album-layout">
         {group.items.map((item) => (
-          <article class="file-card album-item" key={item.path}>
+          <article class="file-item album-item" key={item.path}>
             <button
               class="file-open album-preview"
               ref={(node) => node ? elements.current.set(item.path, node) : elements.current.delete(item.path)}

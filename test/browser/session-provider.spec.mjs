@@ -13,11 +13,11 @@ test("a pending Worker check never blocks public files and survives My navigatio
     await route.fulfill({ json: session });
   });
   await page.goto("/");
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   await mainNavigation(page).getByRole("button", { name: "我的", exact: true }).click();
   await expect(page.locator("#my-account")).toHaveAttribute("data-status", "loading");
   await mainNavigation(page).getByRole("button", { name: "首页", exact: true }).click();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   await mainNavigation(page).getByRole("button", { name: "我的", exact: true }).click();
   expect(checks).toBe(1);
   release();
@@ -79,7 +79,7 @@ test("blocked cross-tab messaging does not interrupt public or account state", a
   });
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: session }));
   await page.goto("/");
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   await page.evaluate(() => { location.hash = "#/account"; });
   await expect(page.getByRole("heading", { name: "Shared account", exact: true })).toBeVisible();
   expect(errors).toEqual([]);

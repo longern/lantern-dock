@@ -42,7 +42,7 @@ async function expectBorderless(locator) {
 test.beforeEach(async ({ page }) => {
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: { authenticated: false } }));
   await page.goto("/");
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
 });
 
 test("listing menu grows and fades from its anchor and remains mounted through a noninteractive exit", async ({ page }) => {

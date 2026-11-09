@@ -199,7 +199,7 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
-  .file-card .favorite-button {
+  .file-item .favorite-button {
     opacity: 0.6;
   }
   .file-art {

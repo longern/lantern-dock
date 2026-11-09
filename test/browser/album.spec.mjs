@@ -54,7 +54,7 @@ for (const service of ["unavailable", "unsupported", "broken-image"]) {
       return route.fulfill({ contentType: "image/svg+xml", body: photo });
     });
     await page.goto("/");
-    await expect(page.locator(".file-card")).toHaveCount(1);
+    await expect(page.locator(".file-item")).toHaveCount(1);
     await page.getByRole("navigation", { name: "文件分类", exact: true })
       .getByRole("button", { name: "相册", exact: true }).click();
     const gallery = page.locator("#file-list");

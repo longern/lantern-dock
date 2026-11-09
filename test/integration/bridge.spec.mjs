@@ -50,7 +50,7 @@ test("real bridge distinguishes gateway 407 and backend 401, then browses, previ
   await login(page, gatewayToken, "invalid-backend-token");
   await expect(page.getByRole("alert")).toContainText("后端需要登录");
   await login(page);
-  await expect(page.locator(".file-card")).toHaveCount(5);
+  await expect(page.locator(".file-item")).toHaveCount(5);
   await page.getByRole("navigation", {
     name: page.viewportSize().width <= 700 ? "移动端资源导航" : "资源导航",
     exact: true,
@@ -79,7 +79,7 @@ test("real bridge distinguishes gateway 407 and backend 401, then browses, previ
   await expect(
     page.getByRole("navigation", { name: "文件路径" }),
   ).toContainText("照片");
-  await expect(page.locator(".file-card")).toHaveCount(5);
+  await expect(page.locator(".file-item")).toHaveCount(5);
   await expect
     .poll(() =>
       fixture.requests.some(
@@ -204,7 +204,7 @@ test("download progress stays actionable inside a mobile preview and cancels the
   await page.goto(fixture.origin);
   await expect(page.getByRole("alert")).toContainText("网关需要认证");
   await login(page);
-  await expect(page.locator(".file-card")).toHaveCount(5);
+  await expect(page.locator(".file-item")).toHaveCount(5);
   const before = fixture.cancellations.length;
   await page
     .getByRole("button", { name: "预览 slow.bin", exact: true })
@@ -246,7 +246,7 @@ test("first-run setup rechecks applied server settings and connects to the real 
     await page.getByRole("button", { name: "重新检测", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("网关需要认证");
     await login(page);
-    await expect(page.locator(".file-card")).toHaveCount(5);
+    await expect(page.locator(".file-item")).toHaveCount(5);
   } finally {
     delete fixture.env.WEBTRANSPORT_URL;
     delete fixture.env.WEBDAV_URL;
@@ -313,7 +313,7 @@ test("dashboard dotenv export provisions a new key and its derived certificate w
     await page.getByRole("button", { name: "重新检测", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("网关需要认证");
     await login(page);
-    await expect(page.locator(".file-card")).toHaveCount(5);
+    await expect(page.locator(".file-item")).toHaveCount(5);
   } finally {
     for (const key of Object.keys(fixture.env)) delete fixture.env[key];
     Object.assign(fixture.env, previous);
@@ -354,7 +354,7 @@ test("missing pins resume at certificate setup and publishing them enables the r
     await page.getByRole("button", { name: "重新检测", exact: true }).click();
     await expect(page.getByRole("alert")).toContainText("网关需要认证");
     await login(page);
-    await expect(page.locator(".file-card")).toHaveCount(5);
+    await expect(page.locator(".file-item")).toHaveCount(5);
   } finally {
     fixture.pins.clear();
     for (const [key, value] of previous) fixture.pins.set(key, value);

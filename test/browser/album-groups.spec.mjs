@@ -79,7 +79,7 @@ test.beforeEach(async ({ page }) => {
       body: listing(photos) });
   });
   await page.goto("/");
-  await expect(page.locator(".file-card")).toHaveCount(14);
+  await expect(page.locator(".file-item")).toHaveCount(14);
   await album(page).click();
   await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
 });
@@ -231,7 +231,7 @@ test("separate sidebar image and video filters do not mix file types", async ({ 
     await page.getByRole("navigation", { name: "文件类型", exact: true })
       .getByRole("button", { name: label, exact: true }).click();
     await expect(page.locator(".filter-chip")).toContainText(label);
-    await expect(page.locator(".file-card")).toHaveCount(count);
+    await expect(page.locator(".file-item")).toHaveCount(count);
     await expect(page.locator(".album-video-indicator")).toHaveCount(0);
     if (label === "图片") await expect(page.locator(".album-item")).toHaveCount(12);
     else await expect(page.locator(".file-name")).toHaveText(["clip.mp4", "undated.mp4"]);

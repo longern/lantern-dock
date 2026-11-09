@@ -21,7 +21,7 @@ test("default NAS routes and capabilities work through the shared bridge namespa
 }) => {
   expect(fixture.env.BACKEND_ROOT).toBeUndefined();
   await page.goto(fixture.origin);
-  await expect(page.locator(".file-card")).toHaveCount(3);
+  await expect(page.locator(".file-item")).toHaveCount(3);
   const result = await page.evaluate(async () => {
     const { DirectTransport } = await import("/__test/lib/transport.js");
     const { backendPaths } = await import("/shared/backend-paths.js");
@@ -75,7 +75,7 @@ test("NAS serves public read-only WebDAV and receives a private file through the
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(fixture.origin);
-  await expect(page.locator(".file-card")).toHaveCount(3);
+  await expect(page.locator(".file-item")).toHaveCount(3);
   await page
     .getByRole("button", { name: "预览 hello.txt", exact: true })
     .click();
@@ -115,7 +115,7 @@ test("NAS serves public read-only WebDAV and receives a private file through the
     name: page.viewportSize().width <= 700 ? "移动端资源导航" : "资源导航",
     exact: true,
   }).getByRole("button", { name: /^文件/ }).click();
-  await expect(page.locator(".file-card")).toHaveCount(3);
+  await expect(page.locator(".file-item")).toHaveCount(3);
   await expect(page.getByText("来访资料.txt")).toHaveCount(0);
   const status = await page.evaluate(async () => {
     const { DirectTransport } = await import("/__test/lib/transport.js");
@@ -140,9 +140,9 @@ test("recycle bins and symlink aliases stay hidden and inaccessible through WebT
   page,
 }) => {
   await page.goto(fixture.origin);
-  await expect(page.locator(".file-card")).toHaveCount(3);
+  await expect(page.locator(".file-item")).toHaveCount(3);
   await expect(
-    page.locator(".file-card").filter({ hasText: /recycle/i }),
+    page.locator(".file-item").filter({ hasText: /recycle/i }),
   ).toHaveCount(0);
   const result = await page.evaluate(async () => {
     const { DirectTransport } = await import("/__test/lib/transport.js");
@@ -321,9 +321,9 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
   await page
     .getByRole("button", { name: "打开文件夹 照片", exact: true })
     .click();
-  await expect(page.locator(".file-card")).toHaveCount(2);
+  await expect(page.locator(".file-item")).toHaveCount(2);
   const thumbnail = page
-    .locator(".file-card")
+    .locator(".file-item")
     .filter({
       has: page.getByRole("button", { name: "预览 photo.png", exact: true }),
     })
@@ -466,7 +466,7 @@ test("video posters and MP4Box MediaSource playback seek over the real bridge", 
   await page
     .getByRole("button", { name: "打开文件夹 照片", exact: true })
     .click();
-  const card = page.locator(".file-card").filter({
+  const card = page.locator(".file-item").filter({
     has: page.getByRole("button", { name: "预览 video.mp4", exact: true }),
   });
   const poster = card.locator(".thumbnail-slot img");

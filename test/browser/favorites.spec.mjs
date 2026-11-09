@@ -21,7 +21,7 @@ const favoritesDialog = (page) => page.getByRole("dialog", { name: "我的收藏
 
 async function prepareFavorite(page) {
   await page.goto("/");
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   await page.getByRole("button", { name: "收藏 项目笔记.md", exact: true }).click();
 }
 
@@ -242,7 +242,7 @@ test("desktop favorites are a reloadable subpage with working Back, Forward and 
   await expect(page.locator(".favorites-page")).toBeVisible();
   await expect(page.locator(".file-name")).toHaveText(favorite.name);
   await mainNavigation(page).getByRole("button", { name: /^文件/ }).click();
-  await expect(page.locator(".file-card")).toHaveCount(12);
+  await expect(page.locator(".file-item")).toHaveCount(12);
   await expect(page.locator(".favorites-page")).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "文件路径", exact: true })).toBeVisible();
 });
@@ -261,7 +261,7 @@ test("a direct favorites link waits for configuration, then loads only saved fav
     await page.goto("/#/favorites", { waitUntil: "domcontentloaded" });
     await expectSingleListing(page);
     await expect(page.locator("#file-list")).toHaveAttribute("aria-busy", "true");
-    await expect(page.locator(".file-card,.empty-state")).toHaveCount(0);
+    await expect(page.locator(".file-item,.empty-state")).toHaveCount(0);
     if (page.viewportSize().width <= 700) await expect(favoritesDialog(page)).toBeVisible();
   } finally {
     release();
@@ -287,7 +287,7 @@ for (const failure of ["denied", "corrupt"]) {
     await page.goto("/#/favorites");
     await expect(page.getByRole("heading", { name: "无法读取收藏", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "暂无收藏", exact: true })).toHaveCount(0);
-    await expect(page.locator(".file-card")).toHaveCount(0);
+    await expect(page.locator(".file-item")).toHaveCount(0);
     await expectSingleListing(page);
     await page.evaluate(({ key, favorite }) => {
       window.blockFavoritesReads = false;
