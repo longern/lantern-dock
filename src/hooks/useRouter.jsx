@@ -15,7 +15,7 @@ const snapshot = () => ({
   state: history.state?.lanternDockRoute || {},
 });
 export function RouterProvider({ children }) {
-  const [value, setValue] = useState(snapshot);
+  const [value, setValue] = useState(() => ({ ...snapshot(), initial: true }));
   const pendingPop = useRef(null);
   const commit = useCallback((href, { replace = false, state = {} } = {}) => {
     const url = new URL(href, location.origin);
@@ -58,7 +58,7 @@ export function RouterProvider({ children }) {
           return;
         }
       }
-      setValue(snapshot());
+      setValue({ ...snapshot(), initial: !event });
     };
     const link = (event) => {
       if (

@@ -117,6 +117,8 @@ dialog { border: 0; }
 .page-dialog[data-state="closed"]::backdrop { animation: backdrop-out var(--motion-exit) ease-in both; }
 .page-dialog[open] { animation: page-dialog-in var(--motion-enter) var(--ease-standard) both; }
 .page-dialog[open][data-state="closed"] { animation: page-dialog-out var(--motion-exit) ease-in both; }
+.page-dialog[open][data-state="open"][data-entry="instant"],
+.page-dialog[open][data-state="open"][data-entry="instant"]::backdrop { animation: none; }
 @keyframes page-dialog-in {
   from { opacity: 0; transform: translateX(100%); }
   to { opacity: 1; transform: translateX(0); }

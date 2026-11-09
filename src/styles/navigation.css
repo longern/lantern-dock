@@ -225,6 +225,17 @@
 .icon-button:active {
   background: #e9e7f7;
 }
+.icon-button:focus-visible {
+  outline: none;
+  background: #514dbb24;
+  color: var(--accent);
+}
+@media (forced-colors: active) {
+  .icon-button:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: -3px;
+  }
+}
 .browser-header .icon-button {
   width: var(--topbar-button-size);
   height: var(--topbar-button-size);

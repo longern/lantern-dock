@@ -361,7 +361,8 @@ function LibraryApp() {
       {albumPresent && (
         <PageDialog id="album-page-dialog" className="album-page-dialog"
           title={t("core.category.album")} backId="album-back" backLabel={t("library.backToHome")}
-          open={albumOpen} onClose={navigation.closeAlbum} onExited={() => setAlbumMounted(false)}
+          open={albumOpen} animateEntry={!router.initial}
+          onClose={navigation.closeAlbum} onExited={() => setAlbumMounted(false)}
           fallbackFocus=".category-album"
           actions={<button id="album-refresh" class="icon-button edge-end"
             aria-label={t("library.refreshDirectory")} disabled={library.loading} aria-busy={library.loading}

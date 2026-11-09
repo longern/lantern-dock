@@ -23,7 +23,9 @@ import {
 } from "../shared/identity-protocol.js";
 export { GRANT_SECONDS } from "../shared/identity-protocol.js";
 
-const SESSION_SECONDS = 1800;
+const SESSION_IDLE_SECONDS = 60 * 60;
+const SESSION_MAX_SECONDS = 8 * 60 * 60;
+const LEGACY_SESSION_SECONDS = 30 * 60;
 const STATE_COOKIE = "__Host-lantern-oidc";
 const SESSION_COOKIE = "__Host-lantern-session";
 const encoder = new TextEncoder();
@@ -182,11 +184,23 @@ async function siteSession(request, env, site) {
     SESSION_COOKIE,
     cookie(request, SESSION_COOKIE),
   );
+  // Pre-sliding cookies had a fixed 30-minute lifetime. Recover their original
+  // login time without restarting the absolute lifetime during an upgrade.
+  const startedAt = Object.hasOwn(session ?? {}, "startedAt")
+    ? session.startedAt
+    : session?.expires - LEGACY_SESSION_SECONDS;
   return session?.version === IDENTITY_PROTOCOL_VERSION &&
     session.issuer === site &&
     session.user?.issuer === site &&
-    validSiteSubject(session.user.sub)
-    ? session
+    validSiteSubject(session.user.sub) &&
+    Number.isSafeInteger(startedAt) &&
+    startedAt >= 0 &&
+    startedAt <= now() &&
+    Number.isSafeInteger(session.expires) &&
+    session.expires > startedAt &&
+    session.expires <= startedAt + SESSION_MAX_SECONDS &&
+    startedAt + SESSION_MAX_SECONDS > now()
+    ? { ...session, startedAt }
     : null;
 }
 async function limitedText(body, limit) {
@@ -481,6 +495,17 @@ async function issueGrant(request, env, cfg, t) {
     active: { key, jwk },
   } = await signingKeys(env, cfg.site);
   const issuedAt = now();
+  if (
+    session.expires <= issuedAt ||
+    session.startedAt + SESSION_MAX_SECONDS <= issuedAt
+  )
+    return oauthError(
+      "invalid_grant",
+      "The site session has expired or is missing.",
+      t("server.loginRequired"),
+      400,
+      "LOGIN_REQUIRED",
+    );
   const accessToken = await new SignJWT({
     lantern_dock: { protocol_version: IDENTITY_PROTOCOL_VERSION },
     client_id: cfg.site + "/",
@@ -505,6 +530,25 @@ async function issueGrant(request, env, cfg, t) {
   });
   response.headers.set("Pragma", "no-cache");
   response.headers.set("DPoP-Nonce", await nextNonce());
+  // Account probes run in the shared session provider and are not activity.
+  // Fully verified management requests renew only after half the window.
+  // The idle window is therefore conservatively between 30 and 60 minutes.
+  if (
+    requestedScopes.some((value) => value !== ACCOUNT_SCOPE) &&
+    session.expires - issuedAt <= SESSION_IDLE_SECONDS / 2
+  ) {
+    const expires = Math.min(
+      issuedAt + SESSION_IDLE_SECONDS,
+      session.startedAt + SESSION_MAX_SECONDS,
+    );
+    if (expires > session.expires && now() < session.expires)
+      setCookie(
+        response,
+        SESSION_COOKIE,
+        await seal(env, SESSION_COOKIE, { ...session, expires }),
+        expires - now(),
+      );
+  }
   return response;
 }
 function redirect(site, path) {
@@ -799,6 +843,7 @@ async function handleAuthentication(request, env, t) {
           typeof profile.email === "string" ? profile.email.slice(0, 320) : "",
       };
       const response = redirect(cfg.site, safeReturnPath(state.returnTo));
+      const startedAt = now();
       setCookie(response, STATE_COOKIE, "", 0);
       setCookie(
         response,
@@ -808,9 +853,10 @@ async function handleAuthentication(request, env, t) {
           issuer: cfg.site,
           user,
           jkt: state.jkt,
-          expires: now() + SESSION_SECONDS,
+          startedAt,
+          expires: startedAt + SESSION_IDLE_SECONDS,
         }),
-        SESSION_SECONDS,
+        SESSION_IDLE_SECONDS,
       );
       return response;
     }

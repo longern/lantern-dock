@@ -6,6 +6,7 @@ import { afterOverlayEntry } from "../lib/overlay-entry.js";
 export function Dialog({
   open,
   modal = true,
+  animateEntry = true,
   onClose,
   onEntered,
   onExited,
@@ -17,12 +18,15 @@ export function Dialog({
   const outsidePress = useRef(false);
   const returnFocus = useRef(null);
   const callbacks = useRef(null);
-  callbacks.current = { open, onClose, onEntered, onExited, fallbackFocus };
+  callbacks.current = { open, animateEntry, onClose, onEntered, onExited, fallbackFocus };
   useLayoutEffect(() => {
     const node = element.current;
     if (open) {
       if (node.open && node.matches(":modal") !== modal) node.close();
       if (!node.open) {
+        // Latch the entry mode per opening: later navigation inside a direct
+        // link must not start an animation on an already visible page.
+        node.dataset.entry = callbacks.current.animateEntry ? "animated" : "instant";
         returnFocus.current ||= document.activeElement;
         modal ? node.showModal() : node.show();
       }

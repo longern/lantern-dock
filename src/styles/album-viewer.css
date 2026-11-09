@@ -179,12 +179,13 @@ html:has(.album-viewer[open]) {
   width: 24px;
   height: 24px;
 }
-.album-viewer .icon-button:hover {
-  background: #ffffff20;
+@media (hover: hover) {
+  .album-viewer .icon-button:hover {
+    background: #ffffff20;
+  }
 }
 .album-viewer .icon-button:focus-visible {
-  outline-color: #fff;
-  outline-offset: -3px;
+  background: #ffffff3d;
 }
 .album-viewer .icon-button[aria-pressed="true"] {
   color: #f3d588;

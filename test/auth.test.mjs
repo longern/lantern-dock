@@ -374,12 +374,133 @@ test("expired and tampered session cookies fail closed; secret rotation changes 
   );
   assert.notEqual((await response.json()).keys[0].kid, key.keys[0].kid);
   const timestamp = Date.now();
-  t.mock.method(Date, "now", () => timestamp + 31 * 60 * 1000);
+  t.mock.method(Date, "now", () => timestamp + 61 * 60 * 1000);
   assert.equal(
     (await (await f.request("/api/auth/session")).json()).authenticated,
     false,
   );
 });
+test("only verified management grants renew the one-hour idle window", async (t) => {
+  let timestamp = Math.floor(Date.now() / 1000) * 1000;
+  t.mock.method(Date, "now", () => timestamp);
+  const f = await fixture();
+  await f.login();
+  const originalCookie = f.jar.get("__Host-lantern-session");
+  const initial = await (await f.request("/api/auth/session")).json();
+  assert.equal(Date.parse(initial.expiresAt), timestamp + 60 * 60 * 1000);
+  timestamp += 40 * 60 * 1000;
+  for (const path of ["/", "/api/config", "/api/auth/session"])
+    assert.equal((await f.request(path)).headers.get("Set-Cookie"), null);
+  const account = await f.grant();
+  assert.equal(account.status, 200);
+  assert.equal(account.headers.get("Set-Cookie"), null);
+  assert.equal(f.jar.get("__Host-lantern-session"), originalCookie);
+  // Neither a nonce challenge, a bad proof, nor a foreign origin is activity.
+  for (const headers of [
+    { DPoP: await f.proof("/api/auth/token") },
+    { DPoP: "invalid-proof" },
+    { Origin: "https://other.example" },
+  ]) {
+    const response = await f.request("/api/auth/token", {
+      method: "POST", headers,
+      body: new URLSearchParams({ grant_type: SESSION_GRANT_TYPE, client_id: site + "/", scope: "links:read" }),
+    });
+    assert.notEqual(response.status, 200);
+    assert.equal(response.headers.get("Set-Cookie"), null);
+    assert.equal(f.jar.get("__Host-lantern-session"), originalCookie);
+  }
+  const management = await f.grant("links:read");
+  assert.equal(management.status, 200);
+  assert.match(management.headers.get("Set-Cookie"), /Max-Age=3600; HttpOnly; Secure; SameSite=Lax/);
+  assert.equal((await management.json()).expires_in, 60);
+  assert.notEqual(f.jar.get("__Host-lantern-session"), originalCookie);
+  timestamp += 20 * 60 * 1000;
+  const renewed = await (await f.request("/api/auth/session")).json();
+  assert.equal(renewed.authenticated, true);
+  assert.equal(Date.parse(renewed.expiresAt), timestamp + 40 * 60 * 1000);
+  timestamp += 40 * 60 * 1000;
+  assert.equal((await (await f.request("/api/auth/session")).json()).authenticated, false);
+  const expired = await f.grant("inbox:read");
+  assert.equal((await expired.json()).code, "LOGIN_REQUIRED");
+  assert.equal(expired.headers.get("Set-Cookie"), null);
+});
+
+test("frequent management requests renew only after half the one-hour lifetime", async (t) => {
+  const started = Math.floor(Date.now() / 1000) * 1000;
+  let timestamp = started;
+  t.mock.method(Date, "now", () => timestamp);
+  const f = await fixture();
+  await f.login();
+  const original = f.jar.get("__Host-lantern-session");
+  for (const minutes of [1, 5, 15, 29]) {
+    timestamp = started + minutes * 60 * 1000;
+    const response = await f.grant("links:read");
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("Set-Cookie"), null);
+    assert.equal(f.jar.get("__Host-lantern-session"), original);
+  }
+  timestamp = started + 30 * 60 * 1000;
+  assert.match((await f.grant("links:read")).headers.get("Set-Cookie"), /Max-Age=3600;/);
+  const renewed = f.jar.get("__Host-lantern-session");
+  timestamp = started + 59 * 60 * 1000;
+  assert.equal((await f.grant("links:read")).headers.get("Set-Cookie"), null);
+  assert.equal(f.jar.get("__Host-lantern-session"), renewed);
+  timestamp = started + 60 * 60 * 1000;
+  assert.match((await f.grant("links:read")).headers.get("Set-Cookie"), /Max-Age=3600;/);
+});
+
+test("continued management activity cannot exceed eight hours from login", async (t) => {
+  const started = Math.floor(Date.now() / 1000) * 1000;
+  let timestamp = started;
+  t.mock.method(Date, "now", () => timestamp);
+  const f = await fixture();
+  await f.login();
+  let latestRenewal;
+  for (let minutes = 20; minutes <= 460; minutes += 20) {
+    timestamp = started + minutes * 60 * 1000;
+    const latest = await f.grant("inbox:read");
+    assert.equal(latest.status, 200);
+    if (latest.headers.has("Set-Cookie")) latestRenewal = { response: latest, at: timestamp };
+  }
+  const deadline = started + 8 * 60 * 60 * 1000;
+  assert.match(latestRenewal.response.headers.get("Set-Cookie"), new RegExp(`Max-Age=${(deadline - latestRenewal.at) / 1000};`));
+  assert.equal(Date.parse((await (await f.request("/api/auth/session")).json()).expiresAt), deadline);
+  timestamp = deadline - 1000;
+  const last = await f.grant("links:write");
+  assert.equal(last.status, 200);
+  assert.equal(last.headers.get("Set-Cookie"), null);
+  timestamp = deadline;
+  assert.equal((await (await f.request("/api/auth/session")).json()).authenticated, false);
+  const expired = await f.grant("links:write");
+  assert.equal((await expired.json()).code, "LOGIN_REQUIRED");
+  assert.equal(expired.headers.get("Set-Cookie"), null);
+});
+
+test("a fixed-lifetime cookie keeps its original login time when upgraded", async (t) => {
+  const started = Math.floor(Date.now() / 1000) * 1000;
+  let timestamp = started;
+  t.mock.method(Date, "now", () => timestamp);
+  const f = await fixture();
+  await f.login();
+  const name = "__Host-lantern-session";
+  const key = await crypto.subtle.importKey("raw", Buffer.from(await deriveSecret(f.env.SECRET_KEY,
+    "lantern-dock:identity-cookies:v1:" + site), "hex"), "AES-GCM", false, ["encrypt", "decrypt"]);
+  const decode = async () => {
+    const bytes = Buffer.from(f.jar.get(name), "base64url");
+    return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: bytes.subarray(0, 12), additionalData: encoder.encode(name) }, key, bytes.subarray(12))));
+  };
+  const session = await decode();
+  delete session.startedAt;
+  session.expires = started / 1000 + 30 * 60;
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: encoder.encode(name) }, key, encoder.encode(JSON.stringify(session)));
+  f.jar.set(name, encode(Buffer.concat([iv, Buffer.from(encrypted)])));
+  timestamp += 20 * 60 * 1000;
+  assert.equal((await f.grant("links:read")).status, 200);
+  assert.equal((await decode()).startedAt, started / 1000);
+});
+
 test("UserInfo is fetched server-side and must match the verified ID token subject", async () => {
   const good = await fixture();
   good.profile({

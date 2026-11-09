@@ -5,11 +5,11 @@ import { Icon } from "./Icon.jsx";
 // The owner supplies navigation and actions; the shell owns only presentation.
 export function PageDialog({
   id, title, titleId = `${id}-title`, backId, backLabel,
-  open, onClose, onExited, fallbackFocus, actions, children,
+  open, animateEntry = true, onClose, onExited, fallbackFocus, actions, children,
   className = "", headerClassName = "",
 }) {
   return (
-    <Dialog id={id} class={`page-dialog ${className}`} open={open}
+    <Dialog id={id} class={`page-dialog ${className}`} open={open} animateEntry={animateEntry}
       onClose={onClose} onExited={onExited} fallbackFocus={fallbackFocus}
       aria-labelledby={titleId}>
       <header class={`page-dialog-header ${headerClassName}`}>
