@@ -1,0 +1,47 @@
+.page-dialog {
+  inset: 0;
+  margin: 0;
+  width: 100%;
+  max-width: none;
+  height: 100dvh;
+  max-height: none;
+  padding: 0 0 max(20px, env(safe-area-inset-bottom));
+  border: 0;
+  border-radius: 0;
+  color: inherit;
+  background: var(--canvas);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.page-dialog:not([open]) { display: none; }
+.page-dialog-header {
+  display: grid;
+  grid-template-columns: var(--topbar-button-size) minmax(0, 1fr) var(--topbar-button-size);
+  align-items: center;
+  gap: 0;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: calc(var(--topbar-height) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 16px 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--canvas);
+}
+.page-dialog-header .icon-button {
+  width: var(--topbar-button-size);
+  height: var(--topbar-button-size);
+}
+.page-dialog-header .icon-button svg { width: 24px; height: 24px; }
+.page-dialog-header > .header-actions { margin-left: 0; justify-self: end; }
+.page-dialog-header > h1 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 16px;
+  font-weight: normal;
+}
+.page-dialog .download-panel { bottom: max(20px, env(safe-area-inset-bottom)); }
+.album-page-dialog .mobile-refresh { display: none; }

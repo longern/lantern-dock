@@ -98,6 +98,7 @@ export default {
   "dimensions": "Dimensions",
   "download": "Download",
   "home": "Home",
+  "backToHome": "Back to Home",
   "favorites": "Favorites",
   "images": "Images",
   "documents": "Documents",
@@ -126,5 +127,12 @@ export default {
   "mediaDetails": "File details",
   "livePhoto": "Live Photo",
   "playLivePhoto": "Play Live Photo",
-  "stopLivePhoto": "Stop Live Photo"
+  "stopLivePhoto": "Stop Live Photo",
+  "copyLink": "Copy link",
+  "copyLinkNamed": "Copy link to {{name}}",
+  "linkCopied": "Link copied",
+  "copyLinkFailed": "Could not copy the link.",
+  "fileNotFound": "This file is no longer available.",
+  "pageNotFound": "Page not found",
+  "backToFolder": "Back to folder"
 };

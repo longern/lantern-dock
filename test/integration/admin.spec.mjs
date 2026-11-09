@@ -22,7 +22,7 @@ test.afterEach(async ({}, info) => {
 });
 
 async function loginAdministrator(page) {
-  await page.goto(fixture.origin + "/#/account");
+  await page.goto(fixture.origin + "/account");
   await page.getByRole("button", { name: "统一登录", exact: true }).click();
   const consent = page.getByRole("button", {
     name: "允许登录 LanternDock", exact: true,
@@ -35,7 +35,7 @@ async function loginAdministrator(page) {
   if (await consent.isVisible()) await consent.click();
   await expect(page.getByLabel("用户标识（sub）")).toHaveValue(siteIdentitySubject);
   await expect(page.getByText("管理员权限已启用", { exact: false })).toBeVisible();
-  await page.goto(fixture.origin + "/#/admin");
+  await page.goto(fixture.origin + "/admin");
   await expect(page.locator("#admin-create-link")).toBeVisible();
 }
 
@@ -172,7 +172,7 @@ for (const transport of ["webtransport", "http"]) {
       await dialog.locator("button[type=submit]").click();
       await expect(dialog.getByRole("heading", { name: "链接已创建", exact: true })).toBeVisible();
       const uploadURL = await page.locator("#admin-created-url").inputValue();
-      const token = new URL(uploadURL).hash.slice("#/upload/".length);
+      const token = new URLSearchParams(new URL(uploadURL).hash.slice(1)).get("token");
       expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
       await dialog.getByRole("button", { name: "我已保存链接", exact: true }).click();
       await expect(dialog).toHaveCount(0);

@@ -26,6 +26,7 @@ export function AlbumViewer({
   favorite,
   onFavorite,
   onDownload,
+  onCopyLink,
   onClose,
   onExited,
   feedback,
@@ -68,7 +69,6 @@ export function AlbumViewer({
   callbacks.current = { onClose, onSelect };
   const controls = useRef(null);
   const closing = useRef(false);
-  const marker = useRef(crypto.randomUUID());
   const index = gallery.items.findIndex((entry) => entry.path === item.path);
   useLayoutEffect(() => setLivePlaying(false), [index, open]);
   const close = useCallback(() => {
@@ -76,34 +76,9 @@ export function AlbumViewer({
     closing.current = true;
     lifetime.abort();
     callbacks.current.onClose();
-    if (history.state?.lanternDockAlbum === marker.current) history.back();
   }, [lifetime]);
 
-  useLayoutEffect(() => {
-    // One same-URL entry lets Back dismiss the viewer without exposing file paths
-    // or credentials in history. Changing slides never creates history entries.
-    const url = location.href;
-    history.pushState(
-      { ...history.state, lanternDockAlbum: marker.current },
-      "",
-      url,
-    );
-    const back = () => {
-      if (history.state?.lanternDockAlbum !== marker.current) close();
-    };
-    window.addEventListener("popstate", back);
-    return () => {
-      window.removeEventListener("popstate", back);
-      if (history.state?.lanternDockAlbum === marker.current) {
-        if (location.href === url) history.back();
-        else {
-          const { lanternDockAlbum: _marker, ...state } = history.state;
-          history.replaceState(state, "");
-        }
-      }
-      lifetime.abort();
-    };
-  }, [close, lifetime]);
+  useLayoutEffect(() => () => lifetime.abort(), [lifetime]);
   useEffect(() => {
     if (!open) lifetime.abort();
     const timer = setTimeout(() => setEntered(true), reducedMotion ? 0 : 320);
@@ -239,6 +214,7 @@ export function AlbumViewer({
                 favorite={favorite}
                 onFavorite={onFavorite}
                 onDownload={onDownload}
+                onCopyLink={onCopyLink}
                 details={details}
                 onDetails={() => setDetails((value) => !value)}
                 size={sizes.get(item.path)}
@@ -261,6 +237,7 @@ function AlbumControls({
   favorite,
   onFavorite,
   onDownload,
+  onCopyLink,
   details,
   onDetails,
   size,
@@ -291,6 +268,7 @@ function AlbumControls({
           <Icon name="x" />
         </button>
         <strong id="album-viewer-name">{item.name}</strong>
+        <button class="icon-button" aria-label={t("library.copyLink")} onClick={() => onCopyLink(item)}><Icon name="copy" /></button>
         {live && (
           <span class="album-live-label" aria-label={t("library.livePhoto")}>
             <Icon name="live" /> LIVE

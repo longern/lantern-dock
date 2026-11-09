@@ -127,7 +127,7 @@ fixture 'mkdir -p "/fixture/public/#recycle" "/fixture/public/@Recycle"; printf 
 start default 1000 1000 --security-opt no-new-privileges:true
 docker exec "$container" /lantern-dock link create --data-dir=/data \
   --site=https://files.example.com > "$test_dir/drop.json"
-jq -e '.link.id and (.url | startswith("https://files.example.com/#/upload/"))' "$test_dir/drop.json" >/dev/null
+jq -e '.link.id and (.url | startswith("https://files.example.com/upload#token="))' "$test_dir/drop.json" >/dev/null
 list_link
 test "$(fixture 'stat -c %u:%g /fixture/data/lantern-dock.sqlite')" = 1000:1000
 test "$(fixture 'stat -c %u:%g:%a /fixture/public/hello.txt')" = 0:0:644

@@ -30,7 +30,7 @@ export async function openFavorites(page, language = "zh-CN") {
   }
   const trigger = navigation.getByRole("button", { name: copy.favorites });
   await trigger.click();
-  await expect(page).toHaveURL(/#\/favorites$/);
+  await expect(page).toHaveURL(/\/favorites$/);
   return trigger;
 }
 
@@ -40,7 +40,7 @@ export async function closeFavorites(page, language = "zh-CN") {
   const dialog = page.getByRole("dialog", { name: copy.myFavorites, exact: true });
   await dialog.getByRole("button", { name: copy.backToMe, exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page).toHaveURL(/#\/me$/);
+  await expect(page).toHaveURL(/\/me$/);
 }
 
 export const connectionSettingsReturnTarget = (page) => page.viewportSize().width <= 700

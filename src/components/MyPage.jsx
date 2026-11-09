@@ -31,7 +31,7 @@ export function MyPage({ active = true, onFavorites, onSettings }) {
             <span class="my-guest-title">{t("account.guest")}</span>
           </button>
         ) : signedIn ? (
-          <a id="my-account-link" class="my-account-summary my-identity-control" href="#/account?return=me">
+          <a id="my-account-link" class="my-account-summary my-identity-control" href="/account?return=/me">
             <span class="my-account-symbol" aria-hidden="true"><Icon name="user" /></span>
             <div class="my-account-copy" aria-live="polite">
               <h2>{title}</h2>

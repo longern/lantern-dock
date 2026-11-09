@@ -4,11 +4,10 @@ import { useSession } from "../hooks/useSession.jsx";
 import { Dialog } from "./Dialog.jsx";
 import { Icon } from "./Icon.jsx";
 
-const returnKey = "lantern-dock:account-return";
-
 export function SignInDialog({ open, onClose }) {
   const { login: beginLogin } = useSession();
   const [busy, setBusy] = useState(false);
+  const [mounted, setMounted] = useState(open);
   const [error, setError] = useState("");
   const request = useRef(null);
   const redirecting = useRef(false);
@@ -19,7 +18,6 @@ export function SignInDialog({ open, onClose }) {
     if (!controller) return;
     request.current = null;
     controller.abort();
-    try { sessionStorage.removeItem(returnKey); } catch { /* Optional navigation hint. */ }
   };
   const dismiss = () => {
     // Abort before the shared Dialog starts its exit animation.
@@ -33,10 +31,11 @@ export function SignInDialog({ open, onClose }) {
       return;
     }
     redirecting.current = false;
+    setMounted(true);
     setBusy(false);
     setError("");
     // These also cover navigation which keeps MyPage mounted under Favorites.
-    const events = ["hashchange", "popstate", "pagehide", "resize"];
+    const events = ["lantern-dock:navigate", "popstate", "pagehide", "resize"];
     events.forEach((event) => window.addEventListener(event, dismiss));
     return () => {
       cancel();
@@ -50,10 +49,7 @@ export function SignInDialog({ open, onClose }) {
     setBusy(true);
     setError("");
     try {
-      // Only a local allowlisted destination survives the existing OIDC flow.
-      try { sessionStorage.setItem(returnKey, "me"); } catch { /* Sign-in does not require storage. */ }
       await beginLogin(controller.signal);
-      // A successful redirect retains the hint for AccountPage to consume.
       if (request.current === controller) {
         redirecting.current = true;
         request.current = null;
@@ -65,23 +61,57 @@ export function SignInDialog({ open, onClose }) {
       setBusy(false);
     }
   };
+  if (!open && !mounted) return null;
   return (
-    <Dialog id="sign-in-dialog" class="settings-dialog sign-in-dialog" open={open}
-      onClose={dismiss} fallbackFocus="#my-guest-button" aria-labelledby="sign-in-title"
-      aria-describedby="sign-in-description">
+    <Dialog
+      id="sign-in-dialog"
+      class="settings-dialog sign-in-dialog"
+      open={open}
+      onClose={dismiss}
+      onExited={() => setMounted(false)}
+      fallbackFocus="#my-guest-button"
+      aria-labelledby="sign-in-title"
+      aria-describedby="sign-in-description"
+    >
       <div class="dialog-heading">
         <h2 id="sign-in-title">{t("account.signInTitle")}</h2>
-        <button id="sign-in-close" type="button" class="icon-button"
-          aria-label={t("account.closeSignIn")} onClick={dismiss}><Icon name="x" /></button>
+        <button
+          id="sign-in-close"
+          type="button"
+          class="icon-button"
+          aria-label={t("account.closeSignIn")}
+          onClick={dismiss}
+        >
+          <Icon name="x" />
+        </button>
       </div>
-      <p id="sign-in-description" class="dialog-intro">{t("account.signInDescription")}</p>
-      {error && <p class="account-notice error" role="alert">{error}</p>}
-      {busy && <p class="dialog-intro" role="status">{t("account.redirectingToSignIn")}</p>}
+      <p id="sign-in-description" class="dialog-intro">
+        {t("account.signInDescription")}
+      </p>
+      {error && (
+        <p class="account-notice error" role="alert">
+          {error}
+        </p>
+      )}
+      {busy && (
+        <p class="dialog-intro" role="status">
+          {t("account.redirectingToSignIn")}
+        </p>
+      )}
       <div class="dialog-actions">
-        <button id="sign-in-submit" type="button" class="primary-button" disabled={busy}
-          onClick={login}>
+        <button
+          id="sign-in-submit"
+          type="button"
+          class="primary-button"
+          disabled={busy}
+          onClick={login}
+        >
           <Icon name="user" />
-          {busy ? t("account.redirectingToSignIn") : error ? t("library.retry") : t("account.signIn")}
+          {busy
+            ? t("account.redirectingToSignIn")
+            : error
+              ? t("library.retry")
+              : t("account.signIn")}
         </button>
       </div>
     </Dialog>

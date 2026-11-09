@@ -22,6 +22,7 @@ const photos = [
 const labels = ["今天", "昨天", "11月3日", "2025年11月3日", "日期未知"];
 const album = (page) => page.getByRole("navigation", { name: "文件分类", exact: true })
   .getByRole("button", { name: "相册", exact: true });
+const albumSurface = (page) => page.locator(page.viewportSize().width <= 700 ? "#album-page-dialog" : ".main-area");
 function listing(items) {
   const responses = items.map(({ name, modified }) => `<d:response><d:href>/dav/${name}</d:href>
     <d:propstat><d:prop><d:resourcetype/><d:getcontentlength>1024</d:getcontentlength>
@@ -34,7 +35,7 @@ async function replaceListing(page, items) {
   await page.route("**/dav/**", (route) => route.request().method() === "PROPFIND"
     ? route.fulfill({ status: 207, contentType: "application/xml", body: listing(items) })
     : route.fallback());
-  await page.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await albumSurface(page).getByRole("button", { name: "刷新目录", exact: true }).click();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -81,7 +82,7 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".file-item")).toHaveCount(14);
   await album(page).click();
-  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  await expect(albumSurface(page).getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
 });
 
 test("photos form dated groups with real thumbnails and four edge-to-edge mobile columns", async ({ page }, testInfo) => {
@@ -95,13 +96,17 @@ test("photos form dated groups with real thumbnails and four edge-to-edge mobile
   await expect(page.getByRole("region", { name: "日期未知", exact: true })
     .getByRole("button", { name: "预览视频 undated.mp4", exact: true })).toBeVisible();
   await expect(page.getByText("按修改日期 · 新到旧", { exact: true })).toHaveCount(0);
-  await expect(listingOptionsButton(page)).toHaveCount(0);
+  await expect(listingOptionsButton(albumSurface(page))).toHaveCount(0);
   await expect(page.locator("#file-list .file-info,#file-list .favorite-button")).toHaveCount(0);
   const first = page.locator(".album-preview").first();
   await expect(first.locator("img")).toBeVisible();
   await expect.poll(() => first.locator("img").evaluate((image) => image.naturalWidth)).toBe(384);
   for (const grid of await page.locator(".album-layout").all())
     await expect(grid).toHaveCSS("gap", "4px");
+  if (page.viewportSize().width <= 700)
+    await albumSurface(page).evaluate(async (node) => {
+      await Promise.all(node.getAnimations().map((animation) => animation.finished.catch(() => {})));
+    });
   const boxes = await page.locator(".album-group").first().locator(".album-preview")
     .evaluateAll((nodes) => nodes.map((node) => {
       const { x, y, width, height } = node.getBoundingClientRect();
@@ -121,7 +126,7 @@ test("photos form dated groups with real thumbnails and four edge-to-edge mobile
 test("refreshed listings prune empty groups and preview closes back to the same photo", async ({ page }) => {
   await replaceListing(page, photos.filter(({ name }) => name.startsWith("yesterday")));
   await expect(page.locator(".album-date")).toHaveText(["昨天"]);
-  const photo = page.getByRole("button", { name: "预览 yesterday-late.png", exact: true });
+  const photo = albumSurface(page).getByRole("button", { name: "预览 yesterday-late.png", exact: true });
   await photo.focus();
   await page.keyboard.press("Enter");
   await expect(page.locator(".album-media[data-current=true] img").first()).toBeVisible();
@@ -130,9 +135,9 @@ test("refreshed listings prune empty groups and preview closes back to the same 
   await expect(photo).toBeFocused();
   await replaceListing(page, []);
   await expect(page.locator(".album-group")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "暂无文件", exact: true })).toBeVisible();
-  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "清除搜索", exact: true })).toHaveCount(0);
+  await expect(albumSurface(page).getByRole("heading", { name: "暂无文件", exact: true })).toBeVisible();
+  await expect(albumSurface(page).getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  await expect(albumSurface(page).getByRole("button", { name: "清除搜索", exact: true })).toHaveCount(0);
   await replaceListing(page, photos);
   await expect(page.locator(".album-date")).toHaveText(labels);
 });
@@ -160,7 +165,7 @@ test("refresh moves photos into their updated date groups without duplicates", a
   await page.route("**/dav/**", (route) => route.request().method() === "PROPFIND"
     ? route.fulfill({ status: 207, contentType: "application/xml", body: listing(updated) })
     : route.fallback());
-  await page.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await albumSurface(page).getByRole("button", { name: "刷新目录", exact: true }).click();
   const yesterday = page.getByRole("region", { name: "昨天", exact: true });
   await expect(yesterday.getByRole("button")).toHaveCount(3);
   await expect(yesterday.getByRole("button").first()).toHaveAttribute("aria-label", "预览 today-0.png");
@@ -214,17 +219,21 @@ test("video-only albums are not empty, while truly empty albums have no date gro
   await page.route("**/dav/**", (route) => route.request().method() === "PROPFIND"
     ? route.fulfill({ status: 207, contentType: "application/xml", body: listing(items) })
     : route.fallback());
-  await page.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await albumSurface(page).getByRole("button", { name: "刷新目录", exact: true }).click();
   await expect(page.locator(".album-item")).toHaveCount(1);
   await expect(page.locator(".album-date")).toHaveText(["今天"]);
   await expect(page.locator(".empty-state")).toHaveCount(0);
   items = [];
-  await page.getByRole("button", { name: "刷新目录", exact: true }).click();
+  await albumSurface(page).getByRole("button", { name: "刷新目录", exact: true }).click();
   await expect(page.locator(".album-group,.album-item")).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "暂无文件", exact: true })).toBeVisible();
+  await expect(albumSurface(page).getByRole("heading", { name: "暂无文件", exact: true })).toBeVisible();
 });
 
 test("separate sidebar image and video filters do not mix file types", async ({ page }) => {
+  if (page.viewportSize().width <= 700) {
+    await page.locator("#album-back").click();
+    await expect(page.locator("#album-page-dialog")).toHaveCount(0);
+  }
   for (const [label, count] of [["图片", 12], ["视频", 2]]) {
     if (page.viewportSize().width <= 700)
       await page.getByRole("button", { name: "打开导航", exact: true }).click();
@@ -240,8 +249,8 @@ test("separate sidebar image and video filters do not mix file types", async ({ 
 
 test("a failed refresh does not leave stale date groups or fabricate an unknown group", async ({ page }) => {
   await page.route("**/dav/**", (route) => route.fulfill({ status: 503 }));
-  await page.getByRole("button", { name: "刷新目录", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "无法读取文件", exact: true })).toBeVisible();
+  await albumSurface(page).getByRole("button", { name: "刷新目录", exact: true }).click();
+  await expect(albumSurface(page).getByRole("heading", { name: "无法读取文件", exact: true })).toBeVisible();
   await expect(page.locator(".album-group,.album-item,.skeleton")).toHaveCount(0);
   await expect(page.locator("#file-list")).toHaveAttribute("aria-busy", "false");
 });

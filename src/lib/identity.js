@@ -2,6 +2,7 @@ import { t, locale } from "../../shared/i18n.js";
 import { coreError } from "./errors.js";
 import { DirectTransport } from "./transport.js";
 import { backendPaths } from "../../shared/backend-paths.js";
+import { safeReturnPath } from "../../shared/routes.js";
 import {
   AUTHORIZATION_METADATA_PATH,
   SESSION_GRANT_TYPE,
@@ -132,7 +133,8 @@ export async function beginLogin(signal) {
     await fetch("/api/auth/login", {
       method: "POST",
       credentials: "same-origin",
-      headers: { DPoP: proof, "Accept-Language": locale },
+      headers: { DPoP: proof, "Accept-Language": locale, "Content-Type": "application/json" },
+      body: JSON.stringify({ returnTo: location.pathname === "/account" ? safeReturnPath(new URLSearchParams(location.search).get("return")) : location.pathname + location.search }),
       signal,
     }),
   );

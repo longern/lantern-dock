@@ -159,5 +159,6 @@ export default {
   "received": "Received",
   "queuedUpload": "Queued",
   "cancelledUpload": "Cancelled",
-  "uploading": "Uploading"
+  "uploading": "Uploading",
+  "backToPrevious": "Back"
 };

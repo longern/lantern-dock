@@ -2,6 +2,7 @@ import { t } from "../../shared/i18n.js";
 import { identityProof, requestNASGrant } from "./identity.js";
 import { DirectTransport } from "./transport.js";
 import { backendPaths } from "../../shared/backend-paths.js";
+import { uploadHref } from "../../shared/routes.js";
 
 export const ADMIN_LINKS = `${backendPaths.admin}/links`;
 export const ADMIN_INBOX = `${backendPaths.admin}/inbox`;
@@ -60,10 +61,7 @@ function itemPath(base, id) {
 }
 export function uploadLinkURL(token, base = location.href) {
   if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) throw invalidResponse();
-  const url = new URL(base);
-  url.search = "";
-  url.hash = `/upload/${token}`;
-  return url.href;
+  return new URL(uploadHref(token), base).href;
 }
 export function linkState(link, now = Date.now()) {
   if (link.revoked) return "revoked";

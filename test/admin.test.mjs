@@ -32,7 +32,7 @@ test("link metadata never retains secrets or unrecognized fields", () => {
 
 test("upload URL uses only a fragment and never persists source query parameters", () => {
   const token = "A".repeat(43);
-  assert.equal(uploadLinkURL(token, "https://site.example/?secret=not-copied#/admin"), `https://site.example/#/upload/${token}`);
+  assert.equal(uploadLinkURL(token, "https://site.example/?secret=not-copied/admin"), `https://site.example/upload#token=${token}`);
   for (const value of ["", "x", "A".repeat(44), "../../token", "#".repeat(43)]) assert.throws(() => uploadLinkURL(value, "https://site.example"));
 });
 
@@ -87,11 +87,11 @@ test("each admin request obtains its operation scope and DPoP proof directly to 
 });
 
 test("create and revoke use write scope; URL is exposed only on creation", async () => {
-  globalThis.location = { href: "https://site.example/#/admin" };
+  globalThis.location = { href: "https://site.example/admin" };
   const { client, calls } = fixture({ link, token: "A".repeat(43) }, 201);
   const body = createLinkInput(input, now);
   const created = await client.create(body);
-  assert.deepEqual(created, { link, url: `https://site.example/#/upload/${"A".repeat(43)}` });
+  assert.deepEqual(created, { link, url: `https://site.example/upload#token=${"A".repeat(43)}` });
   assert.equal(calls[0].scope, "links:write");
   assert.equal(calls[2].method, "POST");
   assert.equal(calls[2].body, JSON.stringify(body));

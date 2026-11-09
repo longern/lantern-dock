@@ -110,7 +110,12 @@ export function AlbumMedia({
   }, [high, entered]);
 
   // Keep native video controls out of the gallery's drag and wheel handlers.
-  const nativeControl = (event) => event.stopPropagation();
+  const nativeControl = (event) => {
+    // A swipe across the picture still pages on touch devices. Reserve the
+    // bottom native-controls strip for scrubbing, volume and play/pause.
+    if (event.type === "touchstart" && event.touches.length === 1 && event.touches[0].clientY < event.currentTarget.getBoundingClientRect().bottom - 64) return;
+    event.stopPropagation();
+  };
   return (
     <div
       {...attrs}

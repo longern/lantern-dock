@@ -33,7 +33,7 @@ async function expectSingleListing(page) {
 test("mobile favorites have a 60px header with a centered regular title and a 48px Back target", async ({ page }) => {
   test.skip(page.viewportSize().width > 700, "Mobile favorites header");
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.goto("/#/favorites");
+  await page.goto("/favorites");
   const dialog = favoritesDialog(page);
   const header = dialog.locator(".favorites-heading");
   const title = dialog.getByRole("heading", { name: "我的收藏", exact: true });
@@ -69,7 +69,7 @@ test("mobile favorites have a 60px header with a centered regular title and a 48
 
 test("desktop favorites keep the existing subpage heading styles", async ({ page }) => {
   test.skip(page.viewportSize().width <= 700, "Desktop favorites heading");
-  await page.goto("/#/favorites");
+  await page.goto("/favorites");
   const pageHeading = page.locator(".favorites-page .favorites-heading");
   const title = pageHeading.getByRole("heading", { name: "我的收藏", exact: true });
   await expect(pageHeading).toHaveCSS("display", "flex");
@@ -85,7 +85,7 @@ test("mobile favorites use a native modal with repeated dismissals and focus res
   for (const dismiss of ["button", "escape", "history"]) {
     const back = await openFavorites(page);
     const dialog = favoritesDialog(page);
-    await expect(page).toHaveURL(/#\/favorites$/);
+    await expect(page).toHaveURL(/\/favorites$/);
     await expect(dialog).toHaveJSProperty("tagName", "DIALOG");
     expect(await dialog.evaluate((node) => node.matches(":modal"))).toBe(true);
     await expect(dialog.locator(".file-name")).toHaveText(favorite.name);
@@ -99,7 +99,7 @@ test("mobile favorites use a native modal with repeated dismissals and focus res
     else if (dismiss === "escape") await page.keyboard.press("Escape");
     else await page.goBack();
     await expect(dialog).toHaveCount(0);
-    await expect(page).toHaveURL(/#\/me$/);
+    await expect(page).toHaveURL(/\/me$/);
     await expect(page.locator("#my-favorites")).toBeFocused();
     await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
   }
@@ -177,7 +177,7 @@ test("Back then Forward during the favorites exit keeps the reopened sheet mount
   await page.goForward();
   await expect(dialog).toHaveAttribute("data-state", "open");
   await page.clock.runFor(500);
-  await expect(page).toHaveURL(/#\/favorites$/);
+  await expect(page).toHaveURL(/\/favorites$/);
   expect(await dialog.evaluate((node) => node.matches(":modal"))).toBe(true);
   await expectSingleListing(page);
   await page.keyboard.press("Escape");
@@ -192,10 +192,10 @@ test("double-clicking favorites Back cannot navigate past My", async ({ page }) 
   await openFavorites(page);
   await favoritesDialog(page).getByRole("button", { name: "返回我的", exact: true }).dblclick();
   await expect(favoritesDialog(page)).toHaveCount(0);
-  await expect(page).toHaveURL(/#\/me$/);
+  await expect(page).toHaveURL(/\/me$/);
   await expect(page.locator("#my-favorites")).toBeFocused();
   await page.goForward();
-  await expect(page).toHaveURL(/#\/favorites$/);
+  await expect(page).toHaveURL(/\/favorites$/);
   await expect(favoritesDialog(page)).toBeVisible();
 });
 
@@ -210,7 +210,7 @@ test("Escape closes only the nested preview and removing the final favorite keep
   await page.keyboard.press("Escape");
   await expect(page.locator("#preview-dialog")).toHaveCount(0);
   await expect(dialog).toHaveAttribute("data-state", "open");
-  await expect(page).toHaveURL(/#\/favorites$/);
+  await expect(page).toHaveURL(/\/favorites$/);
   await expect(trigger).toBeFocused();
   await trigger.click();
   await page.getByRole("button", { name: "取消收藏文件", exact: true }).click();
@@ -233,7 +233,7 @@ test("desktop favorites are a reloadable subpage with working Back, Forward and 
   await expect(page.locator(".file-name")).toHaveText(favorite.name);
   await expectSingleListing(page);
   await page.reload();
-  await expect(page).toHaveURL(/#\/favorites$/);
+  await expect(page).toHaveURL(/\/favorites$/);
   await expect(page.locator(".file-name")).toHaveText(favorite.name);
   await page.goBack();
   await expect(page.getByRole("searchbox")).toBeVisible();
@@ -258,7 +258,7 @@ test("a direct favorites link waits for configuration, then loads only saved fav
     await route.continue();
   });
   try {
-    await page.goto("/#/favorites", { waitUntil: "domcontentloaded" });
+    await page.goto("/favorites", { waitUntil: "domcontentloaded" });
     await expectSingleListing(page);
     await expect(page.locator("#file-list")).toHaveAttribute("aria-busy", "true");
     await expect(page.locator(".file-item,.empty-state")).toHaveCount(0);
@@ -269,7 +269,7 @@ test("a direct favorites link waits for configuration, then loads only saved fav
   await expect(page.locator("#file-list")).toHaveAttribute("aria-busy", "false");
   await expect(page.locator(".file-name")).toHaveText(favorite.name);
   await page.locator("#favorites-back").click();
-  await expect(page).toHaveURL(page.viewportSize().width <= 700 ? /#\/me$/ : /#\/$/);
+  await expect(page).toHaveURL(page.viewportSize().width <= 700 ? /\/me$/ : /\/$/);
   await expect(page.locator("#favorites-dialog,.favorites-page")).toHaveCount(0);
 });
 
@@ -284,7 +284,7 @@ for (const failure of ["denied", "corrupt"]) {
         return getItem.call(this, name);
       };
     }, { key: favoriteKey, favorite, failure });
-    await page.goto("/#/favorites");
+    await page.goto("/favorites");
     await expect(page.getByRole("heading", { name: "无法读取收藏", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "暂无收藏", exact: true })).toHaveCount(0);
     await expect(page.locator(".file-item")).toHaveCount(0);
@@ -296,7 +296,7 @@ for (const failure of ["denied", "corrupt"]) {
     await page.getByRole("button", { name: "重试", exact: true }).click();
     await expect(page.locator(".file-name")).toHaveText(favorite.name);
     await expect(page.getByRole("heading", { name: "无法读取收藏", exact: true })).toHaveCount(0);
-    await expect(page).toHaveURL(/#\/favorites$/);
+    await expect(page).toHaveURL(/\/favorites$/);
   });
 }
 
@@ -310,7 +310,7 @@ test("favorites remain one destination when resizing with a nested preview", asy
     const target = page.viewportSize().width <= 700 ? Math.max(width, 701) : Math.min(width, 700);
     await page.setViewportSize({ width: target, height: 844 });
     await expect(page.locator("#preview-dialog")).toHaveCount(0);
-    await expect(page).toHaveURL(/#\/favorites$/);
+    await expect(page).toHaveURL(/\/favorites$/);
     await expectSingleListing(page);
     if (target <= 700) {
       expect(await favoritesDialog(page).evaluate((node) => node.matches(":modal"))).toBe(true);
@@ -345,7 +345,7 @@ test("settings recovery inside favorites returns focus to the surviving favorite
   await page.route("**/api/config", (route) => failed
     ? route.fulfill({ status: 503, json: { error: "Configuration temporarily unavailable" } })
     : route.continue());
-  await page.goto("/#/favorites");
+  await page.goto("/favorites");
   const dialog = favoritesDialog(page);
   await expect(dialog.getByRole("heading", { name: "无法读取文件", exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "连接设置", exact: true }).click();

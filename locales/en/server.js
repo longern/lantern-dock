@@ -63,5 +63,6 @@ export default {
   "errors.mediaReadOnly": "Media previews are read-only.",
   "errors.mediaBusy": "Media inspection is busy. Try again shortly.",
   "errors.mediaChanged": "The directory or media file changed. Refresh and try again.",
-  "errors.mediaDirectoryTooLarge": "This directory is too large for dynamic photo inspection."
+  "errors.mediaDirectoryTooLarge": "This directory is too large for dynamic photo inspection.",
+  "invalidLoginRequest": "Invalid sign-in request."
 };

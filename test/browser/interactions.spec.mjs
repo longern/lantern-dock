@@ -21,11 +21,14 @@ test("mobile drawer fades its backdrop both ways, contains focus and restores it
   const drawer = page.getByRole("dialog", { name: "主导航", exact: true });
   await expect(drawer).toBeVisible();
   await expect(trigger).toHaveAttribute("aria-expanded", "true");
-  const entering = await drawer.evaluate((node) => {
-    for (const animation of node.getAnimations()) {
+  const entering = await drawer.evaluate(async (node) => {
+    getComputedStyle(node, "::backdrop").animationName;
+    const animations = node.getAnimations({ subtree: true });
+    for (const animation of animations) {
       animation.pause();
       animation.currentTime = 110;
     }
+    await Promise.all(animations.map((animation) => animation.ready));
     const style = getComputedStyle(node, "::backdrop");
     return {
       name: style.animationName,

@@ -153,7 +153,7 @@ async function fixture() {
                   resource: site + "/nas",
                 }),
             }
-          : {}),
+          : body !== undefined ? { body } : {}),
       }),
       env,
     );
@@ -183,18 +183,19 @@ async function fixture() {
       return response;
     }
   }
-  async function begin() {
+  async function begin(returnTo) {
     const response = await request("/api/auth/login", {
       method: "POST",
       headers: { DPoP: await proof("/api/auth/login") },
+      ...(returnTo === undefined ? {} : { body: JSON.stringify({ returnTo }) }),
     });
     assert.equal(response.status, 200, await response.clone().text());
     const value = await response.json();
     flow = new URL(value.url).searchParams;
     return response;
   }
-  async function login() {
-    await begin();
+  async function login(returnTo) {
+    await begin(returnTo);
     return request(
       "/auth/callback?" +
         new URLSearchParams({
@@ -235,7 +236,7 @@ test("CIMD describes the app, and site cookies are encrypted, HttpOnly and separ
   assert.ok(!JSON.stringify(metadata).includes(f.env.SECRET_KEY));
   const response = await f.login();
   assert.equal(response.status, 303);
-  assert.equal(response.headers.get("Location"), site + "/#/account");
+  assert.equal(response.headers.get("Location"), site + "/account");
   const cookies = response.headers.getSetCookie();
   assert.equal(cookies.length, 2);
   for (const value of cookies) {
@@ -278,6 +279,24 @@ test("CIMD describes the app, and site cookies are encrypted, HttpOnly and separ
   const calls = f.calls();
   assert.equal((await f.grant()).status, 200);
   assert.equal(f.calls(), calls, "grant renewal must not call SSO");
+});
+
+test("OIDC state preserves local deep links and rejects external or credential-bearing destinations", async () => {
+  for (const [requested, expected] of [["/files/trip/photo.jpg?view=album", "/files/trip/photo.jpg?view=album"], ["/admin/inbox", "/admin/inbox"], ["//evil.example", "/account"], ["/upload#token=secret", "/account"]]) {
+    const f = await fixture();
+    const response = await f.login(requested);
+    assert.equal(response.headers.get("Location"), site + expected);
+  }
+});
+
+test("a cancelled login retains a validated local destination on the account error page", async () => {
+  const f = await fixture();
+  await f.begin("/files/trip/photo.jpg?view=album");
+  const response = await f.request("/auth/callback?" + new URLSearchParams({ state: f.flow().get("state"), iss: issuer, error: "access_denied" }));
+  const destination = new URL(response.headers.get("Location"));
+  assert.equal(destination.pathname, "/account");
+  assert.equal(destination.searchParams.get("return"), "/files/trip/photo.jpg?view=album");
+  assert.ok(destination.searchParams.get("error"));
 });
 test("login binds state, nonce, PKCE and provider; a copied grant cannot renew a session", async () => {
   const f = await fixture();
@@ -915,7 +934,7 @@ test("callback errors use the browser language and remain encoded in a private r
     assert.equal(response.headers.get("Cache-Control"), "no-store");
     assert.equal(
       response.headers.get("Location"),
-      site + "/#/account?error=" + encodeURIComponent(expected),
+      site + "/account?error=" + encodeURIComponent(expected),
     );
     assert.ok(
       response.headers

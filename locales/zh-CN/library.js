@@ -98,6 +98,7 @@ export default {
   "dimensions": "尺寸",
   "download": "下载",
   "home": "首页",
+  "backToHome": "返回首页",
   "favorites": "收藏",
   "images": "图片",
   "documents": "文档",
@@ -126,5 +127,12 @@ export default {
   "mediaDetails": "文件详情",
   "livePhoto": "动态照片",
   "playLivePhoto": "播放动态照片",
-  "stopLivePhoto": "停止动态照片"
+  "stopLivePhoto": "停止动态照片",
+  "copyLink": "复制链接",
+  "copyLinkNamed": "复制 {{name}} 的链接",
+  "linkCopied": "链接已复制",
+  "copyLinkFailed": "无法复制链接。",
+  "fileNotFound": "该文件已不存在或不可访问。",
+  "pageNotFound": "页面不存在",
+  "backToFolder": "返回文件夹"
 };

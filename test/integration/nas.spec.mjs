@@ -1,3 +1,4 @@
+import { flipAlbum } from "../helpers/album-navigation.mjs";
 import { chooseListingOption } from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
 import { copyFile, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
@@ -68,6 +69,24 @@ test("default NAS routes and capabilities work through the shared bridge namespa
     version: 2,
     enabled: false,
   });
+});
+
+test("shared file and album URLs reload through the SPA and resolve the real NAS over WebTransport", async ({ page }) => {
+  const folder = encodeURIComponent("照片");
+  await page.goto(`${fixture.origin}/files/${folder}/photo.png?view=album`);
+  await expect(page.locator("#album-viewer-name")).toHaveText("photo.png");
+  await expect(page.locator('.album-media[data-current=true] .album-image-high.is-sharp')).toHaveCSS("opacity", "1");
+  await page.reload();
+  await expect(page.locator("#album-viewer-name")).toHaveText("photo.png");
+  await page.getByRole("button", { name: "关闭预览", exact: true }).click();
+  await expect(page).toHaveURL(`${fixture.origin}/album/${folder}/`);
+  await expect(page.locator("#album-viewer")).toHaveCount(0);
+  await page.goto(`${fixture.origin}/files/hello.txt`);
+  await expect(page.locator(".preview-content pre")).toHaveText(textFile);
+  await page.reload();
+  await expect(page.locator(".preview-content pre")).toHaveText(textFile);
+  await page.getByRole("button", { name: "关闭预览", exact: true }).click();
+  await expect(page).toHaveURL(`${fixture.origin}/files/`);
 });
 
 test("NAS serves public read-only WebDAV and receives a private file through the real bridge", async ({
@@ -278,7 +297,7 @@ test("cancelling a streaming upload through the bridge cleans partial files and 
   await expect(
     page.getByRole("heading", { name: "临时收照片", exact: true }),
   ).toBeVisible();
-  const token = new URL(created.url).hash.slice("#/upload/".length);
+  const token = new URLSearchParams(new URL(created.url).hash.slice(1)).get("token");
   const cancelled = await page.evaluate(async (token) => {
     const { UploadClient } = await import("/__test/lib/uploads.js");
     const config = await (await fetch("/api/config")).json();
@@ -426,12 +445,12 @@ test("album slides from IIIF images to an active MP4Box video over real WebTrans
     await page.goto(fixture.origin);
     await page.getByRole("navigation", { name: "文件分类", exact: true })
       .getByRole("button", { name: "相册", exact: true }).click();
-    const open = page.getByRole("button", { name: "预览 album-photo.png", exact: true });
+    const open = page.locator('.album-preview[data-path="/dav/album-photo.png"]');
     await expect(open.locator("img")).toBeVisible();
     await open.click();
     await expect(page.locator(".album-media[data-current=true] .album-image-high.is-sharp")).toHaveCSS("opacity", "1");
     expect(await page.locator("#album-viewer video").count()).toBe(0);
-    await page.getByRole("button", { name: "下一张照片或视频", exact: true }).click();
+    await flipAlbum(page);
     await expect(page.locator("#album-viewer-name")).toHaveText("album-video.mp4");
     const player = page.locator("#album-viewer video");
     await expect(player).toBeVisible();
@@ -443,7 +462,7 @@ test("album slides from IIIF images to an active MP4Box video over real WebTrans
     await player.evaluate((video) => { video.currentTime = 6; });
     await expect.poll(() => player.evaluate((video) => !video.seeking && video.currentTime >= 6)).toBe(true);
     await page.screenshot({ path: testInfo.outputPath("album-webtransport-video.png") });
-    await page.getByRole("button", { name: "上一张照片或视频", exact: true }).click();
+    await flipAlbum(page, -1);
     await expect(page.locator("#album-viewer-name")).toHaveText("album-photo.png");
     expect(await page.evaluate(() => ({ paused: window.albumBridgeVideo.paused, src: window.albumBridgeVideo.getAttribute("src") })))
       .toEqual({ paused: true, src: null });
@@ -750,7 +769,7 @@ test("NAS identifies Apple and Android live photos and plays virtual ranges thro
     await expect(page.locator('.album-live-indicator')).toHaveCount(2);
     await expect(page.getByRole('button', { name: '预览视频 different-name.mov', exact: true })).toHaveCount(0);
     for (const name of ['live-apple.heic', 'live-android.jpg']) {
-      await page.getByRole('button', { name: `预览 ${name}`, exact: true }).click();
+      await page.locator(`.album-preview[data-path="/dav/${name}"]`).click();
       await expect(page.locator('.album-media[data-current=true] .album-image-high.is-sharp')).toHaveCSS('opacity', '1');
       const player = page.locator('.album-media[data-current=true] video.album-live-video');
       expect(await player.getAttribute('src')).toBeNull();

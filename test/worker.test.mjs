@@ -667,3 +667,14 @@ test("clearing an explicit English default name exports a reset for every locale
     assert.equal(previous.BACKEND_NAME, "My files");
   }
 });
+
+test("reserved API and auth navigation never falls back to the SPA shell", async () => {
+  let assets = 0;
+  const env = { ASSETS: { fetch() { assets++; return new Response('<html>SPA</html>'); } } };
+  for (const path of ['/api', '/api/missing', '/auth', '/auth/missing']) {
+    const response = await worker.fetch(new Request('https://portal.example' + path, { headers: { 'Sec-Fetch-Mode': 'navigate' } }), env);
+    assert.equal(response.status, 404, path);
+    assert.match(response.headers.get('Content-Type'), /application\/json/);
+  }
+  assert.equal(assets, 0);
+});

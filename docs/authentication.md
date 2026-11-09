@@ -2,9 +2,9 @@
 
 [← Back to the project](../README.md)
 
-LanternDock can use workers-sso through OIDC Discovery and Client ID Metadata Documents (CIMD). Public files and temporary collection links remain accessible without signing in. The account page at `/#/account` shows the signed-in identity, a copyable `sub`, and the role verified by the NAS.
+LanternDock can use workers-sso through OIDC Discovery and Client ID Metadata Documents (CIMD). Public files and temporary collection links remain accessible without signing in. The account page at `/account` shows the signed-in identity, a copyable `sub`, and the role verified by the NAS.
 
-This version recognizes administrators and ordinary users. Verified administrators can open `/#/admin` from **Me** on mobile or **My account** on desktop to create/list/revoke collection links and list/download completed private inbox files. The NAS checks its local administrator list and the required scope on every request. Signing in alone grants no management access; personal spaces and named-user permissions are not implemented. The CLI remains an optional administration path.
+This version recognizes administrators and ordinary users. Verified administrators can open `/admin/links` from **Me** on mobile or **My account** on desktop to create/list/revoke collection links and list/download completed private inbox files. The NAS checks its local administrator list and the required scope on every request. Signing in alone grants no management access; personal spaces and named-user permissions are not implemented. The CLI remains an optional administration path.
 
 ## Configure the Worker
 
@@ -121,3 +121,5 @@ This procedure is for routine signing-key rotation. A compromised `SECRET_KEY` c
 - The role is still ordinary user: copy the exact `sub` into the NAS `ADMIN_SUBJECTS` comma-separated list, recreate the container so its environment changes, and recheck. Setting this variable only on the Worker does not grant NAS permissions.
 
 `GET /api/account/config` reports NAS identity support without authentication. `GET /api/account` requires `Authorization: DPoP <grant>` plus its `DPoP` proof. Authentication errors return `401`; disabled NAS identity verification returns `503`. `GET /api/account` includes per-user `capabilities.adminLinks` and `capabilities.adminInbox`. Public `/api/capabilities` only reports deployment support and must not be used as evidence of administrator access. See the [NAS management API](nas-server.md) for request/response details and upload-link handling.
+
+Page navigation and safe post-login destinations are described in [page URLs](routing.md). The OIDC callback remains `/auth/callback`.

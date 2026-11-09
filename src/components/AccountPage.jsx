@@ -3,53 +3,70 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { AdminEntry } from "./AdminEntry.jsx";
 import { useSession } from "../hooks/useSession.jsx";
+import { useRouter } from "../hooks/useRouter.jsx";
+import { safeReturnPath } from "../../shared/routes.js";
 
 export function AccountPage() {
-  const [returnToMe] = useState(() => {
-    const requested = new URLSearchParams(location.hash.split("?")[1] || "").get("return") === "me";
-    try {
-      // A local, allowlisted destination only. No identity or credentials are
-      // persisted; this survives the existing identity-provider redirect.
-      const pending = sessionStorage.getItem("lantern-dock:account-return");
-      sessionStorage.removeItem("lantern-dock:account-return");
-      return requested || pending === "me";
-    } catch {
-      return requested;
-    }
-  });
-  const { identity, nas, ensureNAS, refreshIdentity, refreshNAS, login: beginLogin, logout: endLogin } = useSession();
+  const router = useRouter();
+  const [returnTo] = useState(() =>
+    safeReturnPath(new URLSearchParams(location.search).get("return"), "/"),
+  );
+  const returnToMe = returnTo === "/me";
+  const {
+    identity,
+    nas,
+    ensureNAS,
+    refreshIdentity,
+    refreshNAS,
+    login: beginLogin,
+    logout: endLogin,
+  } = useSession();
   const session = identity.status === "authenticated" ? identity : null;
   const account = nas.status === "ready" ? nas.account : null;
   const loading = identity.status === "loading";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
-  const accountError = nas.status === "error"
-    ? nas.error.kind === "session-expired" ? t("account.sessionExpired")
-      : nas.error.kind === "offline" ? t("account.nasOffline")
-      : nas.error.kind === "unauthorized" ? t("account.nasPermissionDenied")
-        : nas.error.kind === "unconfigured" ? t("account.nasNotConfigured") : nas.error.message
-    : "";
-  const sessionFailure = identity.status === "error"
-    ? identity.error.kind === "offline" ? t("account.sessionOffline") : identity.error.message : "";
+  const accountError =
+    nas.status === "error"
+      ? nas.error.kind === "session-expired"
+        ? t("account.sessionExpired")
+        : nas.error.kind === "offline"
+          ? t("account.nasOffline")
+          : nas.error.kind === "unauthorized"
+            ? t("account.nasPermissionDenied")
+            : nas.error.kind === "unconfigured"
+              ? t("account.nasNotConfigured")
+              : nas.error.message
+      : "";
+  const sessionFailure =
+    identity.status === "error"
+      ? identity.error.kind === "offline"
+        ? t("account.sessionOffline")
+        : identity.error.message
+      : "";
   const loginRequest = useRef(null);
   const mounted = useRef(true);
-  useEffect(() => () => {
-    mounted.current = false;
-    if (loginRequest.current) {
-      loginRequest.current.abort();
-      try { sessionStorage.removeItem("lantern-dock:account-return"); } catch { /* Optional navigation hint. */ }
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      mounted.current = false;
+      if (loginRequest.current) {
+        loginRequest.current.abort();
+      }
+    },
+    [],
+  );
   useEffect(() => {
-    const query = new URLSearchParams(location.hash.split("?")[1] || "");
+    const query = new URLSearchParams(location.search);
     if (query.has("error")) {
       setError(query.get("error"));
       query.delete("error");
     }
-    if (returnToMe) query.set("return", "me");
     const suffix = query.toString();
-    history.replaceState(null, "", `#/account${suffix ? `?${suffix}` : ""}`);
+    router.navigate(`/account${suffix ? `?${suffix}` : ""}`, {
+      replace: true,
+      state: router.state,
+    });
   }, []);
   useEffect(() => {
     if (identity.status === "authenticated") void ensureNAS();
@@ -69,14 +86,8 @@ export function AccountPage() {
     setBusy(true);
     setError("");
     try {
-      try {
-        if (returnToMe) sessionStorage.setItem("lantern-dock:account-return", "me");
-      } catch { /* Sign-in still works when session storage is unavailable. */ }
       await beginLogin(controller.signal);
     } catch (err) {
-      if (mounted.current) {
-        try { sessionStorage.removeItem("lantern-dock:account-return"); } catch { /* Optional navigation hint. */ }
-      }
       if (mounted.current && !controller.signal.aborted) {
         loginRequest.current = null;
         setError(err.message);
@@ -98,7 +109,7 @@ export function AccountPage() {
   };
   return (
     <main class="setup-page account-page">
-      <a class="setup-brand" href={returnToMe ? "#/me" : "#/"}>
+      <a class="setup-brand" href={returnTo}>
         <span class="brand-symbol">
           <Icon name="portal" />
         </span>
@@ -110,10 +121,15 @@ export function AccountPage() {
           <h1 id="account-title">
             {session
               ? session.user.name || t("account.signedIn")
-              : loading ? t("account.checkingAccount")
-                : sessionFailure ? t("account.sessionUnavailable") : t("account.signInTitle")}
+              : loading
+                ? t("account.checkingAccount")
+                : sessionFailure
+                  ? t("account.sessionUnavailable")
+                  : t("account.signInTitle")}
           </h1>
-          {identity.status === "signed-out" && <p>{t("account.signInDescription")}</p>}
+          {identity.status === "signed-out" && (
+            <p>{t("account.signInDescription")}</p>
+          )}
         </div>
         {(loading || nas.status === "loading") && (
           <p class="upload-message" role="status">
@@ -190,10 +206,7 @@ export function AccountPage() {
                 <button
                   class="secondary-button"
                   onClick={() =>
-                    copy(
-                      session.user.sub,
-                      t("account.administratorCopied"),
-                    )
+                    copy(session.user.sub, t("account.administratorCopied"))
                   }
                 >
                   <Icon name="copy" />
@@ -207,8 +220,20 @@ export function AccountPage() {
             {accountError && (
               <div class="account-notice error">
                 <p role="alert">{accountError}</p>
-                <button class="secondary-button" disabled={busy} onClick={nas.error.kind === "session-expired" ? refreshIdentity : refreshNAS}>
-                  {t(nas.error.kind === "session-expired" ? "account.checkAgain" : "account.retryNAS")}
+                <button
+                  class="secondary-button"
+                  disabled={busy}
+                  onClick={
+                    nas.error.kind === "session-expired"
+                      ? refreshIdentity
+                      : refreshNAS
+                  }
+                >
+                  {t(
+                    nas.error.kind === "session-expired"
+                      ? "account.checkAgain"
+                      : "account.retryNAS",
+                  )}
                 </button>
               </div>
             )}
@@ -243,8 +268,8 @@ export function AccountPage() {
           >
             {t("account.checkAgain")}
           </button>
-          <a class="upload-back" href={returnToMe ? "#/me" : "#/"}>
-            {t(returnToMe ? "library.backToMe" : "account.backToPublicFiles")}
+          <a class="upload-back" href={returnTo}>
+            {t(returnToMe ? "library.backToMe" : returnTo === "/" ? "account.backToPublicFiles" : "account.backToPrevious")}
           </a>
         </div>
       </section>

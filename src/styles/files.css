@@ -4,7 +4,7 @@
   z-index: 2;
   background: var(--surface);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 120px 90px 38px;
+  grid-template-columns: minmax(0, 1fr) 120px 90px 78px;
   gap: 12px;
   align-items: center;
   padding: 12px 8px;
@@ -29,7 +29,6 @@ ul.file-grid {
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
   transition:
     background-color var(--motion-fast),
     border-color var(--motion-fast);
@@ -121,7 +120,8 @@ ul.file-grid {
   font-size: 11px;
   padding-top: 6px;
 }
-.favorite-button {
+.favorite-button,
+.file-copy-button {
   position: absolute;
   right: 9px;
   top: 9px;
@@ -138,12 +138,15 @@ ul.file-grid {
     opacity var(--motion-fast),
     background-color var(--motion-fast);
 }
-.favorite-button svg {
+.favorite-button svg,
+.file-copy-button svg {
   width: 16px;
   height: 16px;
 }
 .favorite-button.selected,
 .file-item:hover .favorite-button,
+.file-item:hover .file-copy-button,
+.file-copy-button:focus-visible,
 .favorite-button:focus-visible {
   opacity: 1;
 }
@@ -168,7 +171,7 @@ ul.file-grid {
 }
 .list-layout .file-open {
   height: 64px;
-  padding: 0 58px 0 8px;
+  padding: 0 98px 0 8px;
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) 120px 90px;
   gap: 12px;
@@ -204,7 +207,8 @@ ul.file-grid {
   font-size: 12px;
   color: var(--muted);
 }
-.list-layout .favorite-button {
+.list-layout .favorite-button,
+.list-layout .file-copy-button {
   top: 14px;
   right: 9px;
   background: transparent;
@@ -213,6 +217,19 @@ ul.file-grid {
 .list-layout .favorite-button:hover,
 .list-layout .favorite-button.selected {
   opacity: 1;
+}
+.file-copy-button,
+.list-layout .file-copy-button {
+  right: 49px;
+}
+@media (hover: none) {
+  .file-copy-button {
+    opacity: 0.7;
+  }
+}
+.route-error {
+  padding: 12px 24px;
+  color: var(--muted);
 }
 .skeleton {
   height: 150px;

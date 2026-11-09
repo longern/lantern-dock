@@ -1,4 +1,5 @@
 import { createTranslator, detectRequestLanguage } from "../shared/i18n.js";
+import { safeReturnPath } from "../shared/routes.js";
 import {
   SignJWT,
   calculateJwkThumbprint,
@@ -516,10 +517,11 @@ function redirect(site, path) {
     },
   });
 }
-function accountError(env, message) {
+function accountError(env, message, destination) {
+  const back = safeReturnPath(destination);
   const response = redirect(
     settings(env).site,
-    "/#/account?error=" + encodeURIComponent(message),
+    "/account?error=" + encodeURIComponent(message) + (back === "/account" ? "" : "&return=" + encodeURIComponent(back)),
   );
   setCookie(response, STATE_COOKIE, "", 0);
   return response;
@@ -625,6 +627,7 @@ async function handleAuthentication(request, env, t) {
       );
     }
   }
+  let returnOnError;
   try {
     if (path === AUTHORIZATION_METADATA_PATH && request.method === "GET") {
       const response = json(authorizationMetadata(cfg.site));
@@ -660,6 +663,13 @@ async function handleAuthentication(request, env, t) {
           401,
         );
       }
+      let returnTo = "/account";
+      if (request.body) {
+        try { returnTo = safeReturnPath(JSON.parse(await limitedText(request.body, 16384)).returnTo); }
+        catch { return json({ error: t("server.invalidLoginRequest") }, 400); }
+      }
+      // Leave room for the other encrypted OAuth state fields within a cookie.
+      if (returnTo.length > 1536) returnTo = "/account";
       const p = await provider(env, t),
         state = random(),
         nonce = random(),
@@ -691,6 +701,7 @@ async function handleAuthentication(request, env, t) {
           verifier,
           jkt,
           issuer: cfg.issuer,
+          returnTo,
           expires: now() + 600,
         }),
         600,
@@ -707,16 +718,17 @@ async function handleAuthentication(request, env, t) {
         query.get("state") !== state.state
       )
         return accountError(env, t("server.loginExpired"));
+      returnOnError = safeReturnPath(state.returnTo);
       if (query.has("iss") && query.get("iss") !== cfg.issuer)
-        return accountError(env, t("server.loginProviderMismatch"));
+        return accountError(env, t("server.loginProviderMismatch"), returnOnError);
       if (query.has("error"))
-        return accountError(env, t("server.loginCancelled"));
+        return accountError(env, t("server.loginCancelled"), returnOnError);
       if (
         query.getAll("code").length !== 1 ||
         !query.get("code") ||
         query.get("code").length > 4096
       )
-        return accountError(env, t("server.loginResponseInvalid"));
+        return accountError(env, t("server.loginResponseInvalid"), returnOnError);
       const p = await provider(env, t);
       const body = new URLSearchParams({
         grant_type: "authorization_code",
@@ -786,7 +798,7 @@ async function handleAuthentication(request, env, t) {
         email:
           typeof profile.email === "string" ? profile.email.slice(0, 320) : "",
       };
-      const response = redirect(cfg.site, "/#/account");
+      const response = redirect(cfg.site, safeReturnPath(state.returnTo));
       setCookie(response, STATE_COOKIE, "", 0);
       setCookie(
         response,
@@ -826,7 +838,7 @@ async function handleAuthentication(request, env, t) {
     return json({ error: t("server.notFound") }, 404);
   } catch (error) {
     if (path === "/auth/callback")
-      return accountError(env, t("server.loginVerificationFailed"));
+      return accountError(env, t("server.loginVerificationFailed"), returnOnError);
     if (path === "/api/auth/login" && error instanceof OIDCProviderError)
       return json({ error: error.message, code: error.code }, 503);
     if (path === "/api/auth/token")

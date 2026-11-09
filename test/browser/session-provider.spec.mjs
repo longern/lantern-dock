@@ -39,7 +39,7 @@ test("an unavailable NAS leaves the Worker account signed in and has an independ
     nasChecks++;
     return route.fulfill({ status: 503, json: { message: "NAS temporarily unavailable" } });
   });
-  await page.goto("/#/account");
+  await page.goto("/account");
   await expect(page.getByRole("heading", { name: "Shared account", exact: true })).toBeVisible();
   await expect(page.getByRole("alert")).toContainText("NAS temporarily unavailable");
   await expect(page.getByRole("button", { name: "退出登录", exact: true })).toBeVisible();
@@ -53,7 +53,7 @@ test("offline is not rendered as a guest, and returning online rechecks the shar
   test.skip(page.viewportSize().width > 700, "Mobile account state");
   let checks = 0;
   await page.route("**/api/auth/session", (route) => { checks++; return route.fulfill({ json: session }); });
-  await page.goto("/#/me");
+  await page.goto("/me");
   await expect(page.locator("#my-account")).toContainText("Shared account");
   await page.evaluate(() => {
     Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
@@ -80,7 +80,7 @@ test("blocked cross-tab messaging does not interrupt public or account state", a
   await page.route("**/api/auth/session", (route) => route.fulfill({ json: session }));
   await page.goto("/");
   await expect(page.locator(".file-item")).toHaveCount(12);
-  await page.evaluate(() => { location.hash = "#/account"; });
+  await page.evaluate(() => { history.pushState(null, "", "/account"); window.dispatchEvent(new PopStateEvent("popstate")); });
   await expect(page.getByRole("heading", { name: "Shared account", exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });

@@ -63,5 +63,6 @@ export default {
   "errors.mediaReadOnly": "媒体预览仅支持只读访问。",
   "errors.mediaBusy": "正在识别媒体，请稍后重试。",
   "errors.mediaChanged": "目录或媒体文件已变化，请刷新后重试。",
-  "errors.mediaDirectoryTooLarge": "此目录过大，暂时无法识别动态照片。"
+  "errors.mediaDirectoryTooLarge": "此目录过大，暂时无法识别动态照片。",
+  "invalidLoginRequest": "登录请求格式不正确。"
 };

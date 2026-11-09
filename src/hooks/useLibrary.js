@@ -3,8 +3,13 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { DirectTransport } from "../lib/transport.js";
 import { DAVClient } from "../lib/dav.js";
 import { DemoClient } from "../lib/demo.js";
+import { useRouter } from "./useRouter.jsx";
+import { albumHref, filesHref, libraryLocation } from "../../shared/routes.js";
+import { normalizePath, withinRoot } from "../lib/dav.js";
 
 export function useLibrary() {
+  const router = useRouter();
+  const current = libraryLocation(router.route, router.state);
   const [credentials, setCredentials] = useState({ mode: "none" });
   const [revision, setRevision] = useState(0);
   const [connection, setConnection] = useState(null);
@@ -15,15 +20,15 @@ export function useLibrary() {
   const [listingError, setListingError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [entries, setEntries] = useState([]);
-  const [path, setPath] = useState("/");
   const [directoryRevision, setDirectoryRevision] = useState(0);
-  const [mode, setMode] = useState("home");
-  const [kind, setKind] = useState("");
-  const [query, setQuery] = useState("");
+  const { mode, kind, query } = current;
+  const root = (connection?.client.root || "/").replace(/\/?$/, "/");
+  const path = normalizePath(root + current.directory);
   const [sort, setSort] = useState("name");
   const [homeSort, setHomeSort] = useState("name");
   const [view, setView] = useState("list");
   const forceListing = useRef(false);
+  const listingPath = useRef(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -40,10 +45,6 @@ export function useLibrary() {
           ? null
           : new DirectTransport(backend, credentials);
       client = transport ? new DAVClient(transport, backend) : new DemoClient();
-      setPath(client.root);
-      setMode("home");
-      setKind("");
-      setQuery("");
       setConnection({ backend, client, transport });
     };
     (async () => {
@@ -67,7 +68,8 @@ export function useLibrary() {
         });
         const config = await response.json();
         if (controller.signal.aborted) return;
-        if (!response.ok) throw new Error(config.error || t("core.configurationUnavailable"));
+        if (!response.ok)
+          throw new Error(config.error || t("core.configurationUnavailable"));
         if (config.setupRequired) {
           setSetup({ ...config.setup, checked: revision > 0 });
           return;
@@ -89,6 +91,7 @@ export function useLibrary() {
 
   useEffect(() => {
     if (!connection) return;
+    listingPath.current = path;
     const controller = new AbortController();
     const cached = connection.client.cached?.(path);
     const force = forceListing.current;
@@ -116,26 +119,45 @@ export function useLibrary() {
   }, [connection, path, directoryRevision]);
 
   const navigate = (next, nextMode = "all") => {
-    // Clear the old directory before the listing effect starts for the new path.
-    const cached = connection?.client.cached?.(next);
-    setEntries(cached || []);
-    setLoading(!cached);
-    setListingError(null);
-    setPath(next);
-    setMode(nextMode);
-    setKind("");
-    setQuery("");
-    setDirectoryRevision((value) => value + 1);
+    next = normalizePath(next);
+    if (!withinRoot(next, root)) return;
+    router.navigate(
+      nextMode === "home"
+        ? "/"
+        : filesHref(next.slice(root.length), { directory: true }),
+    );
   };
   const selectMode = (next, filter = "") => {
-    const root = connection?.client.root || "/";
-    if (next === "home" && path !== root) {
-      navigate(root, "home");
-      return;
+    let parent = router.route.href;
+    if (filter === "album" && query) {
+      const url = new URL(parent, location.origin);
+      url.searchParams.delete("q");
+      parent = url.pathname + url.search;
+      router.navigate(parent, { replace: true, state: router.state });
     }
-    setMode(next);
-    setKind(filter);
-    setQuery("");
+    const href =
+      next === "home"
+        ? "/"
+        : next === "favorites" || next === "me"
+          ? `/${next}`
+          : filter === "album"
+            ? albumHref(current.directory)
+            : filesHref(current.directory, { directory: true, type: filter });
+    router.navigate(href, {
+      state:
+        ["favorites", "me"].includes(next) || filter === "album"
+          ? { surfaceFrom: parent }
+          : {},
+    });
+  };
+  const setQuery = (query) => {
+    const url = new URL(router.route.href, location.origin);
+    if (query) url.searchParams.set("q", query);
+    else url.searchParams.delete("q");
+    router.navigate(url.pathname + url.search, {
+      replace: true,
+      state: router.state,
+    });
   };
   const backend = connection?.backend;
   const key = useMemo(
@@ -151,7 +173,11 @@ export function useLibrary() {
     credentials,
     setCredentials,
     key,
-    entries,
+    // Do not display the preceding directory while a routed listing loads.
+    entries:
+      listingPath.current === path
+        ? entries
+        : connection?.client.cached?.(path) || [],
     path,
     mode,
     kind,
@@ -163,7 +189,8 @@ export function useLibrary() {
     setView,
     navigate,
     selectMode,
-    loading: connecting || (!!connection && loading),
+    loading:
+      connecting || (!!connection && (loading || listingPath.current !== path)),
     error: configError || listingError,
     setup,
     demoPreview,

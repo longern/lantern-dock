@@ -134,7 +134,7 @@ for (const { locale, expected } of [
         if (mode === "files") await destination.click();
         await destination.focus();
         await page.keyboard.press("/");
-        if (mode === "favorites") await expect(page).toHaveURL(/#\/favorites$/);
+        if (mode === "favorites") await expect(page).toHaveURL(/\/favorites$/);
         else await expect(destination).toHaveAttribute("aria-current", "page");
         await expect(destination).toBeFocused();
         await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
@@ -204,7 +204,7 @@ test("English account entry and recheck remain local and translated", async ({ b
       sessionChecks++;
       return route.fulfill({ json: { authenticated: false } });
     });
-    await page.goto("/#/account");
+    await page.goto("/account");
     await expect(page.getByRole("heading", { name: "Sign in to your account", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Sign in", exact: true })).toBeVisible();
     await expect(page.getByText("Browse public files without signing in. Sign in to view your account details.", { exact: true })).toBeVisible();
@@ -256,11 +256,11 @@ test("English upload errors, available inbox and exhausted limits use localized 
       usedBytes: full ? 4096 : 0, maxFiles: 2, usedFiles: full ? 2 : 0,
       expiresAt: new Date(Date.now() + 86400000).toISOString(),
     } }));
-    await page.goto("/#/upload/invalid");
+    await page.goto("/upload#token=invalid");
     await expect(page.getByRole("heading", { name: "Receive files", exact: true })).toBeVisible();
     await expect(page.getByRole("alert")).toContainText("This upload link is invalid. Ask the recipient for the complete link.");
     await expectMetadata(page, "en");
-    await page.goto(`/#/upload/${"a".repeat(43)}`);
+    await page.goto(`/upload#token=${"a".repeat(43)}`);
     await expect(page.getByRole("alert")).toContainText("This site is not connected to an upload service. Ask the recipient to finish setup.");
     connected = true;
     await page.getByRole("button", { name: "Check again", exact: true }).click();

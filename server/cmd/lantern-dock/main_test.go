@@ -29,10 +29,10 @@ func TestLinkCLI(t *testing.T) {
 		t.Fatal(err)
 	}
 	u, _ := url.Parse(result.URL)
-	if !strings.HasPrefix(u.Fragment, "/upload/") || result.Link.MaxFileBytes != 1<<20 || result.Link.Title != "Temporary inbox" {
+	if u.Path != "/upload" || !strings.HasPrefix(u.Fragment, "token=") || result.Link.MaxFileBytes != 1<<20 || result.Link.Title != "Temporary inbox" {
 		t.Fatal("bad link")
 	}
-	secret := strings.TrimPrefix(u.Fragment, "/upload/")
+	secret := strings.TrimPrefix(u.Fragment, "token=")
 	output.Reset()
 	if err := run([]string{"link", "list", "--data-dir", data}, &output); err != nil {
 		t.Fatal(err)

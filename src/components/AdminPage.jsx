@@ -8,6 +8,8 @@ import { bytes, date } from "../lib/format.js";
 import { Dialog } from "./Dialog.jsx";
 import { DownloadPanel } from "./DownloadPanel.jsx";
 import { Icon } from "./Icon.jsx";
+import { useRouter } from "../hooks/useRouter.jsx";
+import { accountHref } from "../../shared/routes.js";
 
 const ignore = () => {};
 
@@ -21,10 +23,10 @@ export function AdminPage() {
   return (
     <main class="admin-page">
       <header class="admin-header">
-        <a class="admin-back" href={mobile ? "#/me" : "#/"}>
+        <a class="admin-back" href={mobile ? "/me" : "/"}>
           <Icon name="chevron-left" /><span>{t(mobile ? "library.backToMe" : "account.backToPublicFiles")}</span>
         </a>
-        <a class="admin-account-link" href="#/account"><Icon name="user" /><span>{t("account.myAccount")}</span></a>
+        <a class="admin-account-link" href={accountHref(location.pathname + location.search)}><Icon name="user" /><span>{t("account.myAccount")}</span></a>
       </header>
       <div class="admin-heading">
         <span class="admin-eyebrow"><Icon name="shield" />LanternDock</span>
@@ -39,7 +41,7 @@ export function AdminPage() {
           <span class="admin-gate-icon"><Icon name={access === "nas-error" ? "cloud-off" : "lock"} /></span>
           <h2>{t(`admin.gate.${access}.title`)}</h2>
           <p>{t(`admin.gate.${access}.description`)}</p>
-          {access === "signed-out" ? <a class="primary-button" href="#/account">{t("account.signIn")}</a> :
+          {access === "signed-out" ? <a class="primary-button" href={accountHref(location.pathname + location.search)}>{t("account.signIn")}</a> :
             access !== "checking" && <button class="secondary-button"
               onClick={() => void (access === "identity-error" ? refreshIdentity() : refreshNAS())}>
               <Icon name="refresh" />{t("account.checkAgain")}
@@ -71,10 +73,17 @@ function useCollection(client, kind, linkId, revision, onError) {
 }
 
 function AdminWorkspace({ account, refreshNAS, refreshIdentity }) {
+  const router = useRouter();
   const client = useMemo(() => new AdminClient(account), [account]);
   useEffect(() => () => client.close(), [client]);
-  const [tab, setTab] = useState(account.capabilities.adminLinks ? "links" : "inbox");
-  const [filter, setFilter] = useState(null);
+  const tab = router.route.tab === "inbox" && account.capabilities.adminInbox ? "inbox" : account.capabilities.adminLinks ? "links" : "inbox";
+  const setTab = (next) => router.navigate(`/admin/${next}`);
+  useEffect(() => {
+    if (location.pathname !== `/admin/${tab}`) router.navigate(`/admin/${tab}`, { replace: true });
+  }, [tab]);
+  const [filterTitle, setFilterTitle] = useState(null);
+  const requestedLink = new URLSearchParams(location.search).get("link");
+  const filter = requestedLink && /^[a-zA-Z0-9_-]{1,128}$/.test(requestedLink) ? { id: requestedLink, title: filterTitle?.id === requestedLink ? filterTitle.title : requestedLink } : null;
   const [revision, setRevision] = useState(0);
   const [create, setCreate] = useState(false);
   const [revoke, setRevoke] = useState(null);
@@ -98,8 +107,8 @@ function AdminWorkspace({ account, refreshNAS, refreshIdentity }) {
   }, [client, refreshNAS]);
   const refresh = () => setRevision((value) => value + 1);
   const showInbox = (link) => {
-    setFilter({ id: link.id, title: link.title });
-    setTab("inbox");
+    setFilterTitle({ id: link.id, title: link.title });
+    router.navigate(`/admin/inbox?link=${encodeURIComponent(link.id)}`);
     requestAnimationFrame(() => document.getElementById("admin-inbox-heading")?.focus({ preventScroll: true }));
   };
   return (
@@ -116,7 +125,7 @@ function AdminWorkspace({ account, refreshNAS, refreshIdentity }) {
       {tab === "links" ? <LinksPanel client={client} revision={revision} refresh={refresh} onError={onError}
         onCreate={() => setCreate(true)} onRevoke={setRevoke} onInbox={account.capabilities.adminInbox ? showInbox : null} /> :
         <InboxPanel key={filter?.id || "all"} client={client} revision={revision} refresh={refresh} onError={onError}
-          filter={filter} onClearFilter={() => setFilter(null)} onDownload={(item) => transfer.download({ ...item, path: item.id })}
+          filter={filter} onClearFilter={() => router.navigate("/admin/inbox", { replace: true })} onDownload={(item) => transfer.download({ ...item, path: item.id })}
           downloading={!!transfer.progress} />}
       {create && <CreateLinkDialog client={client} onExit={() => setCreate(false)} onCreated={refresh} onError={onError} />}
       {revoke && <RevokeDialog client={client} link={revoke} onExit={() => setRevoke(null)} onError={onError}

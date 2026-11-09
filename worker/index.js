@@ -357,7 +357,7 @@ export default {
         headers: { "Cache-Control": "no-store" },
       });
     }
-    if (url.pathname.startsWith("/api/"))
+    if (url.pathname === "/api" || url.pathname.startsWith("/api/") || url.pathname === "/auth" || url.pathname.startsWith("/auth/"))
       return respond({ error: t("server.notFound") }, 404);
     return secureResponse(await env.ASSETS.fetch(request));
   },

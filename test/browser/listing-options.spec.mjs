@@ -98,7 +98,8 @@ test("fallback files expose one menu with keyboard navigation and dismissal", as
   await expect(menu).toHaveCount(0);
   await expect(trigger).toBeFocused();
   await openListingOptions(page);
-  await page.getByRole("searchbox").click();
+  // On mobile the anchored menu covers the middle of the search field.
+  await page.getByRole("searchbox").click({ position: { x: 4, y: 12 } });
   await expect(menu).toHaveCount(0);
   await expect(page.getByRole("searchbox")).toBeFocused();
   await openListingOptions(page);
@@ -150,13 +151,13 @@ test("Favorites menu Escape does not dismiss its parent or a later nested previe
   await openListingOptions(page);
   await page.keyboard.press("Escape");
   await expect(listingOptionsMenu(page)).toHaveCount(0);
-  await expect(page).toHaveURL(/#\/favorites$/);
+  await expect(page).toHaveURL(/\/favorites$/);
   await expect(listingOptionsButton(page)).toBeFocused();
   await preview(page, names[1]).click();
   await expect(dialog(page)).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog(page)).toHaveCount(0);
-  await expect(page).toHaveURL(/#\/favorites$/);
+  await expect(page).toHaveURL(/\/favorites$/);
   await expect(preview(page, names[1])).toBeFocused();
   await openListingOptions(page);
   await expect(listingOptionsMenu(page)).toBeVisible();
@@ -257,7 +258,7 @@ test("scrolled Favorites can reopen the menu inside the viewport and select an o
     ...history[0], path: `/favorite-${index}.txt`, name: `收藏 ${index}.txt`,
   }));
   await page.addInitScript((items) => localStorage.setItem("lantern-dock:demo::/:favorites", JSON.stringify(items)), favorites);
-  await page.goto("/#/favorites");
+  await page.goto("/favorites");
   await expect(fileNames(page)).toHaveCount(40);
   for (let pass = 0; pass < 2; pass++) {
     await page.locator("#file-list .file-item").last().scrollIntoViewIfNeeded();
@@ -272,6 +273,6 @@ test("scrolled Favorites can reopen the menu inside the viewport and select an o
     await expect(menu).toHaveCount(0);
     await expect(listingOptionsButton(page)).toBeFocused();
     await expectListingOptions(page, [pass ? "列表视图" : "网格视图"]);
-    await expect(page).toHaveURL(/#\/favorites$/);
+    await expect(page).toHaveURL(/\/favorites$/);
   }
 });

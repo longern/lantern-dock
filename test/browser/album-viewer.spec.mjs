@@ -1,3 +1,4 @@
+import { flipAlbum } from "../helpers/album-navigation.mjs";
 import { test as base, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 
@@ -9,6 +10,8 @@ const test = base.extend({
     expect(errors).toEqual([]);
   },
 });
+const gates = new Set();
+test.afterEach(() => { for (const release of gates) release(); gates.clear(); });
 const thumbnail = await readFile(
   new URL("../fixtures/album-thumbnail.jpg", import.meta.url),
 );
@@ -233,6 +236,7 @@ test("a cropped thumbnail opens immediately, then decoded high resolution fades 
   let release;
   const gate = new Promise((resolve) => {
     release = resolve;
+    gates.add(resolve);
   });
   const state = await install(page, {
     highResponse: async (route, high) => {
@@ -276,7 +280,7 @@ test("a cropped thumbnail opens immediately, then decoded high resolution fades 
         ),
       )
       .toBeLessThan(1);
-    expect((await source.boundingBox()).width).toBe(before.width);
+    expect((await source.boundingBox()).width).toBeCloseTo(before.width, 3);
     expect(state.originals).toEqual([]);
     await page.waitForFunction(() => window.albumOpenFrames.length >= 35);
     const frames = await page.evaluate(() => window.albumOpenFrames);
@@ -362,7 +366,7 @@ test("mixed media pages start only the active video and stop it before returning
   ).toBeVisible();
   expect(state.originals).toEqual([]);
   await expect(viewer(page).locator("video")).toHaveCount(0);
-  await button(page, "下一张照片或视频").click();
+  await flipAlbum(page);
   await expect(page.locator("#album-viewer-name")).toHaveText("clip.mp4");
   const player = viewer(page).locator("video");
   await expect(player).toBeVisible();
@@ -386,7 +390,7 @@ test("mixed media pages start only the active video and stop it before returning
   await player.focus();
   await page.keyboard.press("ArrowRight");
   await expect(page.locator("#album-viewer-name")).toHaveText("clip.mp4");
-  await button(page, "下一张照片或视频").click();
+  await flipAlbum(page);
   await expect(page.locator("#album-viewer-name")).toHaveText("last.png");
   await expect(viewer(page).locator("video")).toHaveCount(0);
   expect(
@@ -446,6 +450,7 @@ test("closing before a delayed image completes aborts its request and a late res
   let release;
   const gate = new Promise((resolve) => {
     release = resolve;
+    gates.add(resolve);
   });
   const state = await install(page, {
     highResponse: async (route, high) => {
@@ -511,10 +516,18 @@ test("longer albums keep only adjacent media mounted and resize without overflow
     );
     expect(await page.locator(".album-media").count()).toBeLessThanOrEqual(3);
     if (index < photos.length - 1)
-      await button(page, "下一张照片或视频").click();
+      await flipAlbum(page);
   }
-  await expect(button(page, "下一张照片或视频")).toBeDisabled();
+  if (page.viewportSize().width > 700) await expect(button(page, "下一张照片或视频")).toBeDisabled();
+  else await expect(page.locator(".album-viewer-pager")).toBeHidden();
+  const changesParent = page.viewportSize().width <= 700;
   await page.setViewportSize({ width: 844, height: 390 });
+  if (changesParent) {
+    // Moving from the mobile page dialog to the desktop page releases the old
+    // native modal before another viewer is opened from the new thumbnail.
+    await expect(viewer(page)).toHaveCount(0);
+    await page.locator(".album-preview").last().click();
+  }
   await expect
     .poll(() =>
       current(page).evaluate((node) => {
@@ -674,7 +687,7 @@ test("live playback gesture yields to dragging and multiple pointers", async ({
   expect(state.liveReads).toEqual([]);
   await button(page, "播放动态照片").click();
   await expect(current(page).locator("video")).toHaveClass(/is-playing/);
-  await button(page, "下一张照片或视频").click();
+  await flipAlbum(page);
   await expect(current(page)).toHaveAttribute(
     "data-media-path",
     "/dav/last.png",
@@ -688,6 +701,7 @@ test("a released hold cannot start playback when a delayed video arrives", async
   let release;
   const gate = new Promise((resolve) => {
     release = resolve;
+    gates.add(resolve);
   });
   const state = await install(page, {
     ...liveFixture,
@@ -722,6 +736,7 @@ test("metadata arriving after opening enables LIVE without remounting the viewer
   let release;
   const gate = new Promise((resolve) => {
     release = resolve;
+    gates.add(resolve);
   });
   await install(page, {
     ...liveFixture,

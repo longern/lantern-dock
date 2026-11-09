@@ -87,7 +87,7 @@ test("slash focuses Home search without navigating from other destinations", asy
     if (mode === "files") await destination.click();
     await destination.focus();
     await page.keyboard.press("/");
-    if (mode === "favorites") await expect(page).toHaveURL(/#\/favorites$/);
+    if (mode === "favorites") await expect(page).toHaveURL(/\/favorites$/);
     else await expect(destination).toHaveAttribute("aria-current", "page");
     await expect(destination).toBeFocused();
     await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
@@ -140,12 +140,12 @@ test("home shows actual recent visits, persists them and does not fall back afte
   await expect(listingOptionsButton(page)).toHaveCount(0);
 });
 
-test("home has no divider between the search header and category shortcuts", async ({ page }) => {
+test("Home and Files headers have no divider above their collection cards", async ({ page }) => {
   const headerRow = page.locator(page.viewportSize().width <= 700 ? ".mobile-file-tools" : ".topbar");
   await expect(headerRow).toHaveCSS("border-bottom-width", "0px");
   await expect(page.locator(".category-cards")).toHaveCSS("border-top-width", "0px");
   await files(page).click();
-  await expect(headerRow).toHaveCSS("border-bottom-width", "1px");
+  await expect(headerRow).toHaveCSS("border-bottom-width", "0px");
 });
 
 test("Home search stays 36px tall with and without the clear control after returning", async ({ page }) => {
@@ -206,7 +206,7 @@ test("desktop account remains keyboard reachable from the sidebar", async ({ pag
   await account.focus();
   await expect(account).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/#\/account$/);
+  await expect(page).toHaveURL(/\/account$/);
 });
 
 test("mobile home card is edge-to-edge, fills the screen and grows with its contents without negative margins", async ({ page }, testInfo) => {

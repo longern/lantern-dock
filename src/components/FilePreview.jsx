@@ -13,6 +13,7 @@ export function FilePreview({
   favorite,
   onFavorite,
   onDownload,
+  onCopyLink,
   onError,
   onClose,
   onEntered,
@@ -107,6 +108,7 @@ export function FilePreview({
           <Icon name={modal ? "chevron-left" : "x"} />
         </button>
         <strong id="preview-name">{item.name}</strong>
+        <button class="icon-button" aria-label={t("library.copyLink")} onClick={() => onCopyLink(item)}><Icon name="copy" /></button>
         <button
           class="icon-button edge-end"
           aria-label={favorite ? t("library.unfavoriteFile") : t("library.favoriteFile")}

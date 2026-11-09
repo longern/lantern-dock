@@ -19,6 +19,7 @@ function FileItem({
   recent,
   onOpen,
   onFavorite,
+  onCopyLink,
 }) {
   return (
     <li
@@ -68,6 +69,7 @@ function FileItem({
           {item.isDirectory ? "—" : bytes(item.size)}
         </span>
       </button>
+      <button class="file-copy-button" aria-label={t("library.copyLinkNamed", { name: item.name })} onClick={() => onCopyLink(item)}><Icon name="copy" /></button>
       <button
         class={`favorite-button${favorite ? " selected" : ""}`}
         aria-label={t(favorite ? "library.unfavoriteNamed" : "library.favoriteNamed", { name: item.name })}
@@ -86,6 +88,9 @@ export function FileBrowser({
   selected,
   onPreview,
   onSettings,
+  listId = "file-list",
+  countId = "item-count",
+  pageDialog = false,
 }) {
   const {
     entries, recent, album, usesDirectory, view, recordsPending, recordsError,
@@ -107,6 +112,7 @@ export function FileBrowser({
     ],
   );
   const home = library.mode === "home";
+  const card = home || (library.mode === "all" && !album);
   const Collection = album ? "div" : "ul";
   const error = recordsError ||
     ((usesDirectory || recordsPending) ? library.error : null);
@@ -122,10 +128,10 @@ export function FileBrowser({
           : t("library.connected");
   return (
     <section
-      class={`content${home ? " home-content" : ""}${album ? " album-content" : ""}`}
+      class={`content${card ? " collection-card" : ""}${home ? " home-content" : ""}${album ? " album-content" : ""}`}
       aria-label={t("library.fileBrowser")}
     >
-      {album && (
+      {album && !pageDialog && (
         <div class="album-heading">
           <h1>{t("library.photos")}</h1>
         </div>
@@ -135,7 +141,7 @@ export function FileBrowser({
           {home && (
             <h2 class="file-section-title">{recent ? t("library.recentFiles") : t("library.files")}</h2>
           )}
-          <strong id="item-count">
+          <strong id={countId}>
             {busy
               ? t("library.loading")
               : error
@@ -154,7 +160,7 @@ export function FileBrowser({
               <span>{status}</span>
             </span>
           )}
-          {library.kind && (
+          {library.kind && !pageDialog && (
             <button
               class="filter-chip"
               onClick={() => library.selectMode("all")}
@@ -219,7 +225,7 @@ export function FileBrowser({
         <span />
       </div>
       <Collection
-        id="file-list"
+        id={listId}
         role={album ? undefined : "list"}
         class={album ? "album-timeline" : `file-grid${view === "list" ? " list-layout" : ""}`}
         aria-live="polite"
@@ -253,6 +259,7 @@ export function FileBrowser({
                 favorite={records.isFavorite(item)}
                 recent={recent}
                 onFavorite={records.toggleFavorite}
+                onCopyLink={library.copyLink}
                 onOpen={(item) =>
                   item.isDirectory
                     ? library.navigate(item.path)

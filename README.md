@@ -34,6 +34,7 @@ Give visitors a simple interface to files you already host. LanternDock provides
 
 - **Browse your files.** Directory navigation, search within the current directory, sorting, and list or grid views.
 - **Preview before downloading.** Open images, text and supported videos in a desktop side panel or a full-screen mobile preview.
+- **Share a location.** Copy a folder or file preview URL and reopen it directly, including album context. See [page URLs](docs/routing.md).
 - **Load smaller images.** The NAS service provides IIIF 3 thumbnails and resized previews, with bounded caches and ETag validation.
 - **Download with control.** Progress, cancellation, and streaming to disk when the browser supports a file picker.
 - **Pick up where you left off.** Favorites and recent files stored in the visitor's browser.

@@ -48,52 +48,6 @@
 .favorites-heading { display: flex; align-items: center; gap: 10px; padding: 18px 28px 0; }
 .favorites-heading > .header-actions { margin-left: auto; }
 .favorites-heading h1 { margin: 0; font-size: 22px; font-weight: 650; }
-.favorites-dialog {
-  inset: 0;
-  margin: 0;
-  width: 100%;
-  max-width: none;
-  height: 100dvh;
-  max-height: none;
-  padding: 0 0 max(20px, env(safe-area-inset-bottom));
-  border: 0;
-  border-radius: 0;
-  color: inherit;
-  background: var(--canvas);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-.favorites-dialog:not([open]) { display: none; }
-.favorites-dialog .favorites-heading {
-  display: grid;
-  grid-template-columns: var(--topbar-button-size) minmax(0, 1fr) var(--topbar-button-size);
-  gap: 0;
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  height: calc(var(--topbar-height) + env(safe-area-inset-top));
-  background: var(--canvas);
-  border-bottom: 1px solid var(--line);
-  padding: env(safe-area-inset-top) 16px 0;
-}
-.favorites-dialog .favorites-heading > #favorites-back {
-  width: var(--topbar-button-size);
-  height: var(--topbar-button-size);
-}
-.favorites-dialog .favorites-heading > .header-actions {
-  margin-left: 0;
-  justify-self: end;
-}
-.favorites-dialog .favorites-heading h1 {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: center;
-  font-size: 16px;
-  font-weight: normal;
-}
-.favorites-dialog .download-panel { bottom: max(20px, env(safe-area-inset-bottom)); }
 /* Each identity is one control, without an avatar or control fill. */
 .my-identity-control {
   width: fit-content;

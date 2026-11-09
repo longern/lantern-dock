@@ -250,8 +250,7 @@ html:has(.album-viewer[open]) {
     padding-right: 16px;
   }
   .album-viewer-pager {
-    inset: auto 12px calc(86px + env(safe-area-inset-bottom));
-    transform: none;
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {

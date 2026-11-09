@@ -29,7 +29,7 @@
     display: none;
   }
   .preview-open .list-head {
-    grid-template-columns: minmax(0, 1fr) 80px 38px;
+    grid-template-columns: minmax(0, 1fr) 80px 78px;
   }
   .preview-open .list-head > span:nth-child(2) {
     display: none;
@@ -164,7 +164,7 @@
   }
   .list-layout .file-open {
     height: 70px;
-    padding: 0 48px 0 3px;
+    padding: 0 92px 0 3px;
     grid-template-columns: 40px minmax(0, 1fr);
     gap: 12px;
   }
@@ -188,18 +188,23 @@
   .file-name {
     font-size: 14px;
   }
-  .list-layout .favorite-button {
+  .list-layout .favorite-button,
+  .list-layout .file-copy-button {
     top: 13px;
     right: 0;
     opacity: 0.7;
     width: 44px;
     height: 44px;
   }
+  .list-layout .file-copy-button {
+    right: 44px;
+  }
   .file-grid:not(.list-layout) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
-  .file-item .favorite-button {
+  .file-item .favorite-button,
+  .file-item .file-copy-button {
     opacity: 0.6;
   }
   .file-art {
@@ -331,7 +336,7 @@ body:has(dialog:modal) {
 }
 @media (min-width: 701px) {
   .list-head {
-    grid-template-columns: minmax(0, 1fr) 148px 80px 38px;
+    grid-template-columns: minmax(0, 1fr) 148px 80px 78px;
   }
   .list-layout .file-open {
     grid-template-columns: 36px minmax(0, 1fr) 148px 80px;

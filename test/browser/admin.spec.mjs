@@ -40,7 +40,7 @@ async function install(page, options = {}) {
   await page.route("**/fixture/account", (route) => route.fulfill({ status: state.accountStatus || 200,
     json: state.accountStatus ? { error: "Cannot verify", code: state.accountCode } : {
       user: { ...user, role: state.role || "admin" }, administratorConfigured: true,
-      ...(state.legacy ? {} : { capabilities: { adminLinks: true, adminInbox: true } }),
+      ...(state.legacy ? {} : { capabilities: state.capabilities || { adminLinks: true, adminInbox: true } }),
     } }));
   await page.route("**/fixture/grant?*", (route) => {
     state.scopes.push(new URL(route.request().url()).searchParams.get("scope"));
@@ -84,7 +84,7 @@ for (const legacy of [false, true]) {
   test(`${legacy ? "older" : "current"} NAS administrators find the entry between favorites and settings`, async ({ page }) => {
     test.skip(page.viewportSize().width > 700, "Me is the mobile account destination");
     const state = await install(page, { legacy });
-    await page.goto("/#/me");
+    await page.goto("/me");
     await expect(page.locator("#my-admin")).toBeVisible();
     expect(await page.locator(".my-action-list > *").evaluateAll((nodes) => nodes.map((node) => node.id)))
       .toEqual(["my-favorites", "my-admin", "my-settings"]);
@@ -112,7 +112,7 @@ for (const [name, options] of [
 ]) {
   test(`${name} does not see an administrator entry in account details`, async ({ page }) => {
     const state = await install(page, options);
-    await page.goto("/#/account");
+    await page.goto("/account");
     await expect(page.locator("#account-title")).toBeVisible();
     await expect(page.locator(".upload-message")).toHaveCount(0);
     await expect(page.locator("#account-admin-entry")).toHaveCount(0);
@@ -126,7 +126,7 @@ for (const language of ["zh-CN", "en"]) {
     const text = copy[language];
     test("create once, copy, dismiss, and browser history never recover the token", async ({ page }) => {
       const state = await install(page, { links: [] });
-      await page.goto("/#/admin");
+      await page.goto("/admin");
       await expect(page.getByRole("heading", { name: text.title, exact: true })).toBeVisible();
       await page.locator("#admin-create-link").click();
       const dialog = page.locator("#admin-create-dialog");
@@ -136,7 +136,7 @@ for (const language of ["zh-CN", "en"]) {
       await dialog.locator("button[type=submit]").click();
       await expect(dialog.getByRole("heading", { name: text.created, exact: true })).toBeVisible();
       const url = await page.locator("#admin-created-url").inputValue();
-      expect(url).toContain(`#/upload/${token}`);
+      expect(url).toContain(`/upload#token=${token}`);
       await expect(page.locator("#admin-copy-link")).toBeFocused();
       await dialog.getByRole("button", { name: text.copy, exact: true }).click();
       await expect(dialog.getByRole("status")).toHaveText(text.copied);
@@ -149,7 +149,7 @@ for (const language of ["zh-CN", "en"]) {
       await expect(page.locator("body")).not.toContainText(token);
       await page.locator(".admin-account-link").click();
       await page.goBack();
-      await expect(page).toHaveURL(/#\/admin$/);
+      await expect(page).toHaveURL(/\/admin(?:\/links)?$/);
       await expect(page.locator("#admin-created-url")).toHaveCount(0);
       expect(state.requests.filter((request) => request.method === "POST")).toHaveLength(1);
       expect(state.scopes).toContain("links:write");
@@ -157,7 +157,7 @@ for (const language of ["zh-CN", "en"]) {
     });
     test("revoke confirms, retains inbox files, filters and downloads privately", async ({ page }) => {
       const state = await install(page);
-      await page.goto("/#/admin");
+      await page.goto("/admin");
       await expect(page.locator(".admin-link-card")).toHaveCount(1);
       await page.locator(".admin-link-card .admin-danger").click();
       const dialog = page.locator("#admin-revoke-dialog");
@@ -198,7 +198,7 @@ for (const [name, options, heading] of [
 ]) {
   test(`${name} cannot enter administration or make admin requests`, async ({ page }) => {
     const state = await install(page, options);
-    await page.goto("/#/admin");
+    await page.goto("/admin");
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
     await expect(page.locator("#admin-create-link,.admin-navigation")).toHaveCount(0);
     expect(state.requests).toEqual([]);
@@ -215,7 +215,7 @@ test("rapid form submits create once, cancellation is locked while the outcome i
     await route.fulfill({ status: 201, json: { link: fixtureLink, token } });
     return true;
   } });
-  await page.goto("/#/admin");
+  await page.goto("/admin");
   await page.locator("#admin-create-link").click();
   const dialog = page.locator("#admin-create-dialog");
   await dialog.locator("[name=title]").fill("One link");
@@ -234,7 +234,7 @@ test("uncertain creation is not automatically retried", async ({ page }) => {
     await route.fulfill({ status: 503, json: { error: "Connection lost" } });
     return true;
   } });
-  await page.goto("/#/admin");
+  await page.goto("/admin");
   await page.locator("#admin-create-link").click();
   const dialog = page.locator("#admin-create-dialog");
   await dialog.locator("[name=title]").fill("One link");
@@ -256,12 +256,12 @@ test("navigation aborts a pending create and a late response cannot reveal its t
       return new Promise((resolve) => { window.adminPending = { signal: options.signal, release: (body) => resolve(new Response(JSON.stringify(body), { status: 201 })) }; });
     };
   });
-  await page.goto("/#/admin");
+  await page.goto("/admin");
   await page.locator("#admin-create-link").click();
   await page.locator("#admin-link-title").fill("Leave this page");
   await page.locator("#admin-create-dialog button[type=submit]").click();
   await expect.poll(() => page.evaluate(() => !!window.adminPending)).toBe(true);
-  await page.evaluate(() => { location.hash = "#/account"; });
+  await page.evaluate(() => { history.pushState(null, "", "/account"); window.dispatchEvent(new PopStateEvent("popstate")); });
   await expect(page.locator("#admin-create-dialog")).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.adminPending.signal.aborted)).toBe(true);
   await page.evaluate(({ link, token }) => window.adminPending.release({ link, token }), { link: fixtureLink, token });
@@ -282,7 +282,7 @@ test("a timed-out creation unlocks dismissal and never retries or reveals a late
       return new Promise((resolve) => { window.adminAttempts.push({ signal: options.signal, release: (body) => resolve(new Response(JSON.stringify(body), { status: 201 })) }); });
     };
   });
-  await page.goto("/#/admin");
+  await page.goto("/admin");
   await page.locator("#admin-create-link").click();
   const dialog = page.locator("#admin-create-dialog");
   await page.locator("#admin-link-title").fill("Timeout check");
@@ -300,4 +300,31 @@ test("a timed-out creation unlocks dismissal and never retries or reveals a late
   await expect(page.locator("#admin-created-url")).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(token);
   expect(await page.evaluate(() => window.adminAttempts.length)).toBe(1);
+});
+
+test("direct admin URLs respect capabilities before starting a collection request", async ({ page }) => {
+  const state = await install(page, { capabilities: { adminLinks: true, adminInbox: false } });
+  await page.goto('/admin/inbox');
+  await expect(page).toHaveURL(/\/admin\/links$/);
+  await expect(page.locator('#admin-create-link')).toBeVisible();
+  expect(state.requests.some(request => request.pathname === '/api/admin/inbox')).toBe(false);
+  // Tear down the preceding page before changing its simulated permissions.
+  await page.goto('about:blank');
+  state.capabilities = { adminLinks: false, adminInbox: true };
+  state.requests.length = 0;
+  await page.goto('/admin/links');
+  await expect(page).toHaveURL(/\/admin\/inbox$/);
+  await expect(page.locator('#admin-inbox-heading')).toBeVisible();
+  expect(state.requests.some(request => request.pathname === '/api/admin/links')).toBe(false);
+});
+
+test("a filtered inbox URL starts with its filter and survives refresh", async ({ page }) => {
+  const state = await install(page);
+  await page.goto('/admin/inbox?link=' + fixtureLink.id);
+  await expect(page.locator('.admin-inbox-file')).toHaveCount(1);
+  const reads = state.requests.filter(request => request.pathname === '/api/admin/inbox');
+  expect(reads.length).toBeGreaterThan(0);
+  expect(reads.every(request => new URLSearchParams(request.query).get('linkId') === fixtureLink.id)).toBe(true);
+  await page.reload();
+  await expect(page.locator('.admin-inbox-file')).toHaveCount(1);
 });

@@ -170,7 +170,8 @@ func run(args []string, out io.Writer) error {
 		if err != nil {
 			return err
 		}
-		u.Fragment = "/upload/" + token
+		u.Path = "/upload"
+		u.Fragment = "token=" + token
 		return encoder.Encode(struct {
 			Link nas.Link `json:"link"`
 			URL  string   `json:"url"`

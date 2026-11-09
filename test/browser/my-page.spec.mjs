@@ -36,7 +36,7 @@ async function enterMyPage(page, language) {
     name: copyByLanguage[language].me, exact: true,
   });
   await me.click();
-  await expect(page).toHaveURL(/#\/me$/);
+  await expect(page).toHaveURL(/\/me$/);
   await expect(me).toHaveAttribute("aria-current", "page");
   return page.locator("#my-account");
 }
@@ -116,7 +116,7 @@ for (const language of ["zh-CN", "en"]) {
       await expect(account.getByRole("heading", { name: "Mina Chen", exact: true })).toBeVisible();
       await expect(account.getByText("mina@example.test", { exact: true })).toBeVisible();
       await expect(account.getByRole("button", { name: copy.retry, exact: true })).toHaveCount(0);
-      await expect(page).toHaveURL(/#\/me$/);
+      await expect(page).toHaveURL(/\/me$/);
       expect(checks).toBe(2);
     });
 
@@ -158,7 +158,7 @@ for (const language of ["zh-CN", "en"]) {
       await expect(account).not.toContainText(copy.details);
       await expect(account).not.toContainText(copy.signedIn);
       await expect(trigger).toHaveAttribute("id", "my-account-link");
-      await expect(trigger).toHaveAttribute("href", "#/account?return=me");
+      await expect(trigger).toHaveAttribute("href", "/account?return=/me");
       await expect(trigger).not.toHaveAttribute("aria-haspopup", "dialog");
       await expect(trigger).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
       await expect(trigger).toHaveCSS("border-top-width", "0px");
@@ -177,20 +177,20 @@ for (const language of ["zh-CN", "en"]) {
           await expect(trigger).toHaveCSS("outline-style", "solid");
           await page.keyboard.press("Enter");
         }
-        await expect(page).toHaveURL(/#\/account\?return=me$/);
+        await expect(page).toHaveURL(/\/account\?return=(?:%2F|\/)me$/);
         await expect(page.locator(".account-page").getByRole("heading", { name: "Mina Chen", exact: true })).toBeVisible();
         await expect(page.locator("#sign-in-dialog")).toHaveCount(0);
         await page.getByRole("link", { name: copy.back, exact: true }).click();
-        await expect(page).toHaveURL(/#\/me$/);
+        await expect(page).toHaveURL(/\/me$/);
         await expect(trigger).toBeVisible();
       }
       // Native page navigation still supports browser Back and Forward.
       await trigger.click();
-      await expect(page).toHaveURL(/#\/account\?return=me$/);
+      await expect(page).toHaveURL(/\/account\?return=(?:%2F|\/)me$/);
       await page.goBack();
       await expect(trigger).toBeVisible();
       await page.goForward();
-      await expect(page).toHaveURL(/#\/account\?return=me$/);
+      await expect(page).toHaveURL(/\/account\?return=(?:%2F|\/)me$/);
       expect(logins).toBe(0);
     });
 
@@ -206,10 +206,10 @@ for (const language of ["zh-CN", "en"]) {
         user = fixture.user;
         // Start a new document so even an unchanged hash reloads the session.
         await page.goto("about:blank");
-        await page.goto("/#/me");
+        await page.goto("/me");
         const account = page.locator("#my-account");
         await expect(account.getByRole("heading", { name: fixture.title, exact: true })).toBeVisible();
-        await expect(account.getByRole("link", { name: fixture.title, exact: true })).toHaveAttribute("href", "#/account?return=me");
+        await expect(account.getByRole("link", { name: fixture.title, exact: true })).toHaveAttribute("href", "/account?return=/me");
         await expect(account).not.toContainText(copy.signedIn);
         await expect(account).not.toContainText(/undefined|null|fixture-user|identity\.example/);
         await expect(account).not.toContainText(copy.administrator);
@@ -233,7 +233,7 @@ for (const language of ["zh-CN", "en"]) {
         else await page.mouse.click(4, 4);
         await expect(dialog).toHaveCount(0);
         await expect(trigger).toBeFocused();
-        await expect(page).toHaveURL(/#\/me$/);
+        await expect(page).toHaveURL(/\/me$/);
         await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
       }
     });
@@ -245,7 +245,7 @@ for (const language of ["zh-CN", "en"]) {
       await trigger.click();
       const dialog = page.getByRole("dialog", { name: copy.signInTitle, exact: true });
       await expect(dialog).toBeVisible();
-      await expect(page).toHaveURL(/#\/me$/);
+      await expect(page).toHaveURL(/\/me$/);
       await page.keyboard.press("Escape");
       await expect(dialog).toHaveCount(0);
       await expect(trigger).toBeFocused();
@@ -291,7 +291,7 @@ test("a late response from an invalidated shared session cannot replace the newe
   });
   await expect(page.locator("#my-account")).toContainText("current@example.test");
   await expect(page.locator("#my-account")).not.toContainText("Obsolete identity");
-  await expect(page).toHaveURL(/#\/me$/);
+  await expect(page).toHaveURL(/\/me$/);
 });
 
 test("long identity fields and the last action remain usable at 320px and above the bottom tabs", async ({ page }, testInfo) => {
@@ -336,7 +336,7 @@ test("resizing My to desktop returns to the desktop library without stranding fo
   await expect(page.getByRole("dialog", { name: "连接设置", exact: true })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 900 });
   await expect(page.getByRole("dialog", { name: "连接设置", exact: true })).toHaveCount(0);
-  await expect(page).toHaveURL(/#\/$/);
+  await expect(page).toHaveURL(/\/$/);
   await expect(page.locator("#connection-settings")).toBeVisible();
   await expect(page.locator("#connection-settings")).toBeFocused();
   await expect(page.locator("#my-page")).toHaveCount(0);
@@ -361,7 +361,7 @@ test("signing out during a pending account check cannot resurrect the old identi
   await page.addInitScript(() => {
     const fetch = window.fetch;
     window.fetch = function (input, options) {
-      if (String(input) === "/api/config" && location.hash.startsWith("#/account")) {
+      if (String(input) === "/api/config" && ["/me", "/account"].includes(location.pathname)) {
         return new Promise((resolve) => {
           // Complete after logout even if the account request was cancelled.
           window.releasePendingAccountCheck = () => resolve(new Response(JSON.stringify({
@@ -376,6 +376,7 @@ test("signing out during a pending account check cannot resurrect the old identi
   await page.locator("#my-account-link").click();
   await expect(page.getByRole("heading", { name: "Previous account", exact: true })).toBeVisible();
   await expect(page.getByText("正在检查账户…", { exact: true })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => typeof window.releasePendingAccountCheck)).toBe("function");
   await page.getByRole("button", { name: "退出登录", exact: true }).click();
   await expect(page.getByRole("button", { name: "统一登录", exact: true })).toBeVisible();
   await page.evaluate(async () => {
@@ -416,7 +417,7 @@ test("logout completing after returning to My refreshes its real session", async
   }
   await expect(page.locator("#my-account").getByRole("button", { name: "游客", exact: true })).toBeVisible();
   await expect(page.locator("#my-account")).not.toContainText("Signing out account");
-  await expect(page).toHaveURL(/#\/me$/);
+  await expect(page).toHaveURL(/\/me$/);
 });
 
 test("an unsuccessful account recheck clears the previously verified session", async ({ page }) => {
@@ -427,7 +428,7 @@ test("an unsuccessful account recheck clears the previously verified session", a
       ? route.fulfill({ json: session({ name: "Outdated account", email: "outdated@example.test" }) })
       : route.fulfill({ status: 503, json: { message: "Session unavailable for recheck" } });
   });
-  await page.goto("/#/account");
+  await page.goto("/account");
   await expect(page.getByRole("heading", { name: "Outdated account", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "重新检测", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Session unavailable for recheck");

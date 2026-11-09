@@ -3,6 +3,7 @@ import { Icon } from "./Icon.jsx";
 import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { Dialog } from "./Dialog.jsx";
 import { useEffect } from "preact/hooks";
+import { accountHref } from "../../shared/routes.js";
 
 const modes = [
   ["home", "home", "library.home"],
@@ -30,7 +31,7 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
     <>
       <div class="sidebar-heading">
         <a
-          href="#"
+          href="/"
           class="brand"
           onClick={(event) => {
             event.preventDefault();
@@ -88,7 +89,7 @@ export function Sidebar({ library, records, open, onClose, onSettings }) {
       </nav>
       <div class="sidebar-spacer" />
       <div class="sidebar-bottom">
-        <a class="icon-button" href="#/account" aria-label={t("library.myAccount")}>
+        <a class="icon-button" href={accountHref(location.pathname + location.search)} aria-label={t("library.myAccount")}>
           <Icon name="user" />
         </a>
         <button
@@ -197,7 +198,7 @@ export function Topbar({ library, menuOpen, onMenu, actions }) {
           <Icon name="menu" />
         </button>
         <a
-          href="#"
+          href="/"
           class="mobile-brand"
           onClick={(event) => {
             event.preventDefault();

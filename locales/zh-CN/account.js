@@ -159,5 +159,6 @@ export default {
   "received": "已接收",
   "queuedUpload": "等待上传",
   "cancelledUpload": "已取消",
-  "uploading": "上传中"
+  "uploading": "上传中",
+  "backToPrevious": "返回"
 };
