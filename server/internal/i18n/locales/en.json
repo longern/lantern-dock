@@ -58,5 +58,10 @@
   "errors.jsonRequired": "Send link details as application/json.",
   "errors.invalidLink": "Provide a title (1–200 bytes), a future expiry, and positive limits with per-file size at most the total size.",
   "errors.linkNotFound": "This collection link could not be found.",
-  "errors.invalidListQuery": "Use a limit from 1 to 200, a non-negative offset, and a valid collection ID."
+  "errors.invalidListQuery": "Use a limit from 1 to 200, a non-negative offset, and a valid collection ID.",
+  "errors.mediaUnavailable": "Dynamic photo information is temporarily unavailable.",
+  "errors.mediaReadOnly": "Media previews are read-only.",
+  "errors.mediaBusy": "Media inspection is busy. Try again shortly.",
+  "errors.mediaChanged": "The directory or media file changed. Refresh and try again.",
+  "errors.mediaDirectoryTooLarge": "This directory is too large for dynamic photo inspection."
 }

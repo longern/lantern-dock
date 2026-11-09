@@ -151,6 +151,8 @@ Image tests cover the IIIF Level 0 contract, EXIF orientation, cache revalidatio
 
 Video development tests require FFmpeg 6+ and ffprobe on `PATH` (the container includes them). `test/fixtures/video.mp4` is an eight-second generated H.264/AAC test pattern. The real-bridge suite verifies video posters, actual MediaSource playback, unbuffered forward/backward seeks in a longer file with a tail index, original-URL HTTPS playback, lazy parser loading and zero service-worker registrations. Go tests cover poster dimensions/rotation, large descriptor-backed sources, source visibility, cancellation and rejection of playlists/external resource access.
 
+Live Photo tests also require ExifTool on `PATH` (included in the image), plus an FFmpeg build with HEIF support for real HEIC previews. `test/fixtures/live-photo.jpg` and `.heic` are small synthetic derivatives of the generated album thumbnail with a test-only Apple content identifier. The helper builds paired MOV and Android XMP trailers from the generated video fixture. Browser tests cover hold/release, delayed reads, gesture cancellation and keyboard playback; real-bridge tests play both Apple and Android resources through MediaSource.
+
 ## Shared account state
 
 `SessionProvider` wraps every route in `src/main.jsx`. `useSession()` exposes the

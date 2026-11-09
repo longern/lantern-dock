@@ -4,8 +4,12 @@ import { Icon } from "./Icon.jsx";
 import { Thumbnail } from "./Thumbnail.jsx";
 import { artwork } from "../lib/demo.js";
 import { groupMediaByDate } from "../lib/album.js";
+import { useLiveMedia } from "../hooks/useLiveMedia.js";
+import { albumLiveItems } from "../lib/live.js";
 
 export function Album({ entries, loading, demo, client, selected, onPreview }) {
+  const live = useLiveMedia(client, entries);
+  const media = useMemo(() => albumLiveItems(entries, live), [entries, live]);
   const elements = useRef(new Map());
   const [today, setToday] = useState(() => new Date());
   useEffect(() => {
@@ -14,7 +18,11 @@ export function Album({ entries, loading, demo, client, selected, onPreview }) {
       const now = new Date();
       setToday(now);
       clearTimeout(timer);
-      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+      const midnight = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() + 1,
+      );
       timer = setTimeout(refreshDate, midnight.getTime() - now.getTime() + 100);
     };
     refreshDate();
@@ -24,38 +32,73 @@ export function Album({ entries, loading, demo, client, selected, onPreview }) {
       document.removeEventListener("visibilitychange", refreshDate);
     };
   }, []);
-  const groups = useMemo(() => groupMediaByDate(entries, today), [entries, today]);
+  const groups = useMemo(() => groupMediaByDate(media, today), [media, today]);
   if (loading && !entries.length)
     return (
       <div class="file-grid album-layout">
-        {Array.from({ length: 12 }, (_, index) => <div class="skeleton" key={index} />)}
+        {Array.from({ length: 12 }, (_, index) => (
+          <div class="skeleton" key={index} />
+        ))}
       </div>
     );
   return groups.map((group) => (
-    <section class="album-group" key={group.key} aria-labelledby={`album-date-${group.key}`}>
+    <section
+      class="album-group"
+      key={group.key}
+      aria-labelledby={`album-date-${group.key}`}
+    >
       <h2 class="album-date" id={`album-date-${group.key}`}>
-        {group.key === "unknown" ? group.label : <time dateTime={group.key}>{group.label}</time>}
+        {group.key === "unknown" ? (
+          group.label
+        ) : (
+          <time dateTime={group.key}>{group.label}</time>
+        )}
       </h2>
       <div class="file-grid album-layout">
         {group.items.map((item) => (
           <article class="file-item album-item" key={item.path}>
             <button
               class="file-open album-preview"
-              ref={(node) => node ? elements.current.set(item.path, node) : elements.current.delete(item.path)}
+              ref={(node) =>
+                node
+                  ? elements.current.set(item.path, node)
+                  : elements.current.delete(item.path)
+              }
               data-path={item.path}
-              aria-label={t(item.kind === "video" ? "library.previewVideoNamed" : "library.previewNamed", { name: item.name })}
+              aria-label={t(
+                item.kind === "video"
+                  ? "library.previewVideoNamed"
+                  : "library.previewNamed",
+                { name: item.name },
+              )}
               aria-pressed={selected?.path === item.path}
-              onClick={() => onPreview(item, {
-                items: groups.flatMap((group) => group.items),
-                origins: new Map(groups.flatMap((group) => group.items).map((entry) => [entry.path, {
-                  get current() {
-                    const button = elements.current.get(entry.path);
-                    const rect = button?.getBoundingClientRect();
-                    if (!rect || rect.bottom <= 0 || rect.top >= innerHeight) return null;
-                    return button?.querySelector("img") || button || null;
-                  },
-                }])),
-              })}
+              onClick={() =>
+                onPreview(item, {
+                  items: groups.flatMap((group) => group.items),
+                  origins: new Map(
+                    groups
+                      .flatMap((group) => group.items)
+                      .map((entry) => [
+                        entry.path,
+                        {
+                          get current() {
+                            const button = elements.current.get(entry.path);
+                            const rect = button?.getBoundingClientRect();
+                            if (
+                              !rect ||
+                              rect.bottom <= 0 ||
+                              rect.top >= innerHeight
+                            )
+                              return null;
+                            return (
+                              button?.querySelector("img") || button || null
+                            );
+                          },
+                        },
+                      ]),
+                  ),
+                })
+              }
             >
               {demo && item.kind === "image" ? (
                 <img
@@ -64,10 +107,26 @@ export function Album({ entries, loading, demo, client, selected, onPreview }) {
                   decoding="async"
                 />
               ) : (
-                <Thumbnail item={item} client={client} side={384} fallback={<Icon name={item.kind} />} />
+                <Thumbnail
+                  item={item}
+                  client={client}
+                  side={384}
+                  fallback={<Icon name={item.kind} />}
+                />
               )}
               {item.kind === "video" && (
-                <span class="album-video-indicator" aria-hidden="true"><Icon name="play" /></span>
+                <span class="album-video-indicator" aria-hidden="true">
+                  <Icon name="play" />
+                </span>
+              )}
+              {item.live && (
+                <span
+                  class="album-live-indicator"
+                  aria-label={t("library.livePhoto")}
+                >
+                  <Icon name="live" />
+                  <span>LIVE</span>
+                </span>
               )}
             </button>
           </article>

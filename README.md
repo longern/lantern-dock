@@ -152,7 +152,7 @@ LanternDock is in early development. Public browsing is **read-only WebDAV**. Th
 - [ ] Expose predefined, authorized tasks such as media conversion.
 - [x] Add IIIF image thumbnails, resized previews and bounded caches.
 - [x] Add video posters, native HTTPS playback and page-local WebTransport MP4 playback.
-- [ ] Expand preview formats and support Live Photos.
+- [x] Identify Apple Live Photos and Android Motion Photos on the NAS; play on hold in the album. See [supported formats](docs/live-photos.md).
 
 These features require backend enforcement as well as interface work. Track proposals and discuss priorities in [Issues](https://github.com/longern/lantern-dock/issues).
 

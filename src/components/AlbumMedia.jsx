@@ -1,8 +1,9 @@
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import { t } from "../../shared/i18n.js";
 import { albumImage, decodeAlbumImage } from "../lib/album-media.js";
 import { Icon } from "./Icon.jsx";
 import { VideoPreview } from "./VideoPreview.jsx";
+import { LivePhoto } from "./LivePhoto.jsx";
 
 // PhotoSlider owns the transform/crop and gestures. These two image layers share
 // its exact geometry, so sharpening cannot move or stretch the photograph.
@@ -16,7 +17,11 @@ export function AlbumMedia({
   entered,
   signal,
   onSize,
+  live,
+  liveRequested,
+  onLiveStop,
 }) {
+  const root = useRef(null);
   const [low, setLow] = useState(thumbnail || null);
   const [high, setHigh] = useState(null);
   const [shown, setShown] = useState(false);
@@ -90,7 +95,10 @@ export function AlbumMedia({
       next = requestAnimationFrame(() => {
         setShown(true);
         // Animated images retain their base until the actual transition ends.
-        if (high.cached || matchMedia("(prefers-reduced-motion: reduce)").matches)
+        if (
+          high.cached ||
+          matchMedia("(prefers-reduced-motion: reduce)").matches
+        )
           timer = setTimeout(() => setSettled(true), 0);
       });
     });
@@ -106,6 +114,7 @@ export function AlbumMedia({
   return (
     <div
       {...attrs}
+      ref={root}
       className={`album-media ${attrs.className || ""}`}
       data-media-path={item.path}
       data-current={active ? "true" : "false"}
@@ -162,6 +171,16 @@ export function AlbumMedia({
             onDimensions={(width, height) => onSize(item.path, width, height)}
           />
         </div>
+      )}
+      {live && active && open && (
+        <LivePhoto
+          key={live.video}
+          client={client}
+          live={live}
+          requested={liveRequested}
+          onStop={onLiveStop}
+          target={root}
+        />
       )}
     </div>
   );

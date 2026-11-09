@@ -23,6 +23,10 @@ func videoSource(name string) bool {
 	}
 	return false
 }
+func heifSource(name string) bool {
+	ext := strings.ToLower(filepath.Ext(name))
+	return ext == ".heic" || ext == ".heif"
+}
 
 type boundedOutput struct {
 	buffer   bytes.Buffer

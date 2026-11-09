@@ -123,5 +123,8 @@ export default {
   "nextMedia": "Next photo or video",
   "zoomIn": "Zoom in",
   "zoomOut": "Zoom out",
-  "mediaDetails": "File details"
+  "mediaDetails": "File details",
+  "livePhoto": "Live Photo",
+  "playLivePhoto": "Play Live Photo",
+  "stopLivePhoto": "Stop Live Photo"
 };

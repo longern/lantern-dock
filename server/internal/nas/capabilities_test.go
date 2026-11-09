@@ -25,10 +25,11 @@ func TestCapabilitiesAdvertiseWorkingRoutesWithoutGrantingAccess(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&document); err != nil {
 				t.Fatal(err)
 			}
-			if document.Version != 1 || len(document.Services) != 5 {
+			if document.Version != 1 || len(document.Services) != 6 {
 				t.Fatalf("unexpected capabilities: %+v", document)
 			}
 			want := map[string]serviceCapability{
+				"media":   {Protocol: "lantern-dock-media", Version: 1, Href: mediaPath, Enabled: f.s.mediaTool != ""},
 				"files":   {Protocol: "webdav", Version: 1, Href: "/dav/", Enabled: true, ReadOnly: true},
 				"images":  {Protocol: "http://iiif.io/api/image", Version: 3, Href: imagesPath, Enabled: true},
 				"inbox":   {Protocol: "lantern-dock-inbox", Version: 1, Href: "/api/uploads", Enabled: true},

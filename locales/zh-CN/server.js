@@ -58,5 +58,10 @@ export default {
   "loginResponseInvalid": "登录响应无效，请重试。",
   "loginVerificationFailed": "登录验证失败，请重新登录。",
   "tokenRequiresPost": "此接口需要 POST 请求。",
-  "authUnavailable": "登录服务暂不可用，请稍后重试。"
+  "authUnavailable": "登录服务暂不可用，请稍后重试。",
+  "errors.mediaUnavailable": "暂时无法读取动态照片信息。",
+  "errors.mediaReadOnly": "媒体预览仅支持只读访问。",
+  "errors.mediaBusy": "正在识别媒体，请稍后重试。",
+  "errors.mediaChanged": "目录或媒体文件已变化，请刷新后重试。",
+  "errors.mediaDirectoryTooLarge": "此目录过大，暂时无法识别动态照片。"
 };

@@ -46,6 +46,54 @@ html:has(.album-viewer[open]) {
 .album-media:active {
   cursor: grabbing;
 }
+.album-live-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease;
+}
+.album-live-video.is-playing {
+  opacity: 1;
+}
+.album-live-label {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  color: white;
+  background: #0009;
+  border-radius: 4px;
+  font-size: 11px;
+  pointer-events: none;
+}
+.album-live-label svg {
+  width: 16px;
+  height: 16px;
+}
+.album-live-status {
+  position: absolute;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  border-radius: 8px;
+  background: #000b;
+  color: white;
+  font-size: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+.album-viewer-actions:has([data-live-action]) {
+  gap: 0;
+  padding-inline: 8px;
+}
 .album-media > img {
   position: absolute;
   inset: 0;
@@ -207,6 +255,9 @@ html:has(.album-viewer[open]) {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .album-live-video {
+    transition: none;
+  }
   /* The library normally clears its fade class on animationend. No animation
      means no event, so explicitly keep the black backdrop visible. */
   .album-viewer .PhotoView-Slider__Backdrop {

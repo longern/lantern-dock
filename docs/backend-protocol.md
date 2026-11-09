@@ -6,6 +6,7 @@ The included NAS service exposes one HTTP origin behind a WebTransport bridge or
 | -------------------- | ------------------- | ------------------------------------------------------- |
 | Public files         | `/dav/`             | Anonymous, read-only WebDAV                             |
 | Images               | `/api/iiif/3`       | IIIF Image API 3, Level 0; public generated JPGs        |
+| Motion media          | `/api/media`        | LanternDock media v1; metadata discovery and ranged video resources |
 | Temporary file drops | `/api/uploads`      | LanternDock inbox v1; Bearer collection-link permission |
 | Account              | `/api/account`      | LanternDock identity v2; DPoP-bound site credential     |
 | Management           | `/api/admin`        | LanternDock admin v1; scoped DPoP credential plus local administrator role |
@@ -44,6 +45,12 @@ Public WebDAV reserves `#recycle` and `@Recycle` as excluded entry names at ever
       "href": "/api/iiif/3",
       "enabled": true
     },
+    "media": {
+      "protocol": "lantern-dock-media",
+      "version": 1,
+      "href": "/api/media",
+      "enabled": true
+    },
     "account": {
       "protocol": "lantern-dock-identity",
       "version": 2,
@@ -63,6 +70,8 @@ Public WebDAV reserves `#recycle` and `@Recycle` as excluded entry names at ever
 `account.enabled` and `admin.enabled` reflect whether the NAS has site identity verification configured. `enabled` describes deployment support, not the current visitor's permissions. The document contains no user identity, administrator list, upload links, credentials or filesystem paths. Inbox, account and management requests still enforce their own authorization. Authenticated `/api/account` additionally returns per-user `capabilities.adminLinks` and `capabilities.adminInbox`; those determine which management entries to display, while each management endpoint independently rechecks both the required scope and local role. The WebDAV service's `version` identifies our integration contract; DAV capability classes are advertised separately by `OPTIONS /dav/`.
 
 `HEAD` returns the same headers without a body, `OPTIONS` returns `204`, and other methods return `405`. Responses have `Cache-Control: public, max-age=300` and a content-derived ETag; conditional GET supports `304`. Origin restrictions apply to this route too. Clients may cache deployment metadata; credentials and authorization decisions must not be cached as capabilities.
+
+`media.enabled` requires ExifTool on the NAS (included in the container). See [Live Photos](live-photos.md) for discovery paging and source validation.
 
 The capability document is a LanternDock contract, not a universal WebDAV discovery standard. Directory navigation and uploads use the shared fixed paths directly. When an image becomes visible, the frontend discovers the optional IIIF service once per connection; directory browsing does not wait for this request. Third-party WebDAV services are not required to provide it. See [images and caching](images.md) for the standard IIIF routes and the custom identifier/transport mapping.
 

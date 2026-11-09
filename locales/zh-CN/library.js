@@ -123,5 +123,8 @@ export default {
   "nextMedia": "下一张照片或视频",
   "zoomIn": "放大",
   "zoomOut": "缩小",
-  "mediaDetails": "文件详情"
+  "mediaDetails": "文件详情",
+  "livePhoto": "动态照片",
+  "playLivePhoto": "播放动态照片",
+  "stopLivePhoto": "停止动态照片"
 };

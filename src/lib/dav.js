@@ -32,7 +32,7 @@ export function kindFor(name, isDirectory) {
   if (isDirectory) return "folder";
   const ext = name.split(".").pop().toLowerCase();
   if (
-    ["jpg", "jpeg", "png", "gif", "webp", "avif", "svg", "heic"].includes(ext)
+    ["jpg", "jpeg", "png", "gif", "webp", "avif", "svg", "heic", "heif"].includes(ext)
   )
     return "image";
   if (["mp4", "m4v", "mkv", "mov", "webm", "avi", "ogv"].includes(ext))

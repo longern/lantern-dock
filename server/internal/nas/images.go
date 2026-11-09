@@ -123,13 +123,16 @@ func (s *Server) imageMetadata(ctx context.Context, file *os.File, name, version
 		return m, nil
 	}
 	var err error
-	if videoSource(name) {
+	if videoSource(name) || heifSource(name) {
 		select {
 		case s.images.renderer <- struct{}{}:
 		case <-ctx.Done():
 			return m, ctx.Err()
 		}
 		m, err = sourceVideoMetadata(ctx, file)
+		if heifSource(name) {
+			m.Seek = 0
+		}
 		<-s.images.renderer
 	} else {
 		m, err = sourceImageMetadata(file)

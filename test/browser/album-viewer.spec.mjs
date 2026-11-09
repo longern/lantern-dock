@@ -19,12 +19,30 @@ const items = [
   { name: "last.png", modified: "2026-11-07T12:00:00Z" },
 ];
 const current = (page) => page.locator(".album-media[data-current=true]");
+const liveFixture = {
+  items: [
+    { name: "live.jpg", modified: "2026-11-09T12:00:00Z" },
+    { name: "paired.mov", modified: "2026-11-09T12:00:00Z" },
+    items[2],
+  ],
+  live: [
+    {
+      image: "/dav/live.jpg",
+      pairedVideo: "/dav/paired.mov",
+      kind: "apple",
+      video: `/api/media/bGl2ZS5qcGc/cGFpcmVkLm1vdg/${"a".repeat(64)}/video.mp4`,
+      length: video.length,
+      posterTime: 0,
+    },
+  ],
+  expectedCount: 2,
+};
 const viewer = (page) => page.locator("#album-viewer");
 const button = (page, name) =>
   viewer(page).getByRole("button", { name, exact: true });
 
 async function install(page, options = {}) {
-  const state = { high: [], originals: [], ...options };
+  const state = { high: [], originals: [], liveReads: [], ...options };
   // A real decoded high-resolution raster, generated without an extra dependency.
   const png = await page.evaluate(() => {
     const canvas = document.createElement("canvas");
@@ -76,6 +94,16 @@ async function install(page, options = {}) {
       json: {
         version: 1,
         services: {
+          ...(state.live
+            ? {
+                media: {
+                  enabled: true,
+                  protocol: "lantern-dock-media",
+                  version: 1,
+                  href: "/api/media",
+                },
+              }
+            : {}),
           images: {
             enabled: true,
             protocol: "http://iiif.io/api/image",
@@ -86,6 +114,40 @@ async function install(page, options = {}) {
       },
     }),
   );
+  await page.route("**/api/media/**", async (route) => {
+    if (route.request().url().includes("index.json")) {
+      await state.liveIndexGate?.();
+      return route.fulfill({
+        json: {
+          version: 1,
+          revision: "a".repeat(64),
+          items: state.live || [],
+          nextOffset: null,
+        },
+        headers: { "Cache-Control": "private, max-age=15" },
+      });
+    }
+    state.liveReads.push(route.request().url());
+    await state.liveVideoGate?.();
+    const range = /^bytes=(\d+)-(\d*)$/.exec(
+      route.request().headers().range || "",
+    );
+    const start = range ? Number(range[1]) : 0,
+      end = range
+        ? Math.min(Number(range[2] || video.length - 1), video.length - 1)
+        : video.length - 1;
+    return route.fulfill({
+      status: range ? 206 : 200,
+      contentType: "video/mp4",
+      body: video.subarray(start, end + 1),
+      headers: {
+        "Accept-Ranges": "bytes",
+        ...(range
+          ? { "Content-Range": `bytes ${start}-${end}/${video.length}` }
+          : {}),
+      },
+    });
+  });
   await page.route("**/api/iiif/3/**", async (route) => {
     const url = route.request().url();
     const videoImage = url.includes("/Y2xpcC5tcDQ/");
@@ -151,7 +213,7 @@ async function install(page, options = {}) {
     .getByRole("button", { name: "相册", exact: true })
     .click();
   await expect(page.locator(".album-preview img")).toHaveCount(
-    (state.items || items).length,
+    state.expectedCount ?? (state.items || items).length,
   );
   await expect
     .poll(() =>
@@ -255,7 +317,9 @@ test("a cropped thumbnail opens immediately, then decoded high resolution fades 
   await expect(current(page).locator(".album-image-low")).toHaveCount(0);
   await page.waitForFunction(() => window.albumSharpFrames.length >= 35);
   const fade = await page.evaluate(() => window.albumSharpFrames);
-  expect(fade.filter((frame) => !frame.low).every((frame) => frame.opacity === 1)).toBe(true);
+  expect(
+    fade.filter((frame) => !frame.low).every((frame) => frame.opacity === 1),
+  ).toBe(true);
   expect(
     fade.some(
       (frame) =>
@@ -521,11 +585,185 @@ test("touch swipes follow the finger and pinch zoom remains independent of pagin
     await touch("touchMove", [[w * fraction, y]]);
   await touch("touchEnd", []);
   await expect(page.locator("#album-viewer-name")).toHaveText("last.png");
-  await expect.poll(() => current(page).evaluate((node) => Math.abs(node.getBoundingClientRect().x))).toBeLessThan(1);
+  await expect
+    .poll(() =>
+      current(page).evaluate((node) =>
+        Math.abs(node.getBoundingClientRect().x),
+      ),
+    )
+    .toBeLessThan(1);
   await touch("touchStart", [[w / 2, y]]);
   for (const offset of [30, 60, 100, 150, 200])
     await touch("touchMove", [[w / 2, y + offset]]);
   await touch("touchEnd", []);
   await expect(viewer(page)).toHaveCount(0);
+  await cdp.detach();
+});
+
+test("verified live pairs merge only in the album and play on hold, stop on release and dispose on close", async ({
+  page,
+}) => {
+  const state = await install(page, liveFixture);
+  await expect(page.locator(".album-live-indicator")).toHaveCount(1);
+  expect(state.liveReads).toEqual([]);
+  await page.locator(".album-preview").first().click();
+  const live = current(page).locator("video.album-live-video");
+  await expect(live).toHaveCount(1);
+  await page.waitForTimeout(400);
+  expect(state.liveReads).toEqual([]);
+  const box = await current(page).boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(live).toHaveClass(/is-playing/);
+  await expect
+    .poll(() => live.evaluate((v) => v.currentTime))
+    .toBeGreaterThan(0.1);
+  await page.mouse.up();
+  await expect(live).not.toHaveClass(/is-playing/);
+  expect(await live.evaluate((v) => v.paused)).toBe(true);
+  await button(page, "播放动态照片").focus();
+  await page.keyboard.press("Enter");
+  await expect(live).toHaveClass(/is-playing/);
+  await live.evaluate((v) => {
+    window.lastLivePlayer = v;
+  });
+  await button(page, "关闭预览").click();
+  await expect(viewer(page)).not.toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        window.lastLivePlayer.paused &&
+        !window.lastLivePlayer.getAttribute("src"),
+    ),
+  ).toBe(true);
+});
+
+test("live playback gesture yields to dragging and multiple pointers", async ({
+  page,
+}) => {
+  const state = await install(page, liveFixture);
+  await page.locator(".album-preview").first().click();
+  await expect(viewer(page).locator(".album-live-label")).toBeVisible();
+  await current(page).dispatchEvent("pointerdown", {
+    pointerId: 1,
+    isPrimary: true,
+    button: 0,
+    clientX: 120,
+    clientY: 240,
+  });
+  await page
+    .locator("body")
+    .dispatchEvent("pointermove", { pointerId: 1, clientX: 145, clientY: 240 });
+  await page.waitForTimeout(350);
+  expect(state.liveReads).toEqual([]);
+  await current(page).dispatchEvent("pointerdown", {
+    pointerId: 2,
+    isPrimary: true,
+    button: 0,
+    clientX: 120,
+    clientY: 240,
+  });
+  await current(page).dispatchEvent("pointerdown", {
+    pointerId: 3,
+    isPrimary: false,
+    button: 0,
+    clientX: 160,
+    clientY: 240,
+  });
+  await page.waitForTimeout(350);
+  expect(state.liveReads).toEqual([]);
+  await button(page, "播放动态照片").click();
+  await expect(current(page).locator("video")).toHaveClass(/is-playing/);
+  await button(page, "下一张照片或视频").click();
+  await expect(current(page)).toHaveAttribute(
+    "data-media-path",
+    "/dav/last.png",
+  );
+  await expect(page.locator("video.album-live-video")).toHaveCount(0);
+});
+
+test("a released hold cannot start playback when a delayed video arrives", async ({
+  page,
+}) => {
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const state = await install(page, {
+    ...liveFixture,
+    liveVideoGate: () => gate,
+  });
+  await page.locator(".album-preview").first().click();
+  const box = await current(page).boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect.poll(() => state.liveReads.length).toBeGreaterThan(0);
+  await page.mouse.up();
+  release();
+  await expect
+    .poll(() =>
+      current(page)
+        .locator("video")
+        .evaluate((v) => v.readyState),
+    )
+    .toBeGreaterThan(0);
+  await page.waitForTimeout(300);
+  expect(
+    await current(page)
+      .locator("video")
+      .evaluate((v) => v.paused),
+  ).toBe(true);
+  await expect(current(page).locator("video")).not.toHaveClass(/is-playing/);
+});
+
+test("metadata arriving after opening enables LIVE without remounting the viewer", async ({
+  page,
+}) => {
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  await install(page, {
+    ...liveFixture,
+    expectedCount: 3,
+    liveIndexGate: () => gate,
+  });
+  await page.locator(".album-preview").first().click();
+  await expect(button(page, "播放动态照片")).toHaveCount(0);
+  release();
+  await expect(button(page, "播放动态照片")).toBeVisible();
+  await button(page, "播放动态照片").click();
+  await expect(current(page).locator("video")).toHaveClass(/is-playing/);
+});
+
+test("real touch holds play and touch release stops without blocking the gallery", async ({
+  page,
+}, testInfo) => {
+  test.skip(!testInfo.project.use.isMobile, "Touch viewport");
+  await install(page, liveFixture);
+  await page.locator(".album-preview").first().click();
+  await expect(viewer(page).locator(".album-live-label")).toBeVisible();
+  await page.waitForTimeout(350);
+  const box = await current(page).boundingBox();
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [
+      { x: box.x + box.width / 2, y: box.y + box.height / 2, id: 0 },
+    ],
+  });
+  const player = current(page).locator("video");
+  await expect(player).toHaveClass(/is-playing/);
+  await cdp.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  await expect(player).not.toHaveClass(/is-playing/);
+  expect(await player.evaluate((v) => v.paused)).toBe(true);
+  await button(page, "播放动态照片").click();
+  await expect(player).toHaveClass(/is-playing/);
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  await expect(player).not.toHaveClass(/is-playing/);
+  expect(await player.evaluate((v) => v.paused)).toBe(true);
   await cdp.detach();
 });

@@ -52,6 +52,15 @@ start() {
     | jq -e '.type == "ImageService3" and .width == 640 and .height == 360' >/dev/null
   curl --fail --silent --show-error --max-time 15 \
     "http://$address/api/iiif/3/dmlkZW8ubXA0/full/128,72/0/default.jpg" --output "$test_dir/video-poster.jpg"
+  curl --fail --silent --show-error --max-time 20 "http://$address/api/media/Lg/index.json" > "$test_dir/media.json"
+  jq -e '.version == 1 and .nextOffset == null and (.items | length) == 1 and .items[0].kind == "apple"' "$test_dir/media.json" >/dev/null
+  local motion_path
+  motion_path=$(jq -r '.items[0].video' "$test_dir/media.json")
+  test "$(curl --silent --show-error --max-time 10 --output "$test_dir/motion-range" --write-out '%{http_code}' \
+    -H 'Range: bytes=0-31' "http://$address$motion_path")" = 206
+  test "$(wc -c < "$test_dir/motion-range")" -eq 32
+  curl --fail --silent --show-error --max-time 15 \
+    "http://$address/api/iiif/3/bGl2ZS5oZWlj/full/384,256/0/default.jpg" --output "$test_dir/heic-preview.jpg"
   docker top "$container" -eo pid,uid,gid,args | awk -v uid="$uid" -v gid="$gid" \
     'NR > 1 { count++; if ($2 != uid || $3 != gid) exit 1 } END { if (count != 1) exit 1 }'
   docker run --rm --pid="container:$container" --cap-drop ALL "$helper" \
@@ -107,8 +116,13 @@ expect_failure() {
 fixture 'mkdir -p /fixture/data /fixture/public; chmod 700 /fixture/data; chmod 755 /fixture/public; printf "public fixture" > /fixture/public/hello.txt; chmod 644 /fixture/public/hello.txt'
 cp "$script_dir/../test/fixtures/photo.png" "$test_dir/photo.png"
 cp "$script_dir/../test/fixtures/video.mp4" "$test_dir/video.mp4"
+cp "$script_dir/../test/fixtures/live-photo.heic" "$test_dir/live.heic"
+docker run --rm --read-only --mount "type=bind,src=$test_dir,dst=/fixture" --entrypoint ffmpeg "$image" \
+  -v error -i /fixture/video.mp4 -c copy -metadata 'com.apple.quicktime.content.identifier=8F6AB9E4-1234-4A9B-9876-100000000001' \
+  -movflags use_metadata_tags /fixture/live.mov
 fixture 'cp /fixture/photo.png /fixture/public/photo.png; chmod 644 /fixture/public/photo.png'
 fixture 'cp /fixture/video.mp4 /fixture/public/video.mp4; chmod 644 /fixture/public/video.mp4'
+fixture 'cp /fixture/live.heic /fixture/live.mov /fixture/public/; chmod 644 /fixture/public/live.heic /fixture/public/live.mov'
 fixture 'mkdir -p "/fixture/public/#recycle" "/fixture/public/@Recycle"; printf "deleted fixture" > "/fixture/public/#recycle/deleted.txt"; printf "deleted fixture" > "/fixture/public/@Recycle/deleted.txt"; ln -s "#recycle" /fixture/public/recycle-alias'
 start default 1000 1000 --security-opt no-new-privileges:true
 docker exec "$container" /lantern-dock link create --data-dir=/data \

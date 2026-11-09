@@ -1,9 +1,10 @@
 import { chooseListingOption } from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
-import { copyFile, readFile, readdir, rm, utimes } from "node:fs/promises";
+import { copyFile, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { startFixture, textFile } from "./fixture.mjs";
 import { backendPaths } from "../../shared/backend-paths.js";
+import { motionFixture, appleVideo } from "../helpers/motion-fixture.mjs";
 
 test.use({ locale: "zh-CN" });
 
@@ -729,5 +730,46 @@ test("rotated MOV playback preserves portrait orientation and releases each Medi
     }
   } finally {
     await rm(path, { force: true });
+  }
+});
+
+test("NAS identifies Apple and Android live photos and plays virtual ranges through MP4Box over WebTransport", async ({ page }, testInfo) => {
+  const apple = resolve(fixture.nas.publicDir, 'live-apple.heic');
+  const paired = resolve(fixture.nas.publicDir, 'different-name.mov');
+  const android = resolve(fixture.nas.publicDir, 'live-android.jpg');
+  await copyFile(resolve('test/fixtures/live-photo.heic'), apple);
+  appleVideo(paired);
+  await writeFile(android, await motionFixture());
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  try {
+    await page.goto(fixture.origin);
+    // Ordinary file browsing still exposes both originals independently.
+    await expect(page.getByRole('button', { name: '预览 different-name.mov', exact: true })).toBeVisible();
+    await page.getByRole('navigation', { name: '文件分类', exact: true }).getByRole('button', { name: '相册', exact: true }).click();
+    await expect(page.locator('.album-live-indicator')).toHaveCount(2);
+    await expect(page.getByRole('button', { name: '预览视频 different-name.mov', exact: true })).toHaveCount(0);
+    for (const name of ['live-apple.heic', 'live-android.jpg']) {
+      await page.getByRole('button', { name: `预览 ${name}`, exact: true }).click();
+      await expect(page.locator('.album-media[data-current=true] .album-image-high.is-sharp')).toHaveCSS('opacity', '1');
+      const player = page.locator('.album-media[data-current=true] video.album-live-video');
+      expect(await player.getAttribute('src')).toBeNull();
+      await page.getByRole('button', { name: '播放动态照片', exact: true }).click();
+      await expect(player).toHaveClass(/is-playing/);
+      expect(await player.getAttribute('src')).toMatch(/^blob:/);
+      await expect.poll(() => player.evaluate(v => v.currentTime)).toBeGreaterThan(.2);
+      await player.evaluate(v => { window.lastLiveBridgePlayer = v; });
+      await page.screenshot({ path: testInfo.outputPath(`${name}-live.png`) });
+      await page.getByRole('button', { name: '停止动态照片', exact: true }).click();
+      await expect(player).not.toHaveClass(/is-playing/);
+      expect(await player.evaluate(v => v.paused)).toBe(true);
+      await page.getByRole('button', { name: '关闭预览', exact: true }).click();
+      await expect(page.locator('#album-viewer')).toHaveCount(0);
+      expect(await page.evaluate(() => window.lastLiveBridgePlayer.paused && !window.lastLiveBridgePlayer.getAttribute('src'))).toBe(true);
+    }
+    expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
+    expect(errors).toEqual([]);
+  } finally {
+    await Promise.all([apple,paired,android].map(path => rm(path, { force: true })));
   }
 });

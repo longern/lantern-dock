@@ -89,6 +89,24 @@
   fill: currentColor;
   stroke: none;
 }
+.album-live-indicator {
+  position: absolute;
+  inset: 6px auto auto 6px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  background: #0009;
+  color: white;
+  font-size: 9px;
+  line-height: 12px;
+  pointer-events: none;
+}
+.album-live-indicator svg {
+  width: 12px;
+  height: 12px;
+}
 .album-layout .skeleton {
   height: auto;
   aspect-ratio: 1;

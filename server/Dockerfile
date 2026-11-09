@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine3.24 AS build
 RUN apk add --no-cache ca-certificates
 WORKDIR /src
 COPY go.mod go.sum ./
@@ -8,8 +8,13 @@ ARG TARGETOS
 ARG TARGETARCH
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /lantern-dock ./cmd/lantern-dock
 
+FROM build AS test
+RUN apk add --no-cache build-base ffmpeg exiftool
+COPY --from=test-fixtures / /test/fixtures/
+RUN go vet ./... && go test -race ./...
+
 FROM alpine:3.24
-RUN apk add --no-cache ca-certificates setpriv ffmpeg \
+RUN apk add --no-cache ca-certificates setpriv ffmpeg exiftool \
     && addgroup -g 1000 lantern \
     && adduser -D -H -u 1000 -G lantern lantern \
     && mkdir -p /data /public /usr/local/libexec \

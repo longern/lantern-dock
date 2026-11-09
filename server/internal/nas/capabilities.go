@@ -17,6 +17,7 @@ const (
 	adminPath        = "/api/admin"
 	capabilitiesPath = "/api/capabilities"
 	imagesPath       = "/api/iiif/3"
+	mediaPath        = "/api/media"
 )
 
 type serviceCapability struct {
@@ -48,6 +49,7 @@ func (s *Server) serveCapabilities(w http.ResponseWriter, r *http.Request) {
 		"admin":   {Protocol: "lantern-dock-admin", Version: 1, Href: adminPath, Enabled: s.identity != nil},
 		"account": {Protocol: "lantern-dock-identity", Version: 2, Href: accountPath, Enabled: s.identity != nil},
 		"images":  {Protocol: "http://iiif.io/api/image", Version: 3, Href: imagesPath, Enabled: true},
+		"media":   {Protocol: "lantern-dock-media", Version: 1, Href: mediaPath, Enabled: s.mediaTool != ""},
 	}}
 	body, _ := json.Marshal(document)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

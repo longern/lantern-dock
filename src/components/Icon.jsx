@@ -43,9 +43,11 @@ import {
   X,
   ZoomIn,
   ZoomOut,
+  CircleDot,
 } from "lucide-preact";
 
 const icons = {
+  live: CircleDot,
   home: House,
   check: Check,
   ellipsis: Ellipsis,

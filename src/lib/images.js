@@ -7,9 +7,7 @@ const freshness = 15000;
 export class ImageServiceError extends Error {
   constructor(status) {
     super(
-      status === 404
-        ? t("core.imageRemoved")
-        : t("core.imagePreviewFailed"),
+      status === 404 ? t("core.imageRemoved") : t("core.imagePreviewFailed"),
     );
     this.status = status;
   }
@@ -58,6 +56,7 @@ export class ImageClient {
     this.responses = new MemoryCache(16 * 1024 * 1024, 512);
     this.previews = new MemoryCache(16 * 1024 * 1024, 256);
     this.failed = new MemoryCache(16384, 128);
+    this.liveIndexes = new MemoryCache(2 * 1024 * 1024, 32);
     this.lifetime = new AbortController();
     this.capabilities = null;
     this.queue = [];
@@ -70,12 +69,14 @@ export class ImageClient {
     this.responses.clear();
     this.previews.clear();
     this.failed.clear();
+    this.liveIndexes.clear();
   }
   expire() {
     this.revision++;
     this.responses.expire();
     this.previews.expire();
     this.failed.clear();
+    this.liveIndexes.clear();
   }
   run(work, signal) {
     return new Promise((resolve, reject) => {
@@ -152,6 +153,14 @@ export class ImageClient {
             ),
           );
           const service = value.version === 1 && value.services?.images;
+          const media = value.version === 1 && value.services?.media;
+          if (
+            media?.enabled &&
+            media.protocol === "lantern-dock-media" &&
+            media.version === 1 &&
+            media.href === backendPaths.media
+          )
+            this.mediaService = media.href;
           if (
             !service?.enabled ||
             service.protocol !== "http://iiif.io/api/image" ||

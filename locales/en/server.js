@@ -58,5 +58,10 @@ export default {
   "loginResponseInvalid": "The sign-in response is invalid. Please try again.",
   "loginVerificationFailed": "Sign-in verification failed. Please sign in again.",
   "tokenRequiresPost": "This endpoint requires a POST request.",
-  "authUnavailable": "The sign-in service is temporarily unavailable. Please try again later."
+  "authUnavailable": "The sign-in service is temporarily unavailable. Please try again later.",
+  "errors.mediaUnavailable": "Dynamic photo information is temporarily unavailable.",
+  "errors.mediaReadOnly": "Media previews are read-only.",
+  "errors.mediaBusy": "Media inspection is busy. Try again shortly.",
+  "errors.mediaChanged": "The directory or media file changed. Refresh and try again.",
+  "errors.mediaDirectoryTooLarge": "This directory is too large for dynamic photo inspection."
 };

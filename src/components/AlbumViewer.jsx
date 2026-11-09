@@ -15,6 +15,7 @@ import { useMediaQuery } from "../hooks/useMediaQuery.js";
 import { AlbumMedia } from "./AlbumMedia.jsx";
 import { Dialog } from "./Dialog.jsx";
 import { Icon } from "./Icon.jsx";
+import { useLiveMedia } from "../hooks/useLiveMedia.js";
 
 export function AlbumViewer({
   gallery,
@@ -32,6 +33,9 @@ export function AlbumViewer({
   const [container, setContainer] = useState(null);
   const [entered, setEntered] = useState(false);
   const [details, setDetails] = useState(false);
+  const [livePlaying, setLivePlaying] = useState(false);
+  const live = useLiveMedia(client, gallery.items);
+  const stopLive = useCallback(() => setLivePlaying(false), []);
   const [viewport, setViewport] = useState({
     width: innerWidth,
     height: innerHeight,
@@ -66,6 +70,7 @@ export function AlbumViewer({
   const closing = useRef(false);
   const marker = useRef(crypto.randomUUID());
   const index = gallery.items.findIndex((entry) => entry.path === item.path);
+  useLayoutEffect(() => setLivePlaying(false), [index, open]);
   const close = useCallback(() => {
     if (closing.current) return;
     closing.current = true;
@@ -144,6 +149,9 @@ export function AlbumViewer({
               entered={entered}
               signal={lifetime.signal}
               onSize={onSize}
+              live={live.get(entry.path) || entry.live}
+              liveRequested={index === position && livePlaying}
+              onLiveStop={stopLive}
             />
           ),
         };
@@ -160,6 +168,9 @@ export function AlbumViewer({
       lifetime,
       onSize,
       reducedMotion,
+      live,
+      livePlaying,
+      stopLive,
     ],
   );
 
@@ -231,6 +242,9 @@ export function AlbumViewer({
                 details={details}
                 onDetails={() => setDetails((value) => !value)}
                 size={sizes.get(item.path)}
+                live={live.get(item.path) || item.live}
+                livePlaying={livePlaying}
+                onLive={() => setLivePlaying((value) => !value)}
               />
             );
           }}
@@ -250,6 +264,9 @@ function AlbumControls({
   details,
   onDetails,
   size,
+  live,
+  livePlaying,
+  onLive,
 }) {
   const root = useRef(null);
   const closeButton = useRef(null);
@@ -274,6 +291,11 @@ function AlbumControls({
           <Icon name="x" />
         </button>
         <strong id="album-viewer-name">{item.name}</strong>
+        {live && (
+          <span class="album-live-label" aria-label={t("library.livePhoto")}>
+            <Icon name="live" /> LIVE
+          </span>
+        )}
         <span class="album-viewer-counter" aria-live="polite">
           {params.index + 1} / {params.images.length}
         </span>
@@ -297,6 +319,19 @@ function AlbumControls({
         </button>
       </nav>
       <footer class="album-viewer-actions">
+        {live && (
+          <button
+            data-live-action
+            class="icon-button"
+            aria-label={t(
+              livePlaying ? "library.stopLivePhoto" : "library.playLivePhoto",
+            )}
+            aria-pressed={livePlaying}
+            onClick={onLive}
+          >
+            <Icon name="live" />
+          </button>
+        )}
         <button
           class="icon-button"
           aria-label={

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
@@ -27,6 +28,9 @@ type Server struct {
 	lock            *os.File
 	dav             *webdav.Handler
 	images          *imageCache
+	mediaTool       string
+	mediaRequests   chan struct{}
+	mediaProbe      chan struct{}
 	origins         map[string]bool
 	ctx             context.Context
 	cancel          context.CancelFunc
@@ -67,6 +71,9 @@ func New(publicDir, dataDir string, origins []string) (*Server, error) {
 		return nil, err
 	}
 	s := &Server{Store: store, origins: map[string]bool{}, active: map[string]func(){}, slots: make(chan struct{}, 32)}
+	s.mediaTool, _ = exec.LookPath("exiftool")
+	s.mediaRequests = make(chan struct{}, 2)
+	s.mediaProbe = make(chan struct{}, 1)
 	ok := false
 	defer func() {
 		if !ok {
@@ -197,6 +204,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Content-Disposition, Accept-Ranges, ETag, Link, WWW-Authenticate, DPoP-Nonce")
 	}
 	switch {
+	case r.URL.Path == mediaPath || strings.HasPrefix(r.URL.Path, mediaPath+"/"):
+		s.serveMedia(w, r)
 	case r.URL.Path == imagesPath || strings.HasPrefix(r.URL.Path, imagesPath+"/"):
 		s.serveImage(w, r)
 	case r.URL.Path == capabilitiesPath:
