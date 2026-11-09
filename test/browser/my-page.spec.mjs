@@ -255,7 +255,7 @@ for (const language of ["zh-CN", "en"]) {
   });
 }
 
-test("a late response from an abandoned My page cannot replace the newer account", async ({ page }) => {
+test("a late response from an invalidated shared session cannot replace the newer account", async ({ page }) => {
   test.skip(page.viewportSize().width > 700, "Mobile account navigation");
   // Model an upstream response that completes even after cancellation. This
   // exercises stale-result handling, not just the browser's fetch abortion.
@@ -280,6 +280,9 @@ test("a late response from an abandoned My page cannot replace the newer account
   await expect(page.locator("#my-account")).toHaveAttribute("aria-busy", "true");
   await mainNavigation(page).getByRole("button", { name: "首页", exact: true }).click();
   await expect(page.locator("#my-page")).toHaveCount(0);
+  // Route changes now preserve the shared request. An actual session change,
+  // not leaving a consumer, invalidates a previous identity lookup.
+  await page.evaluate(() => window.dispatchEvent(new Event("lantern-dock:session-changed")));
   await mainNavigation(page).getByRole("button", { name: "我的", exact: true }).click();
   await expect(page.locator("#my-account")).toContainText("Current identity");
   await page.evaluate(async () => {
@@ -430,5 +433,7 @@ test("an unsuccessful account recheck clears the previously verified session", a
   await expect(page.getByRole("alert")).toContainText("Session unavailable for recheck");
   await expect(page.locator(".account-page")).not.toContainText("Outdated account");
   await expect(page.locator(".account-page")).not.toContainText("outdated@example.test");
-  await expect(page.getByRole("button", { name: "统一登录", exact: true })).toBeVisible();
+  // A failed check is not a confirmed logout and must not offer guest actions.
+  await expect(page.getByRole("button", { name: "统一登录", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "重新检测", exact: true })).toBeEnabled();
 });

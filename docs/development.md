@@ -144,3 +144,31 @@ No production endpoint, NAS directory or real site secret is used by these tests
 Image tests cover the IIIF Level 0 contract, EXIF orientation, cache revalidation/eviction/restart, decode limits and warm-cache rejection after source removal or replacement by a symlink. The real-bridge suite loads list/grid thumbnails and a 1600 px preview on desktop/mobile and verifies directory reuse/forced refresh plus `304` image reads. `test/fixtures/photo.png` is a generated 2400 × 1600 RGB gradient, not an external photograph.
 
 Video development tests require FFmpeg 6+ and ffprobe on `PATH` (the container includes them). `test/fixtures/video.mp4` is an eight-second generated H.264/AAC test pattern. The real-bridge suite verifies video posters, actual MediaSource playback, unbuffered forward/backward seeks in a longer file with a tail index, original-URL HTTPS playback, lazy parser loading and zero service-worker registrations. Go tests cover poster dimensions/rotation, large descriptor-backed sources, source visibility, cancellation and rejection of playlists/external resource access.
+
+## Shared account state
+
+`SessionProvider` wraps every route in `src/main.jsx`. `useSession()` exposes the
+Worker `identity` (`loading`, `authenticated`, `signed-out`, `error`) separately
+from NAS authorization `nas` (`idle`, `loading`, `ready`, `error`). A NAS outage or
+permission rejection never signs the Worker account out. Only an explicit
+`authenticated: false` session response or a successful logout means signed out.
+An offline/error state keeps public navigation available without offering a
+misleading guest login action.
+
+The page-scoped store in `src/lib/session-store.js` deduplicates pending checks
+and caches successful metadata for up to 60 seconds. It does not persist user
+metadata, cache grants, or retain the temporary account-check transport.
+`ensureNAS()` loads NAS account metadata only for account/management surfaces;
+`refreshNAS()` retries it without rechecking a still-fresh Worker identity.
+`accountConnection()` adds public `backend` connection settings to the returned
+`/api/account` metadata so feature-specific
+clients can own and close their own transports. All protected operations still
+require server authorization; cached UI state grants no permission.
+
+Login, logout, session-change notifications, returning online, and a restored
+back/forward-cache page invalidate stale requests. Other tabs receive only an
+invalidation notification, never identity or credential data. Focus checks use
+the same freshness window. Unresponsive checks time out after 15 seconds, and
+late responses cannot restore a logged-out identity or expired NAS permission.
+Unit coverage lives in `test/session-store.test.mjs`; route/deduplication and
+offline behavior are covered in `test/browser/session-provider.spec.mjs`.
