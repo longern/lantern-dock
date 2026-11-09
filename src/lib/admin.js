@@ -1,9 +1,10 @@
 import { t } from "../../shared/i18n.js";
 import { identityProof, requestNASGrant } from "./identity.js";
 import { DirectTransport } from "./transport.js";
+import { backendPaths } from "../../shared/backend-paths.js";
 
-export const ADMIN_LINKS = "/api/admin/links";
-export const ADMIN_INBOX = "/api/admin/inbox";
+export const ADMIN_LINKS = `${backendPaths.admin}/links`;
+export const ADMIN_INBOX = `${backendPaths.admin}/inbox`;
 const MiB = 1024 * 1024;
 
 export function adminAccess(identity, nas) {
@@ -49,7 +50,7 @@ function uploadMetadata(value) {
   return { id, linkId, linkTitle, name, size, status, createdAt };
 }
 function pageResult(value, field, map) {
-  if (!Array.isArray(value[field]) || value[field].length > 200 ||
+  if (!value || !Array.isArray(value[field]) || value[field].length > 200 ||
       !(value.nextOffset === null || integer(value.nextOffset))) throw invalidResponse();
   return { items: value[field].map(map), nextOffset: value.nextOffset };
 }
@@ -89,30 +90,86 @@ export function localDateTime(value = new Date()) {
   return local.toISOString().slice(0, 16);
 }
 
+// Read bounded metadata with an explicit reader so an abort also cancels a
+// stalled response body. Downloads use the original streaming Response instead.
+async function metadataJSON(response, signal) {
+  signal?.throwIfAborted();
+  const reader = response.body?.getReader();
+  if (!reader) throw invalidResponse();
+  const abort = () => { void reader.cancel(signal.reason).catch(() => {}); };
+  signal?.addEventListener("abort", abort, { once: true });
+  const decoder = new TextDecoder();
+  let text = "", size = 0;
+  try {
+    if (signal?.aborted) abort();
+    while (true) {
+      signal?.throwIfAborted();
+      const { done, value } = await reader.read();
+      signal?.throwIfAborted();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 2 * 1024 * 1024) throw invalidResponse();
+      text += decoder.decode(value, { stream: true });
+    }
+    return JSON.parse(text + decoder.decode());
+  } catch (error) {
+    void reader.cancel().catch(() => {});
+    throw error;
+  } finally {
+    signal?.removeEventListener("abort", abort);
+    reader.releaseLock();
+  }
+}
+
 export class AdminClient {
-  constructor(account, { grant = requestNASGrant, proof = identityProof, transport } = {}) {
+  constructor(account, { grant = requestNASGrant, proof = identityProof, transport, timeout = 30000 } = {}) {
     this.account = account;
     this.transport = transport || new DirectTransport(account.backend);
     this.closed = false;
+    this.lifetime = new AbortController();
+    this.timeout = timeout;
     this.grant = grant;
     this.proof = proof;
   }
   close() {
     this.closed = true;
+    this.lifetime.abort();
     this.transport.close();
+  }
+  async metadata(operation, signal) {
+    const deadline = new AbortController();
+    const combined = AbortSignal.any([this.lifetime.signal, deadline.signal, ...(signal ? [signal] : [])]);
+    let timer, aborted;
+    try {
+      // Race in addition to aborting, so even a transport ignoring AbortSignal
+      // cannot leave a mutation dialog permanently locked.
+      return await Promise.race([
+        Promise.resolve().then(() => { combined.throwIfAborted(); return operation(combined); }),
+        new Promise((_, reject) => {
+          aborted = () => reject(combined.reason);
+          combined.addEventListener("abort", aborted, { once: true });
+          timer = setTimeout(() => deadline.abort(new DOMException(t("admin.requestTimeout"), "TimeoutError")), this.timeout);
+          if (combined.aborted) aborted();
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+      combined.removeEventListener("abort", aborted);
+    }
   }
   async response(path, scope, { method = "GET", signal, body } = {}) {
     if (this.closed) throw new DOMException(t("core.connectionClosed"), "AbortError");
+    signal = AbortSignal.any([this.lifetime.signal, ...(signal ? [signal] : [])]);
     const capability = scope.startsWith("links:") ? "adminLinks" : "adminInbox";
     if (this.account.user?.role !== "admin" || this.account.capabilities?.[capability] !== true)
       throw new Error(t("admin.forbiddenDescription"));
-    signal?.throwIfAborted();
+    signal.throwIfAborted();
     const grant = await this.grant(signal, scope);
-    signal?.throwIfAborted();
+    signal.throwIfAborted();
     const config = this.transport.config;
     const origin = config.transport === "http" ? new URL(config.endpoint).origin : location.origin;
     const proof = await this.proof(method, origin + path, grant.access_token);
-    signal?.throwIfAborted();
+    signal.throwIfAborted();
     if (this.closed) throw new DOMException(t("core.connectionClosed"), "AbortError");
     const response = await this.transport.request(path, {
       method, signal,
@@ -122,41 +179,57 @@ export class AdminClient {
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
+    if (signal.aborted) {
+      void response.body?.cancel().catch(() => {});
+      signal.throwIfAborted();
+    }
     if (!response.ok) {
-      const value = await response.json().catch(() => ({}));
-      const error = new Error(typeof value.error === "string" ? value.error : t("admin.requestFailed"));
-      error.code = value.code;
+      const value = await metadataJSON(response, signal).catch(() => ({}));
+      signal.throwIfAborted();
+      const message = [value?.message, value?.error_description, value?.error].find((entry) => typeof entry === "string" && entry);
+      const error = new Error(message || t("admin.requestFailed"));
+      error.code = value?.code;
       error.status = response.status;
       throw error;
     }
     return response;
   }
-  async links({ offset = 0, signal } = {}) {
-    const response = await this.response(`${ADMIN_LINKS}?limit=100&offset=${offset}`, "links:read", { signal });
-    return pageResult(await response.json(), "links", linkMetadata);
+  links({ offset = 0, signal } = {}) {
+    return this.metadata(async (signal) => {
+      const response = await this.response(`${ADMIN_LINKS}?limit=100&offset=${offset}`, "links:read", { signal });
+      return pageResult(await metadataJSON(response, signal), "links", linkMetadata);
+    }, signal);
   }
-  async create(input, signal) {
-    const response = await this.response(ADMIN_LINKS, "links:write", { method: "POST", body: input, signal });
-    const value = await response.json();
-    const link = linkMetadata(value.link);
-    // Validate before exposing a URL. This result lives only in the creation dialog.
-    const url = uploadLinkURL(value.token);
-    return { link, url };
+  create(input, signal) {
+    return this.metadata(async (signal) => {
+      const response = await this.response(ADMIN_LINKS, "links:write", { method: "POST", body: input, signal });
+      const value = await metadataJSON(response, signal);
+      const link = linkMetadata(value?.link);
+      // Validate before exposing a URL. This result lives only in the creation dialog.
+      const url = uploadLinkURL(value.token);
+      return { link, url };
+    }, signal);
   }
-  async revoke(id, signal) {
-    const response = await this.response(itemPath(ADMIN_LINKS, id), "links:write", { method: "DELETE", signal });
-    await response.body?.cancel();
+  revoke(id, signal) {
+    return this.metadata(async (signal) => {
+      const response = await this.response(itemPath(ADMIN_LINKS, id), "links:write", { method: "DELETE", signal });
+      await response.body?.cancel();
+    }, signal);
   }
-  async inbox({ linkId = "", offset = 0, signal } = {}) {
-    const query = new URLSearchParams({ limit: "100", offset: String(offset) });
-    if (linkId) {
-      if (!identifier(linkId)) throw invalidResponse();
-      query.set("linkId", linkId);
-    }
-    const response = await this.response(`${ADMIN_INBOX}?${query}`, "inbox:read", { signal });
-    return pageResult(await response.json(), "uploads", uploadMetadata);
+  inbox({ linkId = "", offset = 0, signal } = {}) {
+    return this.metadata(async (signal) => {
+      const query = new URLSearchParams({ limit: "100", offset: String(offset) });
+      if (linkId) {
+        if (!identifier(linkId)) throw invalidResponse();
+        query.set("linkId", linkId);
+      }
+      const response = await this.response(`${ADMIN_INBOX}?${query}`, "inbox:read", { signal });
+      return pageResult(await metadataJSON(response, signal), "uploads", uploadMetadata);
+    }, signal);
   }
   download(id, signal) {
+    // No short metadata deadline on a file stream. The download panel supplies
+    // its own user-controlled cancellation, also tied to this client's lifetime.
     return this.response(`${itemPath(ADMIN_INBOX, id)}/download`, "inbox:read", { signal });
   }
 }

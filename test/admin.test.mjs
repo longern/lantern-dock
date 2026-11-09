@@ -77,11 +77,12 @@ test("each admin request obtains its operation scope and DPoP proof directly to 
   const signal = new AbortController().signal;
   const result = await client.links({ signal });
   assert.deepEqual(result, { items: [link], nextOffset: 100 });
-  assert.deepEqual(calls[0], { scope: "links:read", signal });
+  assert.equal(calls[0].scope, "links:read");
+  assert.equal(calls[0].signal.aborted, false);
   assert.deepEqual(calls[1], { method: "GET", uri: "https://nas.example/api/admin/links?limit=100&offset=0", token: "scoped-secret" });
   assert.equal(calls[2].headers.Authorization, "DPoP scoped-secret");
   assert.equal(calls[2].headers.DPoP, "proof");
-  assert.equal(calls[2].signal, signal);
+  assert.equal(calls[2].signal.aborted, false);
   assert.ok(!JSON.stringify(result).includes("secret"));
 });
 
@@ -143,4 +144,93 @@ test("NAS errors preserve status for fresh authorization and never retry writes"
   assert.equal(calls.filter((call) => call.method === "POST" && call.path).length, 1);
   const broken = fixture({ links: [], nextOffset: "100" });
   await assert.rejects(broken.client.links());
+});
+
+const tick = (duration = 20) => new Promise((resolve) => setTimeout(resolve, duration));
+test("metadata deadline covers stalled grants and never starts a late write", async () => {
+  const { client, calls } = fixture({}, 201);
+  client.timeout = 10;
+  let release, signal;
+  client.grant = (value) => { signal = value; return new Promise((resolve) => { release = resolve; }); };
+  await assert.rejects(client.create({}), { name: "TimeoutError" });
+  assert.equal(signal.aborted, true);
+  release({ access_token: "late-token" });
+  await tick();
+  assert.equal(calls.length, 0);
+});
+
+test("metadata deadline bounds a fetch that ignores abort and cancels its late body", async () => {
+  const { client, calls } = fixture({}, 201);
+  client.timeout = 10;
+  let release, signal, cancelled = false;
+  client.transport.request = async (_path, options) => {
+    signal = options.signal;
+    return new Promise((resolve) => { release = resolve; });
+  };
+  await assert.rejects(client.create({}), { name: "TimeoutError" });
+  assert.equal(signal.aborted, true);
+  release(new Response(new ReadableStream({ cancel() { cancelled = true; } }), { status: 201 }));
+  await tick();
+  assert.equal(cancelled, true);
+  assert.equal(calls.filter((call) => call.method === "POST").length, 1);
+});
+
+test("metadata deadline aborts a stalled JSON body and releases its reader", async () => {
+  const { client } = fixture({}, 200);
+  client.timeout = 10;
+  let cancelled = false;
+  const body = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode('{"links":')); }, cancel() { cancelled = true; } });
+  client.transport.request = async () => new Response(body);
+  await assert.rejects(client.links(), { name: "TimeoutError" });
+  await tick();
+  assert.equal(cancelled, true);
+  assert.equal(body.locked, false);
+});
+
+test("client close and explicit abort bound stalled mutations without waiting for timeout", async () => {
+  for (const action of ["close", "abort"]) {
+    const { client } = fixture({}, 204);
+    client.timeout = 1000;
+    const controller = new AbortController();
+    let started;
+    const ready = new Promise((resolve) => { started = resolve; });
+    client.transport.request = () => { started(); return new Promise(() => {}); };
+    const request = client.revoke("link-id", controller.signal);
+    await ready;
+    action === "close" ? client.close() : controller.abort();
+    await assert.rejects(request, { name: "AbortError" });
+  }
+});
+
+test("successful metadata transactions clear deadlines; downloads have no metadata time limit", async () => {
+  const { client } = fixture({ links: [], nextOffset: null });
+  client.timeout = 10;
+  let signal;
+  client.transport.request = async (_path, options) => {
+    signal = options.signal;
+    return new Response(JSON.stringify({ links: [], nextOffset: null }));
+  };
+  await client.links();
+  await tick(25);
+  assert.equal(signal.aborted, false);
+  let release;
+  client.transport.request = async (_path, options) => {
+    signal = options.signal;
+    await new Promise((resolve) => { release = resolve; });
+    return new Response("file");
+  };
+  const request = client.download("upload-id");
+  await tick(25);
+  assert.equal(signal.aborted, false);
+  release();
+  assert.equal(await (await request).text(), "file");
+  client.close();
+  assert.equal(signal.aborted, true);
+});
+
+test("OAuth authorization errors prefer the localized description over protocol constants", async () => {
+  const { client } = fixture({ error: "insufficient_scope", error_description: "此操作需要收件管理权限。", code: "INSUFFICIENT_SCOPE" }, 403);
+  await assert.rejects(client.links(), (error) => error.message === "此操作需要收件管理权限。" && error.code === "INSUFFICIENT_SCOPE" && error.status === 403);
+  const explicit = fixture({ message: "Localized message", error_description: "Localized detail", error: "access_denied" }, 403);
+  await assert.rejects(explicit.client.links(), { message: "Localized message" });
 });

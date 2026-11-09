@@ -65,6 +65,7 @@ export default {
   confirmRevoke: "撤销链接",
   revoking: "正在撤销…",
   revokedNotice: "链接已撤销，之前收到的文件仍可查看。",
+  requestTimeout: "NAS 请求超时，请检查连接并刷新以确认操作结果。",
   requestFailed: "请求未能完成，请检查连接后重试。",
   invalidResponse: "NAS 返回了不符合预期的响应，请刷新并检查 NAS 版本是否支持管理后台。",
   forbiddenDescription: "此 NAS 尚未授予你的账户管理员权限。",

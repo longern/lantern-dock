@@ -230,3 +230,34 @@ test("navigation aborts a pending create and a late response cannot reveal its t
   await expect(page.locator("body")).not.toContainText(token);
   expect(state.requests.filter((request) => request.method === "POST")).toHaveLength(0);
 });
+
+test("a timed-out creation unlocks dismissal and never retries or reveals a late token", async ({ page }) => {
+  await page.clock.install();
+  await install(page);
+  await page.addInitScript(() => {
+    const fetch = window.fetch;
+    window.adminAttempts = [];
+    window.fetch = function (input, options) {
+      if (!String(input).endsWith("/api/admin/links") || options?.method !== "POST") return fetch.call(this, input, options);
+      return new Promise((resolve) => { window.adminAttempts.push({ signal: options.signal, release: (body) => resolve(new Response(JSON.stringify(body), { status: 201 })) }); });
+    };
+  });
+  await page.goto("/#/admin");
+  await page.locator("#admin-create-link").click();
+  const dialog = page.locator("#admin-create-dialog");
+  await page.locator("#admin-link-title").fill("Timeout check");
+  await dialog.locator("button[type=submit]").click();
+  await expect.poll(() => page.evaluate(() => window.adminAttempts.length)).toBe(1);
+  await page.clock.fastForward(30001);
+  await expect(dialog).toContainText("NAS 请求超时");
+  await expect(dialog).toContainText("链接可能已创建");
+  await expect(dialog.getByRole("button", { name: "取消", exact: true })).toBeEnabled();
+  await expect(dialog.locator("button[type=submit]")).toBeDisabled();
+  expect(await page.evaluate(() => window.adminAttempts[0].signal.aborted)).toBe(true);
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await page.evaluate(({ link, token }) => window.adminAttempts[0].release({ link, token }), { link: fixtureLink, token });
+  await expect(page.locator("#admin-created-url")).toHaveCount(0);
+  await expect(page.locator("body")).not.toContainText(token);
+  expect(await page.evaluate(() => window.adminAttempts.length)).toBe(1);
+});

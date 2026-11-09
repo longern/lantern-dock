@@ -4,5 +4,6 @@ export const backendPaths = Object.freeze({
   images: "/api/iiif/3",
   inbox: "/api/uploads",
   account: "/api/account",
+  admin: "/api/admin",
   capabilities: "/api/capabilities",
 });

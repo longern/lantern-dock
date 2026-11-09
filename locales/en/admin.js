@@ -65,6 +65,7 @@ export default {
   confirmRevoke: "Revoke link",
   revoking: "Revoking…",
   revokedNotice: "Link revoked. Previously received files are still available.",
+  requestTimeout: "The NAS request timed out. Check your connection and refresh to verify the result.",
   requestFailed: "The request could not be completed. Check your connection and try again.",
   invalidResponse: "The NAS returned an unexpected response. Refresh and check that its version supports administration.",
   forbiddenDescription: "This NAS has not granted your account administrator access.",
