@@ -32,9 +32,9 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  min-height: 72px;
+  height: 60px;
   width: 100%;
-  padding: 14px 20px;
+  padding: 2px 20px;
   text-align: left;
   font-size: 15px;
   font-weight: 550;
@@ -79,7 +79,6 @@
 .favorites-dialog .favorites-heading > #favorites-back {
   width: var(--topbar-button-size);
   height: var(--topbar-button-size);
-  margin-left: var(--topbar-edge-margin);
 }
 .favorites-dialog .favorites-heading > .header-actions {
   margin-left: 0;

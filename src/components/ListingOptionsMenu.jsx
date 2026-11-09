@@ -4,7 +4,7 @@ import { Icon } from "./Icon.jsx";
 import { afterOverlayEntry } from "../lib/overlay-entry.js";
 import { captureListingMenuMotion, getListingMenuPlacement } from "../lib/listing-menu.js";
 
-export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange }) {
+export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange, edge = false }) {
   const id = useId();
   const root = useRef(null);
   const trigger = useRef(null);
@@ -196,7 +196,7 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange }) {
       <button
         ref={trigger}
         type="button"
-        class="icon-button listing-options-trigger"
+        class={`icon-button listing-options-trigger${edge === "start" || edge === "end" ? ` edge-${edge}` : ""}`}
         aria-label={t("library.listingOptions")}
         aria-haspopup="menu"
         aria-expanded={open}

@@ -33,7 +33,7 @@ import { useDownload } from "./hooks/useDownload.js";
 function listingActions(library, records) {
   const { recent, album, sort, view } = listingPreferences(library, records);
   return !recent && !album ? (
-    <ListingOptionsMenu key={library.mode} sort={sort} view={view}
+    <ListingOptionsMenu key={library.mode} sort={sort} view={view} edge="end"
       onSortChange={library.setSort} onViewChange={library.setView} />
   ) : null;
 }

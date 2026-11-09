@@ -33,7 +33,7 @@
   --inspector: 360px;
   --topbar-height: 60px;
   --topbar-button-size: 48px;
-  --topbar-edge-margin: -12px;
+  --icon-button-edge-margin: -12px;
 }
 * {
   box-sizing: border-box;

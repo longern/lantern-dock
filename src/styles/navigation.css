@@ -210,6 +210,12 @@
   color: #737482;
   flex-shrink: 0;
 }
+.icon-button.edge-start {
+  margin-inline-start: var(--icon-button-edge-margin);
+}
+.icon-button.edge-end {
+  margin-inline-end: var(--icon-button-edge-margin);
+}
 @media (hover: hover) {
   .icon-button:hover {
     background: #f2f2f7;
@@ -235,9 +241,6 @@
   width: 16px;
   height: 16px;
 }
-.topbar .mobile-menu {
-  margin-left: var(--topbar-edge-margin);
-}
 /* Shared by page headers; the menu still owns only its local popup state. */
 .header-actions {
   display: flex;
@@ -247,15 +250,6 @@
 .header-actions .icon-button {
   width: var(--topbar-button-size);
   height: var(--topbar-button-size);
-  margin-right: var(--topbar-edge-margin);
-}
-.topbar-right > .icon-button:last-child {
-  margin-right: var(--topbar-edge-margin);
-}
-@media (min-width: 701px) {
-  .topbar-right > #refresh-button {
-    margin-left: var(--topbar-edge-margin);
-  }
 }
 #refresh-button[aria-busy="true"] svg {
   animation: spin 1s linear infinite;

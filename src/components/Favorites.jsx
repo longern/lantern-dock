@@ -5,7 +5,7 @@ import { Icon } from "./Icon.jsx";
 export function Favorites({ mobile, open, onClose, onExited, actions, children }) {
   const content = <>
     <header class="favorites-heading">
-      <button id="favorites-back" class="icon-button" onClick={onClose}
+      <button id="favorites-back" class={`icon-button${mobile ? " edge-start" : ""}`} onClick={onClose}
         aria-label={t(mobile ? "library.backToMe" : "library.backToFiles")}>
         <Icon name="chevron-left" />
       </button>

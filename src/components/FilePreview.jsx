@@ -103,12 +103,12 @@ export function FilePreview({
       aria-labelledby="preview-name"
     >
       <div class="preview-header">
-        <button class="icon-button" aria-label={t("library.closePreview")} onClick={onClose}>
+        <button class="icon-button edge-start" aria-label={t("library.closePreview")} onClick={onClose}>
           <Icon name={modal ? "chevron-left" : "x"} />
         </button>
         <strong id="preview-name">{item.name}</strong>
         <button
-          class="icon-button"
+          class="icon-button edge-end"
           aria-label={favorite ? t("library.unfavoriteFile") : t("library.favoriteFile")}
           aria-pressed={favorite}
           style={{ color: favorite ? "#a58b41" : undefined }}

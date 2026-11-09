@@ -267,7 +267,7 @@ function AlbumControls({
       <header class="album-viewer-header">
         <button
           ref={closeButton}
-          class="icon-button"
+          class="icon-button edge-start"
           onClick={params.onClose}
           aria-label={t("library.closePreview")}
         >

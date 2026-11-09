@@ -187,7 +187,7 @@ export function Topbar({ library, menuOpen, onMenu, actions }) {
       <header class={`topbar${actions ? " has-actions" : ""}`}>
         <button
           id="navigation-toggle"
-          class="icon-button mobile-menu"
+          class="icon-button mobile-menu edge-start"
           aria-label={t("library.openNavigation")}
           aria-expanded={menuOpen}
           aria-controls="sidebar"
@@ -211,7 +211,7 @@ export function Topbar({ library, menuOpen, onMenu, actions }) {
           {!mobile && home && search}
           <button
             id="refresh-button"
-            class="icon-button"
+            class={`icon-button${actions ? "" : " edge-end"}`}
             aria-label={t("library.refreshDirectory")}
             title={t("library.refresh")}
             aria-busy={library.loading}

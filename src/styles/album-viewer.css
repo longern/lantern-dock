@@ -141,9 +141,6 @@ html:has(.album-viewer[open]) {
 .album-viewer .icon-button[aria-pressed="true"] {
   color: #f3d588;
 }
-.album-viewer-header > .icon-button:first-child {
-  margin-left: -12px;
-}
 .album-viewer-header strong {
   flex: 1;
   min-width: 0;

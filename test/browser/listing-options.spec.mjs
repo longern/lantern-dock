@@ -58,9 +58,11 @@ test("Files and Favorites own their right-edge header actions instead of the lis
     await expect(trigger).toHaveCSS("margin-right", "-12px");
     await expect(listingOptionsButton(page.locator(".file-toolbar"))).toHaveCount(0);
     await expect(listingOptionsButton(page)).toHaveCount(1);
-    const bounds = await trigger.boundingBox();
-    expect(bounds.x).toBeGreaterThanOrEqual(0);
-    expect(bounds.x + bounds.width).toBeLessThanOrEqual(page.viewportSize().width);
+    // Favorites can still be sliding into place after becoming visible.
+    await expect.poll(async () => {
+      const bounds = await trigger.boundingBox();
+      return !!bounds && bounds.x >= 0 && bounds.x + bounds.width <= page.viewportSize().width;
+    }).toBe(true);
     const menu = await openListingOptions(page);
     const menuBounds = await menu.boundingBox();
     expect(menuBounds.x).toBeGreaterThanOrEqual(0);

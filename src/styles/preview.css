@@ -34,12 +34,6 @@
   width: 24px;
   height: 24px;
 }
-.preview-header > .icon-button:first-child {
-  margin-left: var(--topbar-edge-margin);
-}
-.preview-header > .icon-button:last-child {
-  margin-right: var(--topbar-edge-margin);
-}
 .preview-header strong {
   flex: 1;
   font-size: 13px;
