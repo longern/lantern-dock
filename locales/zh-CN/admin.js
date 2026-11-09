@@ -80,6 +80,8 @@ export default {
   "gate.nas-error.description": "NAS 可能离线或无法连接。仅登录站点并不代表拥有管理员权限，请恢复连接后重新检查。",
   "gate.forbidden.title": "需要管理员权限",
   "gate.forbidden.description": "你已登录，但此 NAS 尚未授予该账户管理员权限。",
+  "gate.unverified.title": "NAS 权限尚未确认",
+  "gate.unverified.description": "NAS 未能验证一致且已授权的账户。请检查连接和登录状态，再次验证权限。",
   "gate.unsupported.title": "需要更新 NAS",
   "gate.unsupported.description": "此 NAS 已验证你的管理员身份，但尚不支持网页管理。请更新到支持管理后台的 NAS 版本后重新检查。",
 };

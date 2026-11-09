@@ -33,7 +33,7 @@ export function AdminPage() {
       </div>
       {access === "ready" ? (
         <AdminWorkspace key={identity.user.issuer + ":" + identity.user.sub} account={nas.account}
-          refreshNAS={refreshNAS} />
+          refreshNAS={refreshNAS} refreshIdentity={refreshIdentity} />
       ) : (
         <section class="admin-gate" aria-live="polite" aria-busy={access === "checking"}>
           <span class="admin-gate-icon"><Icon name={access === "nas-error" ? "cloud-off" : "lock"} /></span>
@@ -70,7 +70,7 @@ function useCollection(client, kind, linkId, revision, onError) {
   return { ...state, offset, setOffset };
 }
 
-function AdminWorkspace({ account, refreshNAS }) {
+function AdminWorkspace({ account, refreshNAS, refreshIdentity }) {
   const client = useMemo(() => new AdminClient(account), [account]);
   useEffect(() => () => client.close(), [client]);
   const [tab, setTab] = useState(account.capabilities.adminLinks ? "links" : "inbox");
@@ -81,8 +81,9 @@ function AdminWorkspace({ account, refreshNAS }) {
   const [notice, setNotice] = useState(null);
   const report = useCallback((text, error = false) => setNotice({ text, error }), []);
   const onError = useCallback((error) => {
-    if (error.status === 401 || error.status === 403) void refreshNAS();
-  }, [refreshNAS]);
+    if (error.code === "LOGIN_REQUIRED") void refreshIdentity();
+    else if (error.status === 401 || error.status === 403) void refreshNAS();
+  }, [refreshNAS, refreshIdentity]);
   const downloadConnection = useMemo(() => ({ client: { get: async (id, signal) => {
     try { return await client.download(id, signal); }
     catch (error) { if (!signal?.aborted) onError(error); throw error; }

@@ -80,6 +80,8 @@ export default {
   "gate.nas-error.description": "The NAS may be offline or unreachable. Your sign-in alone does not confirm administrator permissions. Reconnect and check again.",
   "gate.forbidden.title": "Administrator access required",
   "gate.forbidden.description": "Your account is signed in, but this NAS has not granted it administrator access.",
+  "gate.unverified.title": "NAS permissions not confirmed",
+  "gate.unverified.description": "The NAS could not verify a matching authorized account. Check your connection and sign-in, then verify again.",
   "gate.unsupported.title": "NAS update required",
   "gate.unsupported.description": "This NAS verified your administrator role but does not support web administration. Update the NAS to a compatible version and check again.",
 };

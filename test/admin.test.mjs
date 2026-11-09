@@ -15,6 +15,9 @@ test("admin access requires verified NAS role and explicit capabilities", () => 
   assert.equal(adminAccess(identity, { status: "idle" }), "checking");
   assert.equal(adminAccess(identity, { status: "error", error: { code: "NAS_NOT_CONFIGURED" } }), "not-configured");
   assert.equal(adminAccess(identity, { status: "error", account }), "nas-error");
+  assert.equal(adminAccess(identity, { status: "error", error: { code: "LOGIN_REQUIRED" } }), "identity-error");
+  assert.equal(adminAccess(identity, { status: "error", error: { kind: "unauthorized" } }), "unverified");
+  assert.equal(adminAccess(identity, { status: "error", error: { kind: "identity-mismatch" } }), "unverified");
   assert.equal(adminAccess({ status: "signed-out" }, { status: "ready", account }), "signed-out");
   assert.equal(adminAccess({ status: "loading" }, { status: "ready", account }), "checking");
   assert.equal(adminAccess({ status: "error" }, { status: "ready", account }), "identity-error");

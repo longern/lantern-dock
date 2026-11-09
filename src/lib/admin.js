@@ -11,8 +11,11 @@ export function adminAccess(identity, nas) {
   if (identity.status === "signed-out") return "signed-out";
   if (identity.status !== "authenticated") return "identity-error";
   if (nas.status === "loading" || nas.status === "idle") return "checking";
-  if (nas.status !== "ready")
+  if (nas.status !== "ready") {
+    if (nas.error?.code === "LOGIN_REQUIRED" || nas.error?.kind === "session-expired") return "identity-error";
+    if (nas.error?.kind === "unauthorized" || nas.error?.kind === "identity-mismatch") return "unverified";
     return nas.error?.code === "NAS_NOT_CONFIGURED" ? "not-configured" : "nas-error";
+  }
   if (nas.account?.user?.role !== "admin") return "forbidden";
   if (nas.account.capabilities?.adminLinks !== true && nas.account.capabilities?.adminInbox !== true)
     return "unsupported";
