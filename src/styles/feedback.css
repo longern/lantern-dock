@@ -10,7 +10,7 @@
   gap: 16px;
   padding: 18px;
   background: #fff;
-  border: 1px solid var(--line);
+  border: 0;
   border-radius: 10px;
   box-shadow: 0 10px 40px #24243b15;
   width: min(370px, calc(100% - 32px));

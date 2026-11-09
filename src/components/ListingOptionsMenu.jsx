@@ -1,67 +1,123 @@
 import { useId, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { t } from "../../shared/i18n.js";
 import { Icon } from "./Icon.jsx";
+import { afterOverlayEntry } from "../lib/overlay-entry.js";
+import { captureListingMenuMotion, getListingMenuPlacement } from "../lib/listing-menu.js";
 
 export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange }) {
   const id = useId();
   const root = useRef(null);
   const trigger = useRef(null);
   const menu = useRef(null);
+  const surface = useRef(null);
   const initialFocus = useRef(0);
-  const [open, setOpen] = useState(false);
-  const close = (restoreFocus = true) => {
-    setOpen(false);
+  const [state, setState] = useState({ phase: "closed" });
+  const currentState = useRef(state);
+  const open = state.phase === "open";
+  const present = state.phase !== "closed";
+  const transition = (phase) => {
+    // The identity also invalidates completion callbacks before Preact commits
+    // a rapid close/reopen, including two changes within the same event turn.
+    const next = { phase };
+    currentState.current = next;
+    setState(next);
+    return next;
+  };
+  const setInteractive = (interactive) => {
+    const popup = menu.current;
+    if (!popup) return;
+    popup.toggleAttribute("inert", !interactive);
+    if (interactive) popup.removeAttribute("aria-hidden");
+    else popup.setAttribute("aria-hidden", "true");
+    // Also protect browsers without inert, and programmatic activation during
+    // the closing frame before the next render has disabled these controls.
+    popup.querySelectorAll('[role="menuitemradio"]').forEach((item) => { item.disabled = !interactive; });
+  };
+  const close = (restoreFocus = true, immediately = false) => {
+    if (currentState.current.phase === "closed" || (!immediately && currentState.current.phase !== "open")) return;
+    captureListingMenuMotion(surface.current);
+    transition(immediately ? "closed" : "closing");
     if (restoreFocus) trigger.current?.focus({ preventScroll: true });
+    else if (menu.current?.contains(document.activeElement)) document.activeElement.blur();
+    setInteractive(false);
   };
   const openMenu = (index = 0) => {
+    const dialog = trigger.current?.closest("dialog");
+    if (dialog && (!dialog.open || dialog.dataset.state === "closed")) return;
     initialFocus.current = index;
-    setOpen(true);
+    if (currentState.current.phase === "closing") captureListingMenuMotion(surface.current);
+    transition("open");
+    setInteractive(true);
   };
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!present) return;
     const popup = menu.current;
+    const panel = surface.current;
     const dialog = popup.closest("dialog");
     // A manual popover stays in this DOM/focus scope but paints in the top
-    // layer, above the dialog's scrolling and animated containing block.
-    const topLayer = typeof popup.showPopover === "function";
-    if (topLayer) popup.showPopover();
+    // layer. Keep it there until exit finishes, rather than hiding on close.
+    let topLayer = false;
+    if (typeof popup.showPopover === "function") {
+      try {
+        popup.showPopover();
+        topLayer = true;
+      } catch {
+        // A partial Popover implementation must not leave the fallback hidden.
+        popup.removeAttribute("popover");
+      }
+    } else popup.removeAttribute("popover");
     const position = () => {
       const anchor = trigger.current.getBoundingClientRect();
       const viewport = window.visualViewport;
-      const left = viewport?.offsetLeft || 0;
-      const top = viewport?.offsetTop || 0;
-      const width = viewport?.width || document.documentElement.clientWidth;
-      const height = viewport?.height || window.innerHeight;
-      const margin = 8;
-      popup.style.maxWidth = `${Math.max(0, width - margin * 2)}px`;
-      popup.style.maxHeight = `${Math.max(0, height - margin * 2)}px`;
-      // Reset and measure the real fixed-position origin. In older browsers
-      // without Popover, this also accounts for a translated/scrolled dialog.
+      const area = {
+        left: viewport?.offsetLeft || 0,
+        top: viewport?.offsetTop || 0,
+        width: viewport?.width || document.documentElement.clientWidth,
+        height: viewport?.height || window.innerHeight,
+      };
+      popup.style.maxWidth = `${Math.max(0, area.width - 16)}px`;
+      popup.style.maxHeight = `${Math.max(0, area.height - 16)}px`;
+      // Only the inner surface animates. Measuring this shell never feeds the
+      // current grow/shrink scale back into its placement or transform origin.
       popup.style.left = "0px";
       popup.style.top = "0px";
       const bounds = popup.getBoundingClientRect();
-      const below = anchor.bottom + 6;
-      const above = anchor.top - bounds.height - 6;
-      popup.style.left = `${Math.max(left + margin, Math.min(anchor.right - bounds.width, left + width - bounds.width - margin)) - bounds.left}px`;
-      popup.style.top = `${Math.max(top + margin, Math.min(below + bounds.height <= top + height - margin ? below : above, top + height - bounds.height - margin)) - bounds.top}px`;
+      const placed = getListingMenuPlacement(anchor, bounds, area);
+      const scaleX = bounds.width / popup.offsetWidth || 1;
+      const scaleY = bounds.height / popup.offsetHeight || 1;
+      // Without Popover, account for a translated/scrolled/scaled containing
+      // dialog as well as the viewport offset.
+      popup.style.left = `${(placed.left - bounds.left) / scaleX}px`;
+      popup.style.top = `${(placed.top - bounds.top) / scaleY}px`;
+      panel.style.transformOrigin = `${placed.originX / scaleX}px ${placed.originY / scaleY}px`;
+      popup.dataset.placement = placed.placement;
     };
     position();
     let frame;
-    const trackEntry = () => {
+    const trackDialog = () => {
       position();
-      if (dialog?.getAnimations().some((animation) => animation.playState === "running")) {
-        frame = requestAnimationFrame(trackEntry);
+      if (dialog && (typeof dialog.getAnimations !== "function" || dialog.getAnimations().some((animation) =>
+        animation.playState === "running" || animation.playState === "paused"))) {
+        frame = requestAnimationFrame(trackDialog);
       }
     };
-    frame = requestAnimationFrame(trackEntry);
-    // A top-layer popover must not outlive the dialog that owns it.
+    const followDialog = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(trackDialog);
+    };
+    followDialog();
+    // Exit with the owner, but remove immediately if its native dialog closes.
+    // A detached/closed owner must never leave a separate top-layer popup.
     const dialogState = dialog && new MutationObserver(() => {
-      if (!dialog.open || dialog.dataset.state === "closed") close(false);
+      if (!dialog.open) close(false, true);
+      else if (dialog.dataset.state === "closed") close(false);
+      followDialog();
     });
     dialogState?.observe(dialog, { attributes: true, attributeFilter: ["open", "data-state"] });
-    const items = popup.querySelectorAll('[role="menuitemradio"]');
-    items[initialFocus.current < 0 ? items.length - 1 : initialFocus.current]?.focus({ preventScroll: true });
+    const ownerClosed = () => close(false, true);
+    dialog?.addEventListener("close", ownerClosed);
+    dialog?.addEventListener("animationstart", followDialog);
     const outsidePointer = (event) => {
       if (!root.current.contains(event.target)) close(false);
     };
@@ -80,7 +136,11 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange }) {
     return () => {
       cancelAnimationFrame(frame);
       dialogState?.disconnect();
-      if (topLayer && popup.matches(":popover-open")) popup.hidePopover();
+      dialog?.removeEventListener("close", ownerClosed);
+      dialog?.removeEventListener("animationstart", followDialog);
+      if (topLayer && popup.isConnected) {
+        try { popup.hidePopover(); } catch { /* Already closed by its owner. */ }
+      }
       document.removeEventListener("pointerdown", outsidePointer, true);
       document.removeEventListener("focusin", outsideFocus);
       document.removeEventListener("scroll", onScroll, true);
@@ -88,10 +148,23 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange }) {
       window.visualViewport?.removeEventListener("resize", position);
       window.visualViewport?.removeEventListener("scroll", position);
     };
-  }, [open]);
+  }, [present]);
+
+  useLayoutEffect(() => {
+    if (state.phase === "open") {
+      const items = menu.current.querySelectorAll('[role="menuitemradio"]');
+      items[initialFocus.current < 0 ? items.length - 1 : initialFocus.current]?.focus({ preventScroll: true });
+    } else if (state.phase === "closing") {
+      // Use the actual CSS animation, including cancellation/reduced motion,
+      // and the existing computed-duration fallback for older engines.
+      return afterOverlayEntry(surface.current, () => {
+        if (currentState.current === state) transition("closed");
+      });
+    }
+  }, [state]);
 
   const onKeyDown = (event) => {
-    if (!open) return;
+    if (currentState.current.phase !== "open") return;
     if (event.key === "Escape") {
       // Prevent the containing native dialog from also handling Escape.
       event.preventDefault();
@@ -128,7 +201,7 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        onClick={() => open ? close() : openMenu()}
+        onClick={() => currentState.current.phase === "open" ? close() : openMenu()}
         onKeyDown={(event) => {
           if (!open && ["ArrowDown", "ArrowUp"].includes(event.key)) {
             event.preventDefault();
@@ -139,28 +212,45 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange }) {
       >
         <Icon name="ellipsis" />
       </button>
-      {open && (
-        <div ref={menu} id={id} popover="manual" class="listing-options-menu" role="menu" aria-label={t("library.listingOptions")}>
-          {groups.map((group) => (
-            <div key={group.key} role="group" aria-labelledby={`${id}-${group.key}`}>
-              <div class="listing-options-label" id={`${id}-${group.key}`}>{group.label}</div>
-              {group.options.map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  role="menuitemradio"
-                  tabIndex={-1}
-                  aria-checked={group.selected === value}
-                  data-option={value}
-                  onClick={() => { group.change(value); close(); }}
-                >
-                  {group.key === "view" && <Icon name={value} />}
-                  <span>{label}</span>
-                  <Icon name="check" class="listing-options-check" />
-                </button>
-              ))}
-            </div>
-          ))}
+      {present && (
+        <div
+          ref={menu}
+          id={id}
+          popover="manual"
+          class="listing-options-menu"
+          role="menu"
+          aria-label={t("library.listingOptions")}
+          data-state={open ? "open" : "closed"}
+          aria-hidden={open ? undefined : "true"}
+          inert={!open}
+        >
+          <div ref={surface} class="listing-options-surface">
+            {groups.map((group) => (
+              <div key={group.key} role="group" aria-labelledby={`${id}-${group.key}`}>
+                <div class="listing-options-label" id={`${id}-${group.key}`}>{group.label}</div>
+                {group.options.map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="menuitemradio"
+                    tabIndex={-1}
+                    disabled={!open}
+                    aria-checked={group.selected === value}
+                    data-option={value}
+                    onClick={() => {
+                      if (currentState.current.phase !== "open") return;
+                      group.change(value);
+                      close();
+                    }}
+                  >
+                    {group.key === "view" && <Icon name={value} />}
+                    <span>{label}</span>
+                    <Icon name="check" class="listing-options-check" />
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -1,3 +1,7 @@
+/* Dialog surfaces use shape and shadow, not an outer frame. Focus outlines
+   and interior dividers remain part of their controls and content. */
+dialog { border: 0; }
+
 /* Keep each native modal and its backdrop in the top layer through the exit. */
 .sidebar-drawer,
 .settings-dialog {
