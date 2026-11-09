@@ -3,6 +3,7 @@ import { coreError } from "./errors.js";
 import { DirectTransport } from "./transport.js";
 import { backendPaths } from "../../shared/backend-paths.js";
 import { safeReturnPath } from "../../shared/routes.js";
+import { clearPersistentImages } from "./image-cache.js";
 import {
   AUTHORIZATION_METADATA_PATH,
   SESSION_GRANT_TYPE,
@@ -139,17 +140,21 @@ export async function beginLogin(signal) {
     }),
   );
   signal?.throwIfAborted();
+  await clearPersistentImages();
+  signal?.throwIfAborted();
   location.assign(value.url);
 }
 export async function endLogin() {
   tokenNonce = undefined;
-  return result(
+  const value = await result(
     await fetch("/api/auth/logout", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Accept-Language": locale },
     }),
   );
+  await clearPersistentImages();
+  return value;
 }
 let tokenNonce;
 export async function requestNASGrant(signal, scope = ACCOUNT_SCOPE) {

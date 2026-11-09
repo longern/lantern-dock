@@ -2,6 +2,7 @@ import { t } from "../../shared/i18n.js";
 import { MemoryCache, cachePolicy } from "./cache.js";
 import { limitedBytes } from "./content.js";
 import { backendPaths } from "../../shared/backend-paths.js";
+import { PersistentImageCache } from "./image-cache.js";
 
 const freshness = 15000;
 export class ImageServiceError extends Error {
@@ -51,7 +52,7 @@ export function iiifSize(info, side) {
 }
 
 export class ImageClient {
-  constructor(transport) {
+  constructor(transport, { root, persistentCache } = {}) {
     this.transport = transport;
     this.responses = new MemoryCache(16 * 1024 * 1024, 512);
     this.previews = new MemoryCache(16 * 1024 * 1024, 256);
@@ -62,6 +63,7 @@ export class ImageClient {
     this.queue = [];
     this.active = 0;
     this.revision = 0;
+    this.persistent = persistentCache || new PersistentImageCache(transport, { root });
   }
   dispose() {
     this.lifetime.abort();
@@ -179,19 +181,25 @@ export class ImageClient {
       })();
     return this.capabilities;
   }
-  async read(path, version, signal, limit, accept) {
+  async read(path, version, signal, limit, accept, persist = true) {
     signal?.throwIfAborted();
     const key = path + "\0" + version;
-    const cached = this.responses.get(key);
+    let cached = this.responses.get(key);
+    if (!persist) await this.persistent.delete(path, version, accept);
     if (cached && Date.now() - cached.time < cached.value.freshFor)
       return cached.value;
+    if (persist && !cached) {
+      const value = await this.persistent.get(path, version, accept, limit, signal);
+      if (value) cached = { value, weight: value.bytes.byteLength };
+    }
+    signal?.throwIfAborted();
     const headers = { Accept: accept };
     if (cached?.value.etag) headers["If-None-Match"] = cached.value.etag;
     const response = await this.transport.request(path, { headers, signal });
     if (response.status === 304 && cached) {
       await response.body?.cancel();
       const headers = new Headers(cached.value.headers);
-      for (const name of ["Cache-Control", "Age", "ETag"]) {
+      for (const name of ["Cache-Control", "Age", "ETag", "Vary"]) {
         if (response.headers.has(name))
           headers.set(name, response.headers.get(name));
       }
@@ -203,11 +211,14 @@ export class ImageClient {
       };
       if (value.storable) this.responses.set(key, value, cached.weight);
       else this.responses.delete(key);
+      if (persist) await this.persistent.put(path, version, accept, value, signal);
+      signal?.throwIfAborted();
       return value;
     }
     if (!response.ok) {
       this.responses.delete(key);
       await response.body?.cancel();
+      await this.persistent.delete(path, version, accept);
       throw new ImageServiceError(response.status);
     }
     const bytes = await limitedBytes(response, limit, signal);
@@ -220,6 +231,8 @@ export class ImageClient {
     };
     if (value.storable) this.responses.set(key, value, bytes.byteLength);
     else this.responses.delete(key);
+    if (persist) await this.persistent.put(path, version, accept, value, signal);
+    signal?.throwIfAborted();
     return value;
   }
   async image(item, side, signal) {
@@ -267,6 +280,7 @@ export class ImageClient {
           signal,
           8 * 1024 * 1024,
           "image/jpeg",
+          metadata.storable,
         );
         if (response.type.split(";")[0] !== "image/jpeg")
           throw new ImageServiceError(415);

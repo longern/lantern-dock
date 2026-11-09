@@ -332,6 +332,59 @@ test("cancelling a streaming upload through the bridge cleans partial files and 
   await expect(page.getByRole("status")).toHaveText("已接收");
 });
 
+test("public image Cache Storage survives reload and revalidates through real WebTransport without a Service Worker", async ({ page }) => {
+  await page.goto(fixture.origin);
+  const load = async () => page.evaluate(async () => {
+    const { DirectTransport } = await import("/__test/lib/transport.js");
+    const { DAVClient } = await import("/__test/lib/dav.js");
+    const { backend } = await (await fetch("/api/config")).json();
+    const transport = new DirectTransport(backend);
+    const statuses = [], validators = [];
+    const request = transport.request.bind(transport);
+    transport.request = async (path, options) => {
+      const response = await request(path, options);
+      if (path.includes("/iiif/")) {
+        statuses.push(response.status);
+        validators.push(options?.headers?.["If-None-Match"] || null);
+      }
+      return response;
+    };
+    const client = new DAVClient(transport, backend);
+    try {
+      const entries = await client.list(backend.rootPath + encodeURIComponent("照片") + "/");
+      const item = entries.find((entry) => entry.name === "photo.png");
+      const preview = await client.images.image(item, 384);
+      const image = new Image();
+      image.src = URL.createObjectURL(preview.blob);
+      try { await image.decode(); } finally { URL.revokeObjectURL(image.src); }
+      const cache = await caches.open("lantern-dock-public-images-v1");
+      const keys = (await cache.keys()).filter((key) => !key.url.endsWith("/index"));
+      return { statuses, validators, width: image.naturalWidth, entries: keys.length };
+    } finally { client.dispose(); transport.close(); }
+  });
+  const initial = await load();
+  expect(initial.statuses).toEqual([200, 200]);
+  expect(initial.entries).toBe(2);
+  expect(initial.width).toBe(384);
+  await page.reload();
+  const reloaded = await load();
+  expect(reloaded.statuses).toEqual([304, 304]);
+  expect(reloaded.validators.every(Boolean)).toBe(true);
+  expect(reloaded.width).toBe(384);
+  expect(reloaded.entries).toBe(2);
+  expect(page.context().serviceWorkers()).toHaveLength(0);
+  // Exercise the real logout action, not only the cache helper in isolation.
+  await page.route("**/api/auth/session", (route) => route.fulfill({ json: {
+    authenticated: true, user: { issuer: fixture.origin, sub: "ld_1KzSHPuTIpRkcYiSJTXRlA", name: "Cache test" },
+  } }));
+  await page.goto(fixture.origin + "/account");
+  await page.getByRole("button", { name: "退出登录", exact: true }).click();
+  await expect.poll(() => page.evaluate(async () => {
+    const cache = await caches.open("lantern-dock-public-images-v1");
+    return (await cache.keys()).filter((key) => !key.url.endsWith("/index")).length;
+  })).toBe(0);
+});
+
 test("IIIF thumbnails, preview and conditional cache work over real WebTransport", async ({
   page,
 }, testInfo) => {
@@ -422,7 +475,7 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
   expect(result).toEqual({
     listingsBeforeRefresh: 1,
     listingsAfterRefresh: 2,
-    imageStatuses: [200, 200, 304, 304],
+    imageStatuses: [304, 304, 304, 304],
   });
   const cached = await readdir(resolve(fixture.nas.dataDir, "cache/images"));
   expect(

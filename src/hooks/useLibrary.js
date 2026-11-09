@@ -6,11 +6,13 @@ import { DemoClient } from "../lib/demo.js";
 import { useRouter } from "./useRouter.jsx";
 import { albumHref, filesHref, libraryLocation } from "../../shared/routes.js";
 import { normalizePath, withinRoot } from "../lib/dav.js";
+import { clearPersistentImages } from "../lib/image-cache.js";
 
 export function useLibrary() {
   const router = useRouter();
   const current = libraryLocation(router.route, router.state);
   const [credentials, setCredentials] = useState({ mode: "none" });
+  const previousCredentials = useRef(credentials);
   const [revision, setRevision] = useState(0);
   const [connection, setConnection] = useState(null);
   const [connecting, setConnecting] = useState(true);
@@ -49,6 +51,11 @@ export function useLibrary() {
     };
     (async () => {
       try {
+        if (previousCredentials.current !== credentials) {
+          previousCredentials.current = credentials;
+          await clearPersistentImages();
+          if (controller.signal.aborted) return;
+        }
         if (demoPreview) {
           connect({
             name: t("core.publicLibraryName"),

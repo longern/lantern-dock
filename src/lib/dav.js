@@ -140,7 +140,7 @@ export class DAVClient {
     this.transport = transport;
     this.root = normalizePath(config.rootPath);
     this.directories = new MemoryCache(16 * 1024 * 1024, 64);
-    this.images = new ImageClient(transport);
+    this.images = new ImageClient(transport, { root: this.root });
   }
   dispose() {
     this.images.dispose();
