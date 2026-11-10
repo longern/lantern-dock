@@ -19,6 +19,7 @@
   padding: 0;
   overflow: visible;
   border: 0;
+  outline: none;
   background: transparent;
 }
 .listing-options-surface {
@@ -113,5 +114,11 @@
 @media (--down-md) {
   .listing-options-menu [role^="menuitem"] {
     min-height: 44px;
+  }
+}
+@media (pointer: fine) {
+  .file-context-menu [role^="menuitem"] {
+    min-height: 32px;
+    padding-block: 5px;
   }
 }

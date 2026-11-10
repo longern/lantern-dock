@@ -2,11 +2,43 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   captureListingMenuMotion,
+  getContextMenuPlacement,
   getListingMenuPlacement,
 } from "../src/lib/listing-menu.js";
 
 const viewport = { left: 0, top: 0, width: 1000, height: 800 };
 const menu = { width: 208, height: 300 };
+
+test("context menus grow from the pointer and flip inside viewport edges", () => {
+  assert.deepEqual(
+    getContextMenuPlacement({ x: 300, y: 200 }, menu, viewport),
+    {
+      left: 300,
+      top: 200,
+      placement: "bottom",
+      originX: 0,
+      originY: 0,
+    },
+  );
+  assert.deepEqual(
+    getContextMenuPlacement({ x: 990, y: 790 }, menu, viewport),
+    {
+      left: 782,
+      top: 490,
+      placement: "top",
+      originX: 208,
+      originY: 300,
+    },
+  );
+  const placed = getContextMenuPlacement({ x: 110, y: 210 }, menu, {
+    left: 100,
+    top: 200,
+    width: 250,
+    height: 320,
+  });
+  assert.equal(placed.left, 110);
+  assert.equal(placed.top, 210);
+});
 
 test("a menu below its trigger grows from the trigger center at its upper edge", () => {
   assert.deepEqual(

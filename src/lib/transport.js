@@ -92,7 +92,14 @@ export class DirectTransport {
   }
   async request(
     path,
-    { method = "GET", headers = {}, body, signal, onUploadProgress } = {},
+    {
+      method = "GET",
+      headers = {},
+      body,
+      signal,
+      onUploadProgress,
+      cache,
+    } = {},
   ) {
     signal?.throwIfAborted();
     const auth = authorization(this.credentials);
@@ -115,6 +122,7 @@ export class DirectTransport {
           signal,
           credentials: "omit",
           mode: "cors",
+          cache,
         });
       } catch (error) {
         if (signal?.aborted) throw error;

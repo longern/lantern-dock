@@ -1,6 +1,30 @@
 const clamp = (value, minimum, maximum) =>
   Math.max(minimum, Math.min(value, maximum));
 
+export function getContextMenuPlacement(point, bounds, viewport) {
+  const left = clamp(
+    point.x + bounds.width <= viewport.left + viewport.width - 8
+      ? point.x
+      : point.x - bounds.width,
+    viewport.left + 8,
+    viewport.left + viewport.width - bounds.width - 8,
+  );
+  const top = clamp(
+    point.y + bounds.height <= viewport.top + viewport.height - 8
+      ? point.y
+      : point.y - bounds.height,
+    viewport.top + 8,
+    viewport.top + viewport.height - bounds.height - 8,
+  );
+  return {
+    left,
+    top,
+    placement: top < point.y ? "top" : "bottom",
+    originX: clamp(point.x - left, 0, bounds.width),
+    originY: clamp(point.y - top, 0, bounds.height),
+  };
+}
+
 // All inputs are viewport coordinates. Derive the pivot after clamping, rather
 // than assuming the popup always fits below and to the left of its trigger.
 export function getListingMenuPlacement(anchor, bounds, viewport) {

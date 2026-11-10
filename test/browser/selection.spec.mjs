@@ -107,6 +107,40 @@ test("desktop keyboard selection and inline bulk actions preserve browser histor
   ).toBeVisible();
 });
 
+test("keyboard focus spans the row and moves independently of selection on every screen size", async ({
+  page,
+}) => {
+  const list = page.locator("#file-list");
+  const items = list.locator(".file-open");
+  const rows = list.locator(".file-item");
+  await list.focus();
+  await page.keyboard.press("Tab");
+  await expect(items.first()).toBeFocused();
+  await expect(rows.first()).toHaveCSS("outline-width", "2px");
+  await expect(rows.first()).toHaveCSS("outline-offset", "-2px");
+  await expect(rows.first()).toHaveCSS("border-radius", "0px");
+  await expect(items.first()).toHaveCSS("outline-style", "none");
+  await expect(selected(page)).toHaveCount(0);
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ControlOrMeta+ArrowDown");
+  await expect(items.nth(1)).toBeFocused();
+  await expect(rows.first()).toHaveAttribute("data-selected", "true");
+  await expect(rows.first()).toHaveCSS(
+    "background-color",
+    "rgb(239, 237, 252)",
+  );
+  await expect(rows.first()).toHaveCSS("outline-style", "none");
+  await expect(rows.nth(1)).not.toHaveAttribute("data-selected", "true");
+  await expect(rows.nth(1)).toHaveCSS("outline-width", "2px");
+  await page.keyboard.press("Space");
+  await expect(selected(page)).toHaveCount(2);
+  await expect(rows.nth(1)).toHaveCSS("outline-width", "2px");
+  await page.keyboard.press("Escape");
+  await expect(items.nth(1)).toBeFocused();
+  await expect(rows.nth(1)).toHaveCSS("outline-width", "2px");
+  await expect(selected(page)).toHaveCount(0);
+});
+
 test("touch long press replaces bottom navigation with a floating selection toolbar", async ({
   page,
 }, testInfo) => {
@@ -115,6 +149,7 @@ test("touch long press replaces bottom navigation with a floating selection tool
   const artBefore = await items.first().locator(".file-art").boundingBox();
   await hold(page, items.first());
   await expect(selected(page)).toHaveCount(1);
+  await expect(selected(page).first()).toHaveCSS("outline-style", "none");
   const row = await selected(page).first().boundingBox();
   expect(row.x).toBe(0);
   expect(row.width).toBe(page.viewportSize().width);
@@ -128,6 +163,7 @@ test("touch long press replaces bottom navigation with a floating selection tool
   ).toBe(true);
   await items.nth(4).tap();
   await expect(selected(page)).toHaveCount(2);
+  await expect(selected(page).last()).toHaveCSS("outline-style", "none");
   await items.first().tap();
   await expect(selected(page)).toHaveCount(1);
   await actions(page).getByRole("button", { name: "全选", exact: true }).tap();
@@ -149,6 +185,10 @@ test("touch long press replaces bottom navigation with a floating selection tool
   await expect(panel(page)).toHaveCount(0);
   await expect(page.locator(".mobile-tabs")).toBeVisible();
   await expect(items.first()).toBeFocused();
+  await expect(items.first().locator("..")).toHaveCSS("outline-style", "none");
+  await page.keyboard.press("ArrowDown");
+  await expect(items.nth(1)).toBeFocused();
+  await expect(items.nth(1).locator("..")).toHaveCSS("outline-width", "2px");
 });
 
 test("touch actions batch favorites and copy shareable links without opening files", async ({
@@ -291,12 +331,20 @@ test("album selection uses the visible chronological media set inside the native
   await expect(items.first()).toBeVisible();
   if (touch(page)) {
     await hold(page, items.first());
+    await expect(items.first().locator("..")).toHaveCSS(
+      "outline-style",
+      "none",
+    );
     await actions(page)
       .getByRole("button", { name: "全选", exact: true })
       .tap();
   } else {
-    await items.first().click();
+    await scope.locator(".album-timeline").focus();
+    await page.keyboard.press("Tab");
+    await expect(items.first()).toBeFocused();
     await items.first().press("Control+a");
+    await expect(items.first().locator("..")).toHaveCSS("outline-width", "2px");
+    await expect(items.first().locator("..")).toHaveCSS("border-radius", "0px");
     await expect(panel(page)).toHaveCount(0);
   }
   await expect(scope.locator(".album-item[data-selected='true']")).toHaveCount(
@@ -333,6 +381,14 @@ test("grid arrows use actual columns and sorting preserves the selected paths", 
   await items.first().click();
   await page.keyboard.press("ArrowDown");
   await expect(items.nth(nextRow)).toBeFocused();
+  await expect(items.nth(nextRow).locator("..")).toHaveCSS(
+    "outline-width",
+    "2px",
+  );
+  await expect(items.nth(nextRow).locator("..")).toHaveCSS(
+    "border-radius",
+    "8px",
+  );
   await expect(items.nth(nextRow)).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Shift+ArrowRight");
   await expect(selected(page)).toHaveCount(2);
@@ -367,9 +423,20 @@ test("a wide touch screen uses touch selection while its mouse keeps desktop beh
     await page.goto("/files/");
     const items = page.locator("#file-list .file-open");
     await expect(items).toHaveCount(12);
-    await hold(page, items.first());
+    await page.locator("#file-list").focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Space");
+    await expect(items.first().locator("..")).toHaveCSS("outline-width", "2px");
+    await hold(page, items.nth(1));
     await expect(panel(page)).toBeVisible();
+    await expect(items.first().locator("..")).toHaveCSS(
+      "outline-style",
+      "none",
+    );
+    await expect(items.nth(1).locator("..")).toHaveCSS("outline-style", "none");
     await panel(page).getByRole("button", { name: "取消选择" }).tap();
+    await expect(items.nth(1)).toBeFocused();
+    await expect(items.nth(1).locator("..")).toHaveCSS("outline-style", "none");
     await items.first().click();
     await expect(selected(page)).toHaveCount(1);
     await expect(panel(page)).toHaveCount(0);

@@ -73,7 +73,7 @@ const localChildren = (node, name) =>
   );
 const child = (node, name) => localChildren(node, name)[0];
 const text = (node, name) => child(node, name)?.textContent?.trim() || "";
-export function parseDAV(xml, currentPath, rootPath) {
+export function parseDAV(xml, currentPath, rootPath, { onUnavailable } = {}) {
   if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw coreError("UNSAFE_XML");
   const doc = new DOMParser().parseFromString(xml, "application/xml");
   if (
@@ -109,7 +109,10 @@ export function parseDAV(xml, currentPath, rootPath) {
       /^HTTP\/\d\.\d 2\d\d/.test(text(node, "status")),
     );
     const prop = propstat && child(propstat, "prop");
-    if (!prop) continue;
+    if (!prop) {
+      onUnavailable?.();
+      continue;
+    }
     const directory = !!child(
       child(prop, "resourcetype") || prop,
       "collection",
@@ -179,7 +182,18 @@ export class DAVClient {
         }),
       );
       const bytes = await limitedBytes(response, 8 * 1024 * 1024, signal);
-      const result = parseDAV(new TextDecoder().decode(bytes), path, this.root);
+      let complete = true;
+      const result = parseDAV(
+        new TextDecoder().decode(bytes),
+        path,
+        this.root,
+        {
+          onUnavailable: () => {
+            complete = false;
+          },
+        },
+      );
+      if (!signal?.aborted && complete) this.onListing?.(path, result);
       const policy = cachePolicy(response.headers);
       if (policy.storable)
         this.directories.set(
@@ -198,7 +212,19 @@ export class DAVClient {
     path = normalizePath(path);
     if (!withinRoot(path, this.root)) throw coreError("OUTSIDE_ROOT");
     if (!["GET", "HEAD"].includes(method)) throw coreError("PREVIEW_READ_ONLY");
-    return this.transport.request(path, { signal, headers, method });
+    const response = await this.transport.request(path, {
+      signal,
+      headers,
+      method,
+      ...(method === "HEAD" ? { cache: "no-store" } : {}),
+    });
+    if (!signal?.aborted && [404, 410].includes(response.status)) {
+      this.directories.delete(
+        path.slice(0, path.replace(/\/$/, "").lastIndexOf("/") + 1),
+      );
+      this.onMissing?.(path);
+    }
+    return response;
   }
   async get(path, signal) {
     return checkResponse(await this.read(path, signal));

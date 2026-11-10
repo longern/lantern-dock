@@ -180,6 +180,25 @@ function LibraryApp() {
   const [recentSnapshot, setRecentSnapshot] = useState(null);
   const [albumBackground, setAlbumBackground] = useState(null);
   useLayoutEffect(() => {
+    const client = library.connection?.client;
+    if (!client) return;
+    const revealRecords = (changed) => {
+      if (!changed) return;
+      setRecentSnapshot(null);
+      setAlbumBackground(null);
+    };
+    client.onMissing = (path) => {
+      source.removeMissing(path);
+      revealRecords(records.forgetRecent([path]));
+    };
+    client.onListing = (path, entries) =>
+      revealRecords(records.reconcileRecent(path, entries));
+    return () => {
+      client.onMissing = null;
+      client.onListing = null;
+    };
+  }, [library.connection, library.key]);
+  useLayoutEffect(() => {
     // A visit in the child viewer must not reorder or unmount the covered Home
     // list. Reveal updated recents only after the album page has exited.
     if (albumPresent)

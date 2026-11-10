@@ -137,6 +137,77 @@ test("file selection and bulk actions work over WebTransport without exposing DA
   await expect(page.locator(".preview-content pre")).toHaveText(textFile);
 });
 
+test("file details and missing recent cleanup work over real WebTransport HEAD requests", async ({
+  page,
+}) => {
+  const name = "details-missing.txt";
+  const path = resolve(fixture.nas.publicDir, name);
+  await writeFile(path, "details fixture");
+  try {
+    await page.goto(`${fixture.origin}/files/`);
+    const item = page.getByRole("button", {
+      name: `预览 ${name}`,
+      exact: true,
+    });
+    await expect(item).toBeVisible();
+    const showDetails = async () => {
+      if (isCompact(page)) {
+        await holdItem(page, item);
+        await page
+          .locator(".selection-panel")
+          .getByRole("button", { name: "文件详情", exact: true })
+          .tap();
+      } else {
+        await item.click({ button: "right" });
+        await page
+          .getByRole("menu", { name: "文件操作" })
+          .getByRole("menuitem", { name: "文件详情", exact: true })
+          .click();
+      }
+      return page.getByRole("dialog", { name: "文件详情", exact: true });
+    };
+    const details = await showDetails();
+    await expect(details.getByRole("status")).toHaveCount(0);
+    await expect(
+      details.locator("dd").filter({ hasText: "15 B" }),
+    ).toBeVisible();
+    await details.getByRole("button", { name: "关闭文件详情" }).click();
+    await expect(details).toHaveCount(0);
+    if (isCompact(page))
+      await page
+        .locator(".selection-panel")
+        .getByRole("button", { name: "取消选择" })
+        .tap();
+    await openItem(item);
+    await expect(page.locator(".preview-content pre")).toHaveText(
+      "details fixture",
+    );
+    await page.getByRole("button", { name: "关闭预览", exact: true }).click();
+    await expect(page.locator("#preview-dialog")).toHaveCount(0);
+    await page.getByRole("button", { name: "首页", exact: true }).click();
+    await expect(page.locator(".file-section-title")).toHaveText("最近文件");
+    await rm(path);
+    const missing = await showDetails();
+    await expect(missing.getByRole("status")).toHaveText(
+      "该文件已不存在或不可访问。",
+    );
+    expect(
+      await page.evaluate(() =>
+        JSON.parse(
+          localStorage.getItem(
+            Object.keys(localStorage).find((key) => key.endsWith(":recent")),
+          ),
+        ),
+      ),
+    ).toEqual([]);
+    await missing.getByRole("button", { name: "关闭文件详情" }).click();
+    await expect(missing).toHaveCount(0);
+    await expect(item).toHaveCount(0);
+  } finally {
+    await rm(path, { force: true });
+  }
+});
+
 test("selected NAS files download separately through WebTransport without an archive", async ({
   page,
 }) => {

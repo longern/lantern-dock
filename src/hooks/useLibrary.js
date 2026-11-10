@@ -202,6 +202,12 @@ export function useLibrary() {
     loading:
       connecting || (!!connection && (loading || listingPath.current !== path)),
     error: configError || listingError,
+    removeMissing: (path) =>
+      setEntries((current) =>
+        current.some((item) => item.path === path)
+          ? current.filter((item) => item.path !== path)
+          : current,
+      ),
     setup,
     demoPreview,
     startDemo: () => setDemoPreview(true),

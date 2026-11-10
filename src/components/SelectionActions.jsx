@@ -10,6 +10,7 @@ export function SelectionActions({
   onDownload,
   downloading,
   favoritesPage,
+  onDetails,
 }) {
   const panel = useRef(null);
   const floating = selection.touch;
@@ -111,6 +112,17 @@ export function SelectionActions({
             onClick={() => selection.clear()}
           >
             <Icon name="x" />
+          </button>
+        )}
+        {floating && onDetails && (
+          <button
+            class="selection-command"
+            aria-label={t("library.mediaDetails")}
+            disabled={selection.items.length !== 1}
+            onClick={() => onDetails(selection.items[0])}
+          >
+            <Icon name="info" />
+            <span>{t("library.mediaDetails")}</span>
           </button>
         )}
       </div>

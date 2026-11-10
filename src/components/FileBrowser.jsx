@@ -15,6 +15,8 @@ import { fileListing } from "../lib/file-listing.js";
 import { Album } from "./Album.jsx";
 import { useFileSelection } from "../hooks/useFileSelection.js";
 import { SelectionActions } from "./SelectionActions.jsx";
+import { FileItemMenu } from "./FileItemMenu.jsx";
+import { FileDetails } from "./FileDetails.jsx";
 
 const noEntries = [];
 
@@ -139,6 +141,13 @@ export function FileBrowser({
     recordsError || (usesDirectory || recordsPending ? library.error : null);
   const busy = !error && (recordsPending || (library.loading && usesDirectory));
   const [albumOrder, setAlbumOrder] = useState(null);
+  const [contextMenu, setContextMenu] = useState(null);
+  const [details, setDetails] = useState(null);
+  useLayoutEffect(() => {
+    setContextMenu(null);
+    setDetails(null);
+  }, [library.key, library.mode, library.path, library.kind, library.query]);
+  const openDetails = (item) => setDetails({ item, open: true });
   const onAlbumItems = useCallback(
     (items) =>
       setAlbumOrder((current) =>
@@ -166,6 +175,7 @@ export function FileBrowser({
     ]),
     onTouchSelection,
     library.copyLinks,
+    setContextMenu,
   );
   const actionsOwner = useRef(Symbol("desktop-selection"));
   // Publish meaningful selection changes, while the header reads fresh callbacks
@@ -179,6 +189,7 @@ export function FileBrowser({
     onDownload: library.downloadMany,
     downloading: library.downloading,
     favoritesPage: library.mode === "favorites",
+    onDetails: openDetails,
   };
   useLayoutEffect(() => {
     onDesktopSelection?.(
@@ -203,7 +214,9 @@ export function FileBrowser({
       onPointerDown={(event) => {
         if (
           event.pointerType === "mouse" &&
-          !event.target.closest("button,.file-item,.selection-actions")
+          !event.target.closest(
+            "button,.file-item,.selection-actions,[role='menu']",
+          )
         )
           selection.clear(false);
       }}
@@ -338,6 +351,7 @@ export function FileBrowser({
           onDownload={library.downloadMany}
           downloading={library.downloading}
           favoritesPage={library.mode === "favorites"}
+          onDetails={openDetails}
         />
       )}
       {!busy && !entries.length && !error && (
@@ -395,6 +409,25 @@ export function FileBrowser({
             <span class="empty-footnote">{t("library.localRecordsNote")}</span>
           )}
         </div>
+      )}
+      <FileItemMenu
+        request={contextMenu}
+        onDismiss={() => setContextMenu(null)}
+        selection={selection}
+        records={records}
+        library={library}
+        recent={recent}
+        onDetails={openDetails}
+      />
+      {details && (
+        <FileDetails
+          item={details.item}
+          client={library.connection.client}
+          open={details.open}
+          onClose={() => setDetails((value) => ({ ...value, open: false }))}
+          onExited={() => setDetails(null)}
+          fallbackFocus={`#${listId}`}
+        />
       )}
     </section>
   );

@@ -91,4 +91,22 @@ export class DemoClient {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });
   }
+  async read(path, signal, headers, method = "GET") {
+    if (method !== "HEAD") return this.get(path, signal);
+    signal?.throwIfAborted();
+    const directory = path.replace(/[^/]+\/?$/, "");
+    const item = (await this.list(directory, signal)).find(
+      (item) => item.path === path,
+    );
+    if (!item) {
+      this.onMissing?.(path);
+      return new Response(null, { status: 404 });
+    }
+    return new Response(null, {
+      headers: {
+        "Content-Length": String(item.size || 0),
+        "Last-Modified": item.modified,
+      },
+    });
+  }
 }

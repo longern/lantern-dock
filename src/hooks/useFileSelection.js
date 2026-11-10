@@ -17,6 +17,7 @@ export function useFileSelection(
   scope,
   onTouchSelection,
   onCopyLinks,
+  onContextMenu,
 ) {
   const [state, setState] = useState(empty);
   const list = useRef(null);
@@ -121,6 +122,36 @@ export function useFileSelection(
       anchor: current.anchor || order[0],
       mode: current.mode || "desktop",
     }));
+  const contextMenu = (event, item, keyboard = false) => {
+    if (!item) return;
+    if (
+      !keyboard &&
+      (press.current ||
+        ["touch", "pen"].includes(
+          event.pointerType || lastPointer.current?.type,
+        ))
+    ) {
+      event.preventDefault();
+      return;
+    }
+    if (!onContextMenu) return;
+    event.preventDefault();
+    event.stopPropagation();
+    cancelPress();
+    if (!state.paths.has(item.path) || state.mode !== "desktop")
+      select(item.path, { mode: "desktop" });
+    const target = event.target.closest(".file-open");
+    const rect = target.getBoundingClientRect();
+    onContextMenu({
+      item,
+      target,
+      keyboard: keyboard || (!event.clientX && !event.clientY),
+      point:
+        keyboard || (!event.clientX && !event.clientY)
+          ? { x: rect.left + 16, y: rect.bottom }
+          : { x: event.clientX, y: event.clientY },
+    });
+  };
   const keyDown = (event) => {
     if (
       event.defaultPrevented ||
@@ -136,6 +167,17 @@ export function useFileSelection(
     }
     const button = event.target.closest(".file-open");
     if (!button || !list.current?.contains(button)) return;
+    if (
+      (event.shiftKey && event.key === "F10") ||
+      event.key === "ContextMenu"
+    ) {
+      contextMenu(
+        event,
+        entries.find((item) => item.path === button.dataset.path),
+        true,
+      );
+      return;
+    }
     const modifier = event.ctrlKey || event.metaKey;
     if (modifier && event.key.toLowerCase() === "a") {
       event.preventDefault();
@@ -241,7 +283,6 @@ export function useFileSelection(
             if (press.current !== current || !node.isConnected) return;
             suppressed.current = item.path;
             select(item.path, { mode: "touch" });
-            node.focus({ preventScroll: true });
           }, holdDelay);
           press.current = current;
         },
@@ -284,7 +325,7 @@ export function useFileSelection(
           open(item);
         },
         onContextMenu(event) {
-          if (press.current || state.mode === "touch") event.preventDefault();
+          contextMenu(event, item);
         },
         onDragStart: (event) => event.preventDefault(),
       };

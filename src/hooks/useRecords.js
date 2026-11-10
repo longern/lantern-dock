@@ -46,6 +46,12 @@ export function useRecords(key, toast) {
       ].slice(0, 30),
     );
   };
+  const removeRecent = (matches) => {
+    const current = readRecords(key, "recent");
+    if (current.status !== "ready") return false;
+    const kept = current.items.filter((item) => !matches(item));
+    return kept.length !== current.items.length && save("recent", kept);
+  };
   return {
     favorites,
     favoritesStatus: favoriteState.status,
@@ -93,5 +99,19 @@ export function useRecords(key, toast) {
     },
     rememberMany,
     remember: (item) => rememberMany([item]),
+    forgetRecent(paths) {
+      const removed = new Set(paths);
+      return removeRecent((item) => removed.has(item.path));
+    },
+    reconcileRecent(directory, entries) {
+      const present = new Set(entries.map((item) => item.path));
+      return removeRecent((item) => {
+        const path = item.path.replace(/\/$/, "");
+        return (
+          path.slice(0, path.lastIndexOf("/") + 1) === directory &&
+          !present.has(item.path)
+        );
+      });
+    },
   };
 }
