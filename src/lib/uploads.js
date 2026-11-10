@@ -36,7 +36,8 @@ export class UploadClient {
     return this.request(backendPaths.inbox, { signal });
   }
   async request(path, options) {
-    if (this.closed) throw new DOMException(t("core.connectionClosed"), "AbortError");
+    if (this.closed)
+      throw new DOMException(t("core.connectionClosed"), "AbortError");
     return uploadResponse(await this.transport.request(path, options));
   }
   async sendHTTP(path, file, signal, onProgress) {

@@ -31,14 +31,16 @@ HTTPS uses native video; WebTransport reuses page-local MP4Box + MediaSource and
 {
   "version": 1,
   "revision": "<64 lowercase hex characters>",
-  "items": [{
-    "image": "/dav/photo.jpg",
-    "pairedVideo": "/dav/clip.mov",
-    "video": "/api/media/{imageID}/{videoID}/{version}/video.mp4",
-    "kind": "apple",
-    "length": 123456,
-    "posterTime": 0
-  }],
+  "items": [
+    {
+      "image": "/dav/photo.jpg",
+      "pairedVideo": "/dav/clip.mov",
+      "video": "/api/media/{imageID}/{videoID}/{version}/video.mp4",
+      "kind": "apple",
+      "length": 123456,
+      "posterTime": 0
+    }
+  ],
   "nextOffset": null
 }
 ```

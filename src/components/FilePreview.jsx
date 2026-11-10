@@ -3,7 +3,7 @@ import { useEffect, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { limitedBytes } from "../lib/dav.js";
 import { bytes, date } from "../lib/format.js";
-import { useMediaQuery } from "../hooks/useMediaQuery.js";
+import { useBreakpointDown } from "../hooks/useMediaQuery.js";
 import { Dialog } from "./Dialog.jsx";
 import { VideoPreview } from "./VideoPreview.jsx";
 
@@ -21,7 +21,7 @@ export function FilePreview({
   open,
   feedback,
 }) {
-  const modal = useMediaQuery("(max-width: 1000px)");
+  const modal = useBreakpointDown("lg");
   const [content, setContent] = useState(null);
   const [error, setError] = useState("");
   const [dimensions, setDimensions] = useState("");
@@ -62,8 +62,7 @@ export function FilePreview({
           }
         }
         const limit = (item.kind === "image" ? 25 : 1) * 1024 * 1024;
-        if (item.size > limit)
-          throw new Error(t("library.previewTooLarge"));
+        if (item.size > limit) throw new Error(t("library.previewTooLarge"));
         const response = await client.get(item.path, controller.signal);
         const data = await limitedBytes(response, limit, controller.signal);
         if (controller.signal.aborted) return;
@@ -104,14 +103,26 @@ export function FilePreview({
       aria-labelledby="preview-name"
     >
       <div class="preview-header">
-        <button class="icon-button edge-start" aria-label={t("library.closePreview")} onClick={onClose}>
+        <button
+          class="icon-button edge-start"
+          aria-label={t("library.closePreview")}
+          onClick={onClose}
+        >
           <Icon name={modal ? "chevron-left" : "x"} />
         </button>
         <strong id="preview-name">{item.name}</strong>
-        <button class="icon-button" aria-label={t("library.copyLink")} onClick={() => onCopyLink(item)}><Icon name="copy" /></button>
+        <button
+          class="icon-button"
+          aria-label={t("library.copyLink")}
+          onClick={() => onCopyLink(item)}
+        >
+          <Icon name="copy" />
+        </button>
         <button
           class="icon-button edge-end"
-          aria-label={favorite ? t("library.unfavoriteFile") : t("library.favoriteFile")}
+          aria-label={
+            favorite ? t("library.unfavoriteFile") : t("library.favoriteFile")
+          }
           aria-pressed={favorite}
           style={{ color: favorite ? "#a58b41" : undefined }}
           onClick={() => onFavorite(item)}

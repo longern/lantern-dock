@@ -38,8 +38,7 @@ export class WireReader {
           return decoder.decode(part);
         }
       }
-      if (this.buffer.length > limit)
-        throw coreError("HTTP_HEADER_LIMIT");
+      if (this.buffer.length > limit) throw coreError("HTTP_HEADER_LIMIT");
       scan = Math.max(0, this.buffer.length - 1);
       if (!(await this.more())) throw coreError("HTTP_MESSAGE_TRUNCATED");
     }
@@ -176,10 +175,10 @@ export async function readResponse(
               while (true) {
                 const trailer = await wire.line();
                 trailerBytes += trailer.length + 2;
-                if (trailerBytes > 65536)
-                  throw coreError("HTTP_TRAILER_LIMIT");
+                if (trailerBytes > 65536) throw coreError("HTTP_TRAILER_LIMIT");
                 if (!trailer) break;
-                if (!trailer.includes(":")) throw coreError("HTTP_TRAILER_INVALID");
+                if (!trailer.includes(":"))
+                  throw coreError("HTTP_TRAILER_INVALID");
               }
               controller.close();
               done();

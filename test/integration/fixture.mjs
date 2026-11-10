@@ -44,18 +44,36 @@ let protocolModules;
 function testProtocolModules() {
   // Browser protocol probes need the same i18n dependency graph as production.
   // Bundle these isolated entries in memory; never expose arbitrary source files.
-  return protocolModules ||= build({
+  return (protocolModules ||= build({
     configFile: false,
     logLevel: "silent",
     build: {
       write: false,
       lib: {
-        entry: Object.fromEntries(["transport", "dav", "uploads"].map((name) => [name, resolve("src/lib", name + ".js")])),
+        entry: Object.fromEntries(
+          ["transport", "dav", "uploads"].map((name) => [
+            name,
+            resolve("src/lib", name + ".js"),
+          ]),
+        ),
         formats: ["es"],
       },
-      rollupOptions: { output: { entryFileNames: "[name].js", chunkFileNames: "chunks/[name]-[hash].js" } },
+      rollupOptions: {
+        output: {
+          entryFileNames: "[name].js",
+          chunkFileNames: "chunks/[name]-[hash].js",
+        },
+      },
     },
-  }).then((result) => new Map([result].flat().flatMap((bundle) => bundle.output).map((chunk) => [chunk.fileName, chunk.code])));
+  }).then(
+    (result) =>
+      new Map(
+        [result]
+          .flat()
+          .flatMap((bundle) => bundle.output)
+          .map((chunk) => [chunk.fileName, chunk.code]),
+      ),
+  ));
 }
 const items = [
   { name: "照片", folder: true },
@@ -289,7 +307,10 @@ export async function startFixture({ nas = false, identity = false } = {}) {
                 });
               } catch {
                 if (request.headers.get("Sec-Fetch-Mode") === "navigate")
-                  return new Response(await readFile(resolve("dist/index.html")), { headers: { "Content-Type": "text/html" } });
+                  return new Response(
+                    await readFile(resolve("dist/index.html")),
+                    { headers: { "Content-Type": "text/html" } },
+                  );
                 return new Response("Not found", { status: 404 });
               }
             },
@@ -593,7 +614,13 @@ export async function startFixture({ nas = false, identity = false } = {}) {
           const response = await route.fetch({
             url: nativeOrigin + path.pathname + path.search,
             maxRedirects: 0,
-            headers: { ...await route.request().allHeaders(), "Sec-Fetch-Mode": route.request().resourceType() === "document" ? "navigate" : "cors" },
+            headers: {
+              ...(await route.request().allHeaders()),
+              "Sec-Fetch-Mode":
+                route.request().resourceType() === "document"
+                  ? "navigate"
+                  : "cors",
+            },
           });
           await route.fulfill({ response });
         });

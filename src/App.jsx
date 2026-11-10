@@ -23,8 +23,9 @@ import { Favorites } from "./components/Favorites.jsx";
 import { PageDialog } from "./components/PageDialog.jsx";
 import { Icon } from "./components/Icon.jsx";
 import { ListingOptionsMenu } from "./components/ListingOptionsMenu.jsx";
+import { AlbumOptionsMenu } from "./components/AlbumOptionsMenu.jsx";
 import { listingPreferences } from "./lib/file-listing.js";
-import { useMediaQuery } from "./hooks/useMediaQuery.js";
+import { useCompactLayout } from "./hooks/useMediaQuery.js";
 import { useLibraryRoute } from "./hooks/useLibraryRoute.js";
 import { useLibrary } from "./hooks/useLibrary.js";
 import { useRecords } from "./hooks/useRecords.js";
@@ -38,16 +39,24 @@ import { groupMediaByDate } from "./lib/album.js";
 // listing. Headers only render their slot; children never mutate a shared header.
 function listingActions(library, records) {
   const { recent, album, sort, view } = listingPreferences(library, records);
-  return !recent && !album ? (
-    <ListingOptionsMenu key={library.mode} sort={sort} view={view} edge="end"
-      onSortChange={library.setSort} onViewChange={library.setView} />
+  return album ? (
+    <AlbumOptionsMenu library={library} />
+  ) : !recent ? (
+    <ListingOptionsMenu
+      key={library.mode}
+      sort={sort}
+      view={view}
+      edge="end"
+      onSortChange={library.setSort}
+      onViewChange={library.setView}
+    />
   ) : null;
 }
 
 function LibraryApp() {
   const router = useRouter();
   const source = useLibrary();
-  const mobile = useMediaQuery("(max-width: 700px)");
+  const mobile = useCompactLayout();
   const navigation = useLibraryRoute();
   const { route } = navigation;
   const favoritesOpen = mobile && route === "favorites";
@@ -56,19 +65,36 @@ function LibraryApp() {
   const [albumMounted, setAlbumMounted] = useState(albumOpen);
   const albumPresent = mobile && (albumOpen || albumMounted);
   const [favoritesSort, setFavoritesSort] = useState("name");
-  const myPage = route === "me" || (mobile && (route === "favorites" || favoritesMounted));
+  const myPage =
+    route === "me" || (mobile && (route === "favorites" || favoritesMounted));
   const library = {
     ...source,
-    mode: route === "favorites" ? "favorites" : myPage ? "me" : route === "album" && !mobile ? "all" : source.mode,
+    mode:
+      route === "favorites"
+        ? "favorites"
+        : myPage
+          ? "me"
+          : route === "album" && !mobile
+            ? "all"
+            : source.mode,
     // Routed account/favorite surfaces never inherit a hidden Home search or filter.
     query: route ? "" : source.query,
-    kind: route === "album" ? mobile ? source.kind : "album" : route ? "" : source.kind,
+    kind:
+      route === "album"
+        ? mobile
+          ? source.kind
+          : "album"
+        : route
+          ? ""
+          : source.kind,
     sort: route === "favorites" ? favoritesSort : source.sort,
     setSort: route === "favorites" ? setFavoritesSort : source.setSort,
   };
   const basePage = !route || (mobile && route === "album");
-  const collectionPage = basePage && (library.mode === "home" ||
-    (library.mode === "all" && !["album", "image"].includes(library.kind)));
+  const collectionPage =
+    basePage &&
+    (library.mode === "home" ||
+      (library.mode === "all" && !["album", "image"].includes(library.kind)));
   useLayoutEffect(() => {
     if (favoritesOpen) setFavoritesMounted(true);
     else if (!mobile) setFavoritesMounted(false);
@@ -99,7 +125,7 @@ function LibraryApp() {
   const transferPanel = useTransferPanel(transfer, mobile);
   const [touchSelections, setTouchSelections] = useState(() => new Set());
   const onTouchSelection = useCallback((owner, active) => {
-    setTouchSelections(current => {
+    setTouchSelections((current) => {
       if (current.has(owner) === active) return current;
       const next = new Set(current);
       if (active) next.add(owner);
@@ -116,40 +142,52 @@ function LibraryApp() {
   useLayoutEffect(() => {
     // A visit in the child viewer must not reorder or unmount the covered Home
     // list. Reveal updated recents only after the album page has exited.
-    if (albumPresent) setAlbumBackground((current) => current?.key === library.key ? current : {
-      key: library.key,
-      recent: records.recent,
-      recentStatus: records.recentStatus,
-      recentError: records.recentError,
-    });
+    if (albumPresent)
+      setAlbumBackground((current) =>
+        current?.key === library.key
+          ? current
+          : {
+              key: library.key,
+              recent: records.recent,
+              recentStatus: records.recentStatus,
+              recentError: records.recentError,
+            },
+      );
     else setAlbumBackground(null);
   }, [albumPresent, library.key]);
   // Persist visits immediately, but keep the clicked list still until the
   // preview has finished entering (or an interrupted preview has exited).
-  const visibleRecords = albumPresent && albumBackground?.key === library.key
-    ? { ...records, ...albumBackground }
-    : library.mode === "home" && recentSnapshot?.key === library.key
-      ? { ...records, ...recentSnapshot.records }
-      : records;
+  const visibleRecords =
+    albumPresent && albumBackground?.key === library.key
+      ? { ...records, ...albumBackground }
+      : library.mode === "home" && recentSnapshot?.key === library.key
+        ? { ...records, ...recentSnapshot.records }
+        : records;
   useLayoutEffect(() => setRecentSnapshot(null), [library.key, library.mode]);
   const [settings, setSettings] = useState(null);
   const previousRoute = useRef(route);
   const previousMobile = useRef(mobile);
   useLayoutEffect(() => {
     if (previousRoute.current !== route) {
-      setSettings((current) => current ? "closing" : null);
+      setSettings((current) => (current ? "closing" : null));
       setSelected(null);
       setPreviewOpen(false);
     }
     // A sheet changes into a page at this breakpoint. Close its nested preview
     // before creating a new native top-layer parent, rather than covering it.
-    if (previousMobile.current !== mobile && ["favorites", "album"].includes(route)) {
+    if (
+      previousMobile.current !== mobile &&
+      ["favorites", "album"].includes(route)
+    ) {
       setSettings(null);
       if (router.route.file) closePreview();
       setSelected(null);
       setPreviewOpen(false);
       requestAnimationFrame(() =>
-        document.getElementById(route === "album" ? "album-back" : "favorites-back")?.focus({ preventScroll: true }));
+        document
+          .getElementById(route === "album" ? "album-back" : "favorites-back")
+          ?.focus({ preventScroll: true }),
+      );
     }
     previousRoute.current = route;
     previousMobile.current = mobile;
@@ -168,22 +206,43 @@ function LibraryApp() {
   }, [library.connection]);
   const closePreview = () => {
     setPreviewOpen(false);
-    if (router.route.file) router.close("previewFrom", router.route.album ? albumHref(router.route.directory) : filesHref(router.route.directory, { directory: true }));
+    if (router.route.file)
+      router.close(
+        "previewFrom",
+        router.route.album
+          ? albumHref(router.route.directory)
+          : filesHref(router.route.directory, { directory: true }),
+      );
   };
   const [routeError, setRouteError] = useState("");
   useLayoutEffect(() => {
     setRouteError("");
-    if (!router.route.file) { setPreviewOpen(false); return; }
+    if (!router.route.file) {
+      setPreviewOpen(false);
+      return;
+    }
     if (!source.connection) return;
     const root = source.connection.client.root.replace(/\/?$/, "/");
     const path = root + router.route.file;
-    if (selected && selected.path !== path) { setPreviewOpen(false); setSelected(null); setGallery(null); }
+    if (selected && selected.path !== path) {
+      setPreviewOpen(false);
+      setSelected(null);
+      setGallery(null);
+    }
     if (source.loading || source.error) return;
     const item = source.entries.find((entry) => entry.path === path);
     if (!item) {
-      const folder = source.entries.find((entry) => entry.isDirectory && entry.path === path + "/");
-      if (folder) router.navigate(filesHref(router.route.file, { directory: true }), { replace: true });
-      else { setPreviewOpen(false); setRouteError(t("library.fileNotFound")); }
+      const folder = source.entries.find(
+        (entry) => entry.isDirectory && entry.path === path + "/",
+      );
+      if (folder)
+        router.navigate(filesHref(router.route.file, { directory: true }), {
+          replace: true,
+        });
+      else {
+        setPreviewOpen(false);
+        setRouteError(t("library.fileNotFound"));
+      }
       return;
     }
     if (selected?.path === path && previewOpen) return;
@@ -192,27 +251,48 @@ function LibraryApp() {
     setSelected(item);
     setPreviewOpen(true);
     if (router.route.album && ["image", "video"].includes(item.kind)) {
-      setGallery((existing) => existing?.items.some((entry) => entry.path === path) ? existing : {
-        items: groupMediaByDate(source.entries, new Date()).flatMap((group) => group.items), origins: new Map(),
-      });
+      setGallery((existing) =>
+        existing?.items.some((entry) => entry.path === path)
+          ? existing
+          : {
+              items: groupMediaByDate(source.entries, new Date()).flatMap(
+                (group) => group.items,
+              ),
+              origins: new Map(),
+            },
+      );
     } else setGallery(null);
-  }, [router.route.file, router.route.album, source.connection, source.loading, source.error, source.entries]);
+  }, [
+    router.route.file,
+    router.route.album,
+    source.connection,
+    source.loading,
+    source.error,
+    source.entries,
+  ]);
   const finishPreview = () => {
     const path = selected?.path;
     setRecentSnapshot(null);
     setSelected(null);
     setGallery(null);
     requestAnimationFrame(() => {
-      const scope = [...document.querySelectorAll("dialog:modal")].at(-1) || document;
-      ([...scope.querySelectorAll(".file-open")]
-        .find((node) => node.dataset.path === path) ||
-        document.getElementById(albumPresent ? "album-back" : "favorites-back"))?.focus();
+      const scope =
+        [...document.querySelectorAll("dialog:modal")].at(-1) || document;
+      (
+        [...scope.querySelectorAll(".file-open")].find(
+          (node) => node.dataset.path === path,
+        ) ||
+        document.getElementById(albumPresent ? "album-back" : "favorites-back")
+      )?.focus();
     });
   };
   useLayoutEffect(() => {
     const keyboard = (event) => {
       if (event.key === "Escape" && !settings && !event.defaultPrevented) {
-        if (selected && !document.querySelector("#preview-dialog:modal, #album-viewer:modal")) {
+        if (
+          selected &&
+          !document.querySelector("#preview-dialog:modal, #album-viewer:modal")
+        ) {
           event.preventDefault();
           closePreview();
         }
@@ -252,15 +332,23 @@ function LibraryApp() {
     setSettings("open");
   };
   const preview = (item, gallery = null) => {
-    if (!albumPresent && library.mode === "home" && (!previewOpen || selected?.path !== item.path)) {
-      setRecentSnapshot((current) => current?.key === library.key ? current : {
-        key: library.key,
-        records: {
-          recent: records.recent,
-          recentStatus: records.recentStatus,
-          recentError: records.recentError,
-        },
-      });
+    if (
+      !albumPresent &&
+      library.mode === "home" &&
+      (!previewOpen || selected?.path !== item.path)
+    ) {
+      setRecentSnapshot((current) =>
+        current?.key === library.key
+          ? current
+          : {
+              key: library.key,
+              records: {
+                recent: records.recent,
+                recentStatus: records.recentStatus,
+                recentError: records.recentError,
+              },
+            },
+      );
     }
     records.remember(item);
     setGallery(gallery);
@@ -270,28 +358,52 @@ function LibraryApp() {
     const root = library.connection.client.root.replace(/\/?$/, "/");
     const href = filesHref(item.path.slice(root.length), { album: !!gallery });
     const alreadyPreview = !!router.route.file;
-    router.navigate(href, { replace: alreadyPreview, state: alreadyPreview ? router.state : { ...router.state, previewFrom: router.route.href } });
+    router.navigate(href, {
+      replace: alreadyPreview,
+      state: alreadyPreview
+        ? router.state
+        : { ...router.state, previewFrom: router.route.href },
+    });
   };
   const copyLink = async (item) => {
     const root = library.connection.client.root.replace(/\/?$/, "/");
     try {
-      await navigator.clipboard.writeText(new URL(filesHref(item.path.slice(root.length), { directory: item.isDirectory, album: !item.isDirectory && !!gallery }), location.origin).href);
+      await navigator.clipboard.writeText(
+        new URL(
+          filesHref(item.path.slice(root.length), {
+            directory: item.isDirectory,
+            album: !item.isDirectory && !!gallery,
+          }),
+          location.origin,
+        ).href,
+      );
       toast(t("library.linkCopied"));
-    } catch { toast(t("library.copyLinkFailed"), true); }
+    } catch {
+      toast(t("library.copyLinkFailed"), true);
+    }
   };
   library.copyLink = copyLink;
   library.downloadMany = transfer.downloadMany;
   library.downloading = !!transfer.progress;
-  library.copyLinks = async items => {
+  library.copyLinks = async (items) => {
     const root = (library.connection?.client.root || "/").replace(/\/?$/, "/");
     const album = ["album", "image"].includes(library.kind) || albumPresent;
     try {
-      const links = items.map(item => new URL(filesHref(item.path.slice(root.length), {
-        directory: item.isDirectory, album: album && !item.isDirectory,
-      }), location.origin).href);
+      const links = items.map(
+        (item) =>
+          new URL(
+            filesHref(item.path.slice(root.length), {
+              directory: item.isDirectory,
+              album: album && !item.isDirectory,
+            }),
+            location.origin,
+          ).href,
+      );
       await navigator.clipboard.writeText(links.join("\n"));
       toast(t("library.linksCopied", { count: items.length }));
-    } catch { toast(t("library.copyLinkFailed"), true); }
+    } catch {
+      toast(t("library.copyLinkFailed"), true);
+    }
   };
   const connect = (credentials) => {
     setSettings("closing");
@@ -301,11 +413,16 @@ function LibraryApp() {
     library.setCredentials(credentials);
   };
   const favoritesLibrary = {
-    ...library, mode: "favorites", kind: "", query: "",
-    sort: favoritesSort, setSort: setFavoritesSort,
+    ...library,
+    mode: "favorites",
+    kind: "",
+    query: "",
+    sort: favoritesSort,
+    setSort: setFavoritesSort,
   };
   const albumLibrary = { ...library, mode: "all", kind: "album", query: "" };
-  const topbarActions = route === "favorites" ? null : listingActions(library, visibleRecords);
+  const topbarActions =
+    route === "favorites" ? null : listingActions(library, visibleRecords);
   const feedback = (
     <>
       <TransferCenter transfer={transfer} mobile={mobile} {...transferPanel} />
@@ -329,14 +446,27 @@ function LibraryApp() {
       </>
     );
   return (
-    <div class={`app-shell${previewOpen && !gallery ? " preview-open" : ""}${touchSelections.size ? " touch-selecting" : ""}`}>
-      {!mobile && <Sidebar
-        library={library}
-        records={records}
-        onSettings={showSettings}
-      />}
-      <main class={`main-area${collectionPage ? " collection-page" : ""}${basePage && library.mode === "home" ? " home-page" : ""}${myPage ? " my-main" : ""}`}>
-        {routeError && <div class="route-error" role="alert"><p>{routeError}</p><button class="text-button" onClick={closePreview}>{t("library.backToFolder")}</button></div>}
+    <div
+      class={`app-shell${previewOpen && !gallery ? " preview-open" : ""}${touchSelections.size ? " touch-selecting" : ""}`}
+    >
+      {!mobile && (
+        <Sidebar
+          library={library}
+          records={records}
+          onSettings={showSettings}
+        />
+      )}
+      <main
+        class={`main-area${collectionPage ? " collection-page" : ""}${basePage && library.mode === "home" ? " home-page" : ""}${myPage ? " my-main" : ""}`}
+      >
+        {routeError && (
+          <div class="route-error" role="alert">
+            <p>{routeError}</p>
+            <button class="text-button" onClick={closePreview}>
+              {t("library.backToFolder")}
+            </button>
+          </div>
+        )}
         {myPage ? (
           <MyPage
             active={route === "me"}
@@ -347,16 +477,47 @@ function LibraryApp() {
           <>
             <Topbar
               library={library}
-              transferAction={library.mode === "home" && <button id="transfers-button" class={`icon-button transfer-trigger${topbarActions ? "" : " edge-end"}`}
-                aria-label={t("library.openTransfers")} title={t("library.transfers")} aria-expanded={transferPanel.open}
-                aria-controls={mobile ? "transfer-dialog" : "transfer-window"} aria-haspopup={mobile ? "dialog" : undefined}
-                onClick={transferPanel.open ? transferPanel.onClose : transferPanel.onOpen}>
-                <Icon name="transfers" />
-                {transfer.tasks.some(task => ["queued", "preparing", "running"].includes(task.status)) && <span class="transfer-badge">{transfer.tasks.filter(task => ["queued", "preparing", "running"].includes(task.status)).length}</span>}
-              </button>}
+              hideRefresh={["album", "image"].includes(library.kind)}
+              transferAction={
+                library.mode === "home" && (
+                  <button
+                    id="transfers-button"
+                    class={`icon-button transfer-trigger${topbarActions ? "" : " edge-end"}`}
+                    aria-label={t("library.openTransfers")}
+                    title={t("library.transfers")}
+                    aria-expanded={transferPanel.open}
+                    aria-controls={
+                      mobile ? "transfer-dialog" : "transfer-window"
+                    }
+                    aria-haspopup={mobile ? "dialog" : undefined}
+                    onClick={
+                      transferPanel.open
+                        ? transferPanel.onClose
+                        : transferPanel.onOpen
+                    }
+                  >
+                    <Icon name="transfers" />
+                    {transfer.tasks.some((task) =>
+                      ["queued", "preparing", "running"].includes(task.status),
+                    ) && (
+                      <span class="transfer-badge">
+                        {
+                          transfer.tasks.filter((task) =>
+                            ["queued", "preparing", "running"].includes(
+                              task.status,
+                            ),
+                          ).length
+                        }
+                      </span>
+                    )}
+                  </button>
+                )
+              }
               actions={topbarActions}
             />
-            {library.mode === "home" && <CategoryCards library={library} albumOpen={albumOpen} />}
+            {library.mode === "home" && (
+              <CategoryCards library={library} albumOpen={albumOpen} />
+            )}
             {library.demoPreview && (
               <div class="demo-preview-note">
                 <span>{t("library.demoPreview")}</span>
@@ -366,50 +527,85 @@ function LibraryApp() {
               </div>
             )}
             {route === "favorites" ? (
-              <Favorites mobile={false} onClose={() => navigation.closeFavorites(false)}
-                actions={listingActions(favoritesLibrary, records)}>
-                <FileBrowser library={favoritesLibrary} records={records} selected={selected} onTouchSelection={onTouchSelection}
-                  onPreview={preview} onSettings={showSettings} />
+              <Favorites
+                mobile={false}
+                onClose={() => navigation.closeFavorites(false)}
+                actions={listingActions(favoritesLibrary, records)}
+              >
+                <FileBrowser
+                  library={favoritesLibrary}
+                  records={records}
+                  selected={selected}
+                  onTouchSelection={onTouchSelection}
+                  onPreview={preview}
+                  onSettings={showSettings}
+                />
               </Favorites>
             ) : (
-              <FileBrowser library={library} records={visibleRecords} selected={selected}
+              <FileBrowser
+                library={library}
+                records={visibleRecords}
+                selected={selected}
                 onTouchSelection={onTouchSelection}
                 listId={albumPresent ? "background-file-list" : "file-list"}
                 countId={albumPresent ? "background-item-count" : "item-count"}
-                onPreview={preview} onSettings={showSettings} />
+                onPreview={preview}
+                onSettings={showSettings}
+              />
             )}
           </>
         )}
       </main>
       <MobileTabs library={library} />
       {albumPresent && (
-        <PageDialog id="album-page-dialog" className="album-page-dialog"
-          title={t("core.category.album")} backId="album-back" backLabel={t("library.backToHome")}
-          open={albumOpen} animateEntry={!router.initial}
-          onClose={navigation.closeAlbum} onExited={() => setAlbumMounted(false)}
+        <PageDialog
+          id="album-page-dialog"
+          className="album-page-dialog"
+          title={t("core.category.album")}
+          backId="album-back"
+          backLabel={t("library.backToHome")}
+          open={albumOpen}
+          animateEntry={!router.initial}
+          onClose={navigation.closeAlbum}
+          onExited={() => setAlbumMounted(false)}
           fallbackFocus=".category-album"
-          actions={<button id="album-refresh" class="icon-button edge-end"
-            aria-label={t("library.refreshDirectory")} disabled={library.loading} aria-busy={library.loading}
-            onClick={library.refresh}><Icon name="refresh" /></button>}>
-          <FileBrowser library={albumLibrary} records={records} selected={selected}
+          actions={<AlbumOptionsMenu library={albumLibrary} />}
+        >
+          <FileBrowser
+            library={albumLibrary}
+            records={records}
+            selected={selected}
             onTouchSelection={onTouchSelection}
-            pageDialog onPreview={preview} onSettings={showSettings} />
+            pageDialog
+            onPreview={preview}
+            onSettings={showSettings}
+          />
           {!selected && !settings && feedback}
         </PageDialog>
       )}
       {mobile && (favoritesOpen || favoritesMounted) && (
-        <Favorites mobile open={favoritesOpen}
+        <Favorites
+          mobile
+          open={favoritesOpen}
           actions={listingActions(favoritesLibrary, records)}
           onClose={() => navigation.closeFavorites(true)}
           onExited={() => {
             setFavoritesMounted(false);
             requestAnimationFrame(() =>
-              (route === "me" ? document.getElementById("my-favorites") : document.querySelector(".mobile-tabs [aria-current='page']"))?.focus({ preventScroll: true }));
-          }}>
+              (route === "me"
+                ? document.getElementById("my-favorites")
+                : document.querySelector(".mobile-tabs [aria-current='page']")
+              )?.focus({ preventScroll: true }),
+            );
+          }}
+        >
           <FileBrowser
             library={favoritesLibrary}
             onTouchSelection={onTouchSelection}
-            records={records} selected={selected} onPreview={preview} onSettings={showSettings}
+            records={records}
+            selected={selected}
+            onPreview={preview}
+            onSettings={showSettings}
           />
           {!selected && !settings && feedback}
         </Favorites>
@@ -451,7 +647,15 @@ function LibraryApp() {
       {settings && (
         <ConnectionDialog
           open={settings === "open"}
-          fallbackFocus={albumPresent ? "#album-back" : favoritesOpen ? "#favorites-back" : myPage ? "#my-settings" : undefined}
+          fallbackFocus={
+            albumPresent
+              ? "#album-back"
+              : favoritesOpen
+                ? "#favorites-back"
+                : myPage
+                  ? "#my-settings"
+                  : undefined
+          }
           onExited={() => setSettings(null)}
           backend={library.backend}
           credentials={library.credentials}
@@ -466,7 +670,11 @@ function LibraryApp() {
           feedback={feedback}
         />
       )}
-      {!selected && !settings && !albumPresent && !(mobile && (favoritesOpen || favoritesMounted)) && feedback}
+      {!selected &&
+        !settings &&
+        !albumPresent &&
+        !(mobile && (favoritesOpen || favoritesMounted)) &&
+        feedback}
     </div>
   );
 }
@@ -480,7 +688,10 @@ export function App() {
   ) : route.page === "upload" ? (
     <UploadPage key={route.token} token={route.token} />
   ) : route.page === "not-found" ? (
-    <main class="setup-page"><h1>{t("library.pageNotFound")}</h1><a href="/">{t("library.backToHome")}</a></main>
+    <main class="setup-page">
+      <h1>{t("library.pageNotFound")}</h1>
+      <a href="/">{t("library.backToHome")}</a>
+    </main>
   ) : (
     <LibraryApp />
   );

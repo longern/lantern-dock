@@ -5,33 +5,55 @@ import { beginLogin } from "../src/lib/identity.js";
 test("dismissing sign-in while proof preparation is pending never sends the login request", async () => {
   // Isolate the cached browser key so this exercises cancellation before the
   // proof is ready, rather than only cancellation of an in-flight fetch.
-  const { beginLogin: start } = await import("../src/lib/identity.js?proof-cancellation");
-  const previous = Object.fromEntries(["indexedDB", "location", "fetch"].map((key) =>
-    [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  const { beginLogin: start } =
+    await import("../src/lib/identity.js?proof-cancellation");
+  const previous = Object.fromEntries(
+    ["indexedDB", "location", "fetch"].map((key) => [
+      key,
+      Object.getOwnPropertyDescriptor(globalThis, key),
+    ]),
+  );
   const pair = await crypto.subtle.generateKey(
-    { name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"],
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["sign", "verify"],
   );
   let readKey, finishRead;
-  const reading = new Promise((resolve) => { readKey = resolve; });
-  let requests = 0, redirects = 0;
+  const reading = new Promise((resolve) => {
+    readKey = resolve;
+  });
+  let requests = 0,
+    redirects = 0;
   try {
     globalThis.indexedDB = {
       open() {
-        const request = { result: {
-          transaction: () => ({ objectStore: () => ({ get() {
-            const saved = { result: pair };
-            finishRead = () => saved.onsuccess();
-            readKey();
-            return saved;
-          } }) }),
-          close() {},
-        } };
+        const request = {
+          result: {
+            transaction: () => ({
+              objectStore: () => ({
+                get() {
+                  const saved = { result: pair };
+                  finishRead = () => saved.onsuccess();
+                  readKey();
+                  return saved;
+                },
+              }),
+            }),
+            close() {},
+          },
+        };
         queueMicrotask(() => request.onsuccess());
         return request;
       },
     };
-    globalThis.location = { origin: "https://site.example", assign: () => redirects++ };
-    globalThis.fetch = async () => { requests++; return Response.json({ url: "https://sso.example/authorize" }); };
+    globalThis.location = {
+      origin: "https://site.example",
+      assign: () => redirects++,
+    };
+    globalThis.fetch = async () => {
+      requests++;
+      return Response.json({ url: "https://sso.example/authorize" });
+    };
     const controller = new AbortController();
     const login = start(controller.signal);
     await reading;
@@ -49,10 +71,16 @@ test("dismissing sign-in while proof preparation is pending never sends the logi
 });
 
 test("abandoned account navigation cannot issue a late login redirect", async () => {
-  const previous = Object.fromEntries(["indexedDB", "location", "fetch"].map((key) =>
-    [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
+  const previous = Object.fromEntries(
+    ["indexedDB", "location", "fetch"].map((key) => [
+      key,
+      Object.getOwnPropertyDescriptor(globalThis, key),
+    ]),
+  );
   const pair = await crypto.subtle.generateKey(
-    { name: "ECDSA", namedCurve: "P-256" }, false, ["sign", "verify"],
+    { name: "ECDSA", namedCurve: "P-256" },
+    false,
+    ["sign", "verify"],
   );
   const redirects = [];
   const requests = [];
@@ -67,12 +95,17 @@ test("abandoned account navigation cannot issue a late login redirect", async ()
       open() {
         opens++;
         return request({
-          transaction: () => ({ objectStore: () => ({ get: () => request(pair) }) }),
+          transaction: () => ({
+            objectStore: () => ({ get: () => request(pair) }),
+          }),
           close() {},
         });
       },
     };
-    globalThis.location = { origin: "https://site.example", assign: (url) => redirects.push(url) };
+    globalThis.location = {
+      origin: "https://site.example",
+      assign: (url) => redirects.push(url),
+    };
     globalThis.fetch = async (url, options) => {
       requests.push({ url, options });
       return Response.json({ url: "https://sso.example/authorize" });
@@ -80,17 +113,27 @@ test("abandoned account navigation cannot issue a late login redirect", async ()
 
     const alreadyCancelled = new AbortController();
     alreadyCancelled.abort();
-    await assert.rejects(beginLogin(alreadyCancelled.signal), { name: "AbortError" });
-    assert.equal(opens, 0, "an already cancelled action must not open identity storage");
+    await assert.rejects(beginLogin(alreadyCancelled.signal), {
+      name: "AbortError",
+    });
+    assert.equal(
+      opens,
+      0,
+      "an already cancelled action must not open identity storage",
+    );
     assert.equal(requests.length, 0);
 
     let finish;
     let started;
-    const pending = new Promise((resolve) => { started = resolve; });
+    const pending = new Promise((resolve) => {
+      started = resolve;
+    });
     globalThis.fetch = (url, options) => {
       requests.push({ url, options });
       started();
-      return new Promise((resolve) => { finish = resolve; });
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
     };
     const cancelled = new AbortController();
     const login = beginLogin(cancelled.signal);
@@ -102,9 +145,14 @@ test("abandoned account navigation cannot issue a late login redirect", async ()
     await assert.rejects(login, { name: "AbortError" });
     assert.deepEqual(redirects, []);
 
-    globalThis.fetch = async () => Response.json({ url: "https://sso.example/authorize" });
+    globalThis.fetch = async () =>
+      Response.json({ url: "https://sso.example/authorize" });
     await beginLogin();
-    assert.deepEqual(redirects, ["https://sso.example/authorize"], "existing callers without a signal still work");
+    assert.deepEqual(
+      redirects,
+      ["https://sso.example/authorize"],
+      "existing callers without a signal still work",
+    );
   } finally {
     for (const [key, descriptor] of Object.entries(previous)) {
       if (descriptor) Object.defineProperty(globalThis, key, descriptor);

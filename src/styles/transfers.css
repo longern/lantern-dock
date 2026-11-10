@@ -165,7 +165,7 @@
   display: block;
   margin-top: 6px;
 }
-@media (max-width: 700px) {
+@media (--down-md) {
   .transfer-summary {
     right: 16px;
     bottom: calc(88px + env(safe-area-inset-bottom));

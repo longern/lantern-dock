@@ -14,9 +14,7 @@ export function SetupCertificates({ wizard, notify, hasKV }) {
             ? t("account.kvConnected")
             : t("account.kvBindingInstructions")}
         </li>
-        <li>
-          {t("account.certificateBridgeInstructions")}
-        </li>
+        <li>{t("account.certificateBridgeInstructions")}</li>
         <li>{t("account.checkCertificateInstructions")}</li>
       </ol>
       {!hasKV && !wizard.isLocal && (
@@ -25,9 +23,7 @@ export function SetupCertificates({ wizard, notify, hasKV }) {
         </p>
       )}
       {wizard.isLocal && (
-        <p class="field-note">
-          {t("account.localCertificateInstructions")}
-        </p>
+        <p class="field-note">{t("account.localCertificateInstructions")}</p>
       )}
       <CertificateWebhook
         secretKey=""

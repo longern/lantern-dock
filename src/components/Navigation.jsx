@@ -2,7 +2,7 @@ import { flushSync } from "preact/compat";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { t } from "../../shared/i18n.js";
 import { Icon } from "./Icon.jsx";
-import { useMediaQuery } from "../hooks/useMediaQuery.js";
+import { useCompactLayout } from "../hooks/useMediaQuery.js";
 import { accountHref } from "../../shared/routes.js";
 
 const modes = [
@@ -105,8 +105,13 @@ export function Sidebar({ library, records, onSettings }) {
   );
 }
 
-export function Topbar({ library, actions, transferAction }) {
-  const mobile = useMediaQuery("(max-width: 700px)");
+export function Topbar({
+  library,
+  actions,
+  transferAction,
+  hideRefresh = false,
+}) {
+  const mobile = useCompactLayout();
   const home = library.mode === "home";
   const mobileFiles = mobile && library.mode === "all";
   const [searchExpanded, setSearchExpanded] = useState(false);
@@ -195,14 +200,20 @@ export function Topbar({ library, actions, transferAction }) {
     <div
       class="browser-header"
       onKeyDown={(event) => {
-        if (event.key === "Escape" && filesSearchVisible && !event.defaultPrevented) {
+        if (
+          event.key === "Escape" &&
+          filesSearchVisible &&
+          !event.defaultPrevented
+        ) {
           event.preventDefault();
           event.stopPropagation();
           closeSearch();
         }
       }}
     >
-      <header class={`topbar${actions || transferAction ? " has-actions" : ""}`}>
+      <header
+        class={`topbar${actions || transferAction ? " has-actions" : ""}`}
+      >
         {mobileFiles ? (
           <span class="mobile-brand">{t("library.files")}</span>
         ) : (
@@ -220,23 +231,29 @@ export function Topbar({ library, actions, transferAction }) {
         {!mobile && !home && breadcrumbs}
         <div class="topbar-right">
           {!mobile && home && search}
-          <button
-            id="refresh-button"
-            class={`icon-button${actions || transferAction ? "" : " edge-end"}`}
-            aria-label={t("library.refreshDirectory")}
-            title={t("library.refresh")}
-            aria-busy={library.loading}
-            disabled={library.loading}
-            onClick={library.refresh}
-          >
-            <Icon name="refresh" />
-          </button>
+          {!hideRefresh && (
+            <button
+              id="refresh-button"
+              class={`icon-button${actions || transferAction ? "" : " edge-end"}`}
+              aria-label={t("library.refreshDirectory")}
+              title={t("library.refresh")}
+              aria-busy={library.loading}
+              disabled={library.loading}
+              onClick={library.refresh}
+            >
+              <Icon name="refresh" />
+            </button>
+          )}
           {mobileFiles && (
             <button
               ref={searchToggle}
               type="button"
               class="icon-button"
-              aria-label={t(filesSearchVisible ? "library.closeSearch" : "library.searchFiles")}
+              aria-label={t(
+                filesSearchVisible
+                  ? "library.closeSearch"
+                  : "library.searchFiles",
+              )}
               aria-expanded={filesSearchVisible}
               aria-controls={filesSearchVisible ? "search" : undefined}
               onClick={() => {

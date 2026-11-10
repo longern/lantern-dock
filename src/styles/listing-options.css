@@ -30,7 +30,9 @@
   border-radius: var(--radius-panel);
   background: var(--surface);
   color: #252938;
-  box-shadow: 0 12px 36px #1d24411f, 0 2px 8px #1d24410d;
+  box-shadow:
+    0 12px 36px #1d24411f,
+    0 2px 8px #1d24410d;
   animation: listing-menu-in 180ms var(--ease-standard) both;
 }
 .listing-options-menu[data-state="closed"] {
@@ -40,7 +42,7 @@
   animation: listing-menu-out var(--motion-fast) ease-in both;
 }
 /* Disabling the closing menu must not dim individual items mid-animation. */
-.listing-options-menu [role="menuitemradio"]:disabled {
+.listing-options-menu[data-state="closed"] [role^="menuitem"]:disabled {
   opacity: 1;
 }
 @keyframes listing-menu-in {
@@ -48,14 +50,20 @@
     opacity: var(--menu-from-opacity, 0);
     transform: var(--menu-from-transform, scale(0.8));
   }
-  to { opacity: 1; transform: scale(1); }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 @keyframes listing-menu-out {
   from {
     opacity: var(--menu-from-opacity, 1);
     transform: var(--menu-from-transform, scale(1));
   }
-  to { opacity: 0; transform: scale(0.8); }
+  to {
+    opacity: 0;
+    transform: scale(0.8);
+  }
 }
 .listing-options-menu [role="group"] + [role="group"] {
   margin-top: 5px;
@@ -67,7 +75,7 @@
   color: var(--muted);
   font-size: 12px;
 }
-.listing-options-menu [role="menuitemradio"] {
+.listing-options-menu [role^="menuitem"] {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -79,7 +87,7 @@
   text-align: left;
   overflow-wrap: anywhere;
 }
-.listing-options-menu [role="menuitemradio"]:focus-visible {
+.listing-options-menu [role^="menuitem"]:focus-visible {
   outline-offset: -2px;
   background: var(--accent-soft);
 }
@@ -98,12 +106,12 @@
   visibility: visible;
 }
 @media (hover: hover) {
-  .listing-options-menu [role="menuitemradio"]:hover {
+  .listing-options-menu [role^="menuitem"]:hover:not(:disabled) {
     background: var(--surface-subtle);
   }
 }
-@media (max-width: 700px) {
-  .listing-options-menu [role="menuitemradio"] {
+@media (--down-md) {
+  .listing-options-menu [role^="menuitem"] {
     min-height: 44px;
   }
 }

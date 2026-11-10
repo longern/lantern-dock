@@ -1,3 +1,4 @@
+import { mediaQueries } from "../lib/breakpoints.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { t } from "../../shared/i18n.js";
 import { albumImage, decodeAlbumImage } from "../lib/album-media.js";
@@ -95,10 +96,7 @@ export function AlbumMedia({
       next = requestAnimationFrame(() => {
         setShown(true);
         // Animated images retain their base until the actual transition ends.
-        if (
-          high.cached ||
-          matchMedia("(prefers-reduced-motion: reduce)").matches
-        )
+        if (high.cached || matchMedia(mediaQueries.reducedMotion).matches)
           timer = setTimeout(() => setSettled(true), 0);
       });
     });
@@ -113,7 +111,13 @@ export function AlbumMedia({
   const nativeControl = (event) => {
     // A swipe across the picture still pages on touch devices. Reserve the
     // bottom native-controls strip for scrubbing, volume and play/pause.
-    if (event.type === "touchstart" && event.touches.length === 1 && event.touches[0].clientY < event.currentTarget.getBoundingClientRect().bottom - 64) return;
+    if (
+      event.type === "touchstart" &&
+      event.touches.length === 1 &&
+      event.touches[0].clientY <
+        event.currentTarget.getBoundingClientRect().bottom - 64
+    )
+      return;
     event.stopPropagation();
   };
   return (

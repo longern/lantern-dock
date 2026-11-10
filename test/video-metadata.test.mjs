@@ -39,8 +39,12 @@ function installMediaSource(t) {
     static isTypeSupported(mime) {
       return /^(video|audio)\/mp4; codecs="(avc1\.|mp4a\.)/.test(mime);
     }
-    addEventListener(...args) { this.events.addEventListener(...args); }
-    removeEventListener(...args) { this.events.removeEventListener(...args); }
+    addEventListener(...args) {
+      this.events.addEventListener(...args);
+    }
+    removeEventListener(...args) {
+      this.events.removeEventListener(...args);
+    }
     addSourceBuffer(mime) {
       const source = new SourceBuffer();
       source.mime = mime;
@@ -52,7 +56,11 @@ function installMediaSource(t) {
       this.finished?.();
     }
   }
-  Object.defineProperty(globalThis, "MediaSource", { configurable: true, writable: true, value: SyntheticMediaSource });
+  Object.defineProperty(globalThis, "MediaSource", {
+    configurable: true,
+    writable: true,
+    value: SyntheticMediaSource,
+  });
   t.after(() => {
     if (previous) Object.defineProperty(globalThis, "MediaSource", previous);
     else delete globalThis.MediaSource;
@@ -66,7 +74,9 @@ async function parseMP4(t, fixture, configure = () => {}) {
   const parserErrors = [];
   const ready = [];
   let finish;
-  const finished = new Promise((resolve) => { finish = resolve; });
+  const finished = new Promise((resolve) => {
+    finish = resolve;
+  });
   const client = {
     async read(path, signal, headers) {
       assert.equal(path, item.path);
@@ -81,31 +91,52 @@ async function parseMP4(t, fixture, configure = () => {}) {
       if (reads.length) assert.equal(headers["If-Range"], '"fixture-v1"');
       const bytes = fixture.read(start, length);
       reads.push({ start, length: bytes.length });
-      return new Response(bytes, { status: 206, headers: {
-        "Content-Range": `bytes ${start}-${start + bytes.length - 1}/${fixture.size}`,
-        ETag: '"fixture-v1"',
-      } });
+      return new Response(bytes, {
+        status: 206,
+        headers: {
+          "Content-Range": `bytes ${start}-${start + bytes.length - 1}/${fixture.size}`,
+          ETag: '"fixture-v1"',
+        },
+      });
     },
   };
   const source = new MP4MediaSource(client, item);
   t.after(() => source.dispose());
-  const video = Object.assign(new EventTarget(), { currentTime: 0, buffered: emptyRanges });
-  source.attach(video, (error) => { errors.push(error); finish(); });
+  const video = Object.assign(new EventTarget(), {
+    currentTime: 0,
+    buffered: emptyRanges,
+  });
+  source.attach(video, (error) => {
+    errors.push(error);
+    finish();
+  });
   const onReady = source.file.onReady;
-  source.file.onReady = (info) => { ready.push(info); onReady(info); };
+  source.file.onReady = (info) => {
+    ready.push(info);
+    onReady(info);
+  };
   const onError = source.file.onError;
-  source.file.onError = (...args) => { parserErrors.push(args); onError(...args); };
+  source.file.onError = (...args) => {
+    parserErrors.push(args);
+    onError(...args);
+  };
   source.media.finished = finish;
   configure(source);
   let timer;
   const deadline = new Promise((resolve, reject) => {
-    timer = setTimeout(() => reject(new Error("Synthetic MSE did not finish")), 5000);
+    timer = setTimeout(
+      () => reject(new Error("Synthetic MSE did not finish")),
+      5000,
+    );
   });
   const run = source.run().catch((error) => source.fail(error));
   try {
     await Promise.race([finished, deadline]);
     return {
-      reads, errors, parserErrors, ready,
+      reads,
+      errors,
+      parserErrors,
+      ready,
       metadataBytes: source.metadataBytes,
       failed: !!source.failed,
       ended: source.media.readyState === "ended",
@@ -119,16 +150,29 @@ async function parseMP4(t, fixture, configure = () => {}) {
 }
 
 function trackSummary(result) {
-  return result.ready[0].tracks.map(({ id, codec, nb_samples, duration, timescale }) =>
-    ({ id, codec, samples: nb_samples, duration, timescale }));
+  return result.ready[0].tracks.map(
+    ({ id, codec, nb_samples, duration, timescale }) => ({
+      id,
+      codec,
+      samples: nb_samples,
+      duration,
+      timescale,
+    }),
+  );
 }
 
 function sampleDigests(result) {
   return result.buffers.map(({ mime, appends }) => {
     const hash = createHash("sha256");
     let length = 0;
-    assert.ok(appends.length > 1, "each track must produce init and media segments");
-    assert.deepEqual(boxes(appends[0]).map(({ type }) => type), ["ftyp", "moov"]);
+    assert.ok(
+      appends.length > 1,
+      "each track must produce init and media segments",
+    );
+    assert.deepEqual(
+      boxes(appends[0]).map(({ type }) => type),
+      ["ftyp", "moov"],
+    );
     for (const bytes of appends.slice(1)) {
       const parts = boxes(bytes);
       assert.ok(parts.some(({ type }) => type === "moof"));
@@ -157,10 +201,13 @@ test("synthetic MSE parses baseline, ASCII and ©xyz metadata without changing A
   assertReady(baseline);
   const tracks = trackSummary(baseline);
   const samples = sampleDigests(baseline);
-  assert.deepEqual(tracks.map(({ codec, samples }) => ({ codec, samples })), [
-    { codec: "avc1.64001e", samples: 192 },
-    { codec: "mp4a.40.2", samples: 346 },
-  ]);
+  assert.deepEqual(
+    tracks.map(({ codec, samples }) => ({ codec, samples })),
+    [
+      { codec: "avc1.64001e", samples: 192 },
+      { codec: "mp4a.40.2", samples: 346 },
+    ],
+  );
   for (const metadataType of ["xxyz", "©xyz"]) {
     const fixture = tailMoovMP4({ metadataType });
     assert.equal(fixture.read(0, 12).toString("ascii", 8, 12), "isom");
@@ -176,10 +223,15 @@ test("a virtual 198 MiB ©xyz MP4 reaches its tail moov using bounded reads", as
   const fixture = tailMoovMP4({ metadataType: "©xyz", size: 198 * MiB });
   const result = await parseMP4(t, fixture);
   assertReady(result);
-  assert.deepEqual(result.reads.slice(0, 2).map(({ start }) => start), [0, fixture.moovOffset]);
+  assert.deepEqual(
+    result.reads.slice(0, 2).map(({ start }) => start),
+    [0, fixture.moovOffset],
+  );
   assert.equal(result.metadataBytes, MiB + fixture.moovSize);
   assert.ok(result.reads.length <= 5);
-  assert.ok(result.reads.reduce((sum, { length }) => sum + length, 0) < 4 * MiB);
+  assert.ok(
+    result.reads.reduce((sum, { length }) => sum + length, 0) < 4 * MiB,
+  );
   const baseline = await parseMP4(t, baselineMP4());
   assert.deepEqual(trackSummary(result), trackSummary(baseline));
   assert.deepEqual(sampleDigests(result), sampleDigests(baseline));
@@ -188,10 +240,19 @@ test("a virtual 198 MiB ©xyz MP4 reaches its tail moov using bounded reads", as
 test("malformed moov lengths remain rejected when metadata box types are permitted", async (t) => {
   for (const [name, options] of [
     ["truncated moov", { truncate: 128 }],
-    ["oversized moov", { mutateMoov: (bytes) => bytes.writeUInt32BE(100 * MiB, 0) }],
-    ["child exceeds its container", { mutateMoov: (bytes) => bytes.writeUInt32BE(100 * MiB, 8) }],
+    [
+      "oversized moov",
+      { mutateMoov: (bytes) => bytes.writeUInt32BE(100 * MiB, 0) },
+    ],
+    [
+      "child exceeds its container",
+      { mutateMoov: (bytes) => bytes.writeUInt32BE(100 * MiB, 8) },
+    ],
   ]) {
-    const result = await parseMP4(t, tailMoovMP4({ metadataType: "©xyz", ...options }));
+    const result = await parseMP4(
+      t,
+      tailMoovMP4({ metadataType: "©xyz", ...options }),
+    );
     assert.equal(result.failed, true, name);
     assert.equal(result.ended, false, name);
     assert.equal(result.errors.length, 1, name);
@@ -207,7 +268,10 @@ test("malformed moov lengths remain rejected when metadata box types are permitt
 });
 
 test("the 16 MiB metadata read budget still rejects a real oversized index", async (t) => {
-  const result = await parseMP4(t, tailMoovMP4({ metadataType: "©xyz", padding: 17 * MiB }));
+  const result = await parseMP4(
+    t,
+    tailMoovMP4({ metadataType: "©xyz", padding: 17 * MiB }),
+  );
   assert.equal(result.failed, true);
   assert.equal(result.ready.length, 0);
   assert.equal(result.buffers.length, 0);
@@ -241,16 +305,36 @@ test("the existing metadata and sample budget boundaries remain inclusive", asyn
 });
 
 test("parser diagnostics preserve safe context and discard private parser text", () => {
-  const known = mp4ParseError("BoxParser", "Box of type 'moov' at position 866186 has an invalid size", 12);
+  const known = mp4ParseError(
+    "BoxParser",
+    "Box of type 'moov' at position 866186 has an invalid size",
+    12,
+  );
   assert.equal(known.code, "MP4_PARSE_ERROR");
-  assert.deepEqual(known.diagnostic, { parser: "BoxParser", box: "moov", offset: 866186 });
+  assert.deepEqual(known.diagnostic, {
+    parser: "BoxParser",
+    box: "moov",
+    offset: 866186,
+  });
   assert.ok(Object.isFrozen(known.diagnostic));
   assert.match(known.message, /BoxParser.*moov.*866186/);
-  const privateText = "https://private.example/movie?token=secret /private/home.mp4 +37.3318-122.0312/ personal note";
-  const safe = mp4ParseError(privateText, `Invalid box type: 'secr' ${privateText}`, Number.MAX_SAFE_INTEGER + 1);
+  const privateText =
+    "https://private.example/movie?token=secret /private/home.mp4 +37.3318-122.0312/ personal note";
+  const safe = mp4ParseError(
+    privateText,
+    `Invalid box type: 'secr' ${privateText}`,
+    Number.MAX_SAFE_INTEGER + 1,
+  );
   assert.deepEqual(safe.diagnostic, { parser: "MP4Box" });
   const visible = `${safe.message} ${JSON.stringify(safe)}`;
-  for (const value of ["private.example", "token=secret", "/private/", "37.3318", "personal note", "secr"])
+  for (const value of [
+    "private.example",
+    "token=secret",
+    "/private/",
+    "37.3318",
+    "personal note",
+    "secr",
+  ])
     assert.equal(visible.includes(value), false);
   assert.equal(safe.cause, undefined);
 });

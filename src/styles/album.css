@@ -111,12 +111,12 @@
   aspect-ratio: 1;
   border-radius: 0;
 }
-@media (min-width: 701px) and (max-width: 1100px) {
+@media (--between-md-lg) {
   .content.album-content {
     --album-padding: 18px;
   }
 }
-@media (max-width: 700px) {
+@media (--down-md) {
   .content.album-content {
     --album-padding: 16px;
   }
@@ -126,6 +126,12 @@
   .album-timeline {
     gap: 24px;
   }
+  .file-grid.album-layout {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+@media (--down-sm) {
   .file-grid.album-layout {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }

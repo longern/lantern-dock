@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import { readRecords } from "../src/lib/records.js";
 
 test("an unresolved backend key stays pending without accessing storage", () => {
-  const state = readRecords("", "recent", { getItem() { throw new Error("must not read"); } });
+  const state = readRecords("", "recent", {
+    getItem() {
+      throw new Error("must not read");
+    },
+  });
   assert.deepEqual(state, { status: "pending", items: [], error: null });
 });
 
@@ -16,10 +20,12 @@ test("missing and explicitly empty records are confirmed empty", () => {
 
 test("record reads use the selected backend namespace and preserve visit timestamps", () => {
   const item = { path: "/photo.png", name: "photo.png", visitedAt: 20 };
-  const state = readRecords("new-backend:", "recent", { getItem(key) {
-    assert.equal(key, "new-backend:recent");
-    return JSON.stringify([item]);
-  } });
+  const state = readRecords("new-backend:", "recent", {
+    getItem(key) {
+      assert.equal(key, "new-backend:recent");
+      return JSON.stringify([item]);
+    },
+  });
   assert.equal(state.status, "ready");
   assert.deepEqual(state.items, [item]);
 });
@@ -27,7 +33,11 @@ test("record reads use the selected backend namespace and preserve visit timesta
 test("storage errors and corrupt records are errors, never confirmed empty", () => {
   const cases = ["", "{", "null", "{}", "[null]", '[{"path":"/missing-name"}]'];
   const stores = cases.map((value) => ({ getItem: () => value }));
-  stores.push({ getItem() { throw new DOMException("denied", "SecurityError"); } });
+  stores.push({
+    getItem() {
+      throw new DOMException("denied", "SecurityError");
+    },
+  });
   for (const storage of stores) {
     const state = readRecords("backend:", "recent", storage);
     assert.equal(state.status, "error");
@@ -38,10 +48,12 @@ test("storage errors and corrupt records are errors, never confirmed empty", () 
 
 test("a later successful read can recover from a temporary storage failure", () => {
   let blocked = true;
-  const storage = { getItem() {
-    if (blocked) throw new Error("temporarily denied");
-    return "[]";
-  } };
+  const storage = {
+    getItem() {
+      if (blocked) throw new Error("temporarily denied");
+      return "[]";
+    },
+  };
   assert.equal(readRecords("backend:", "recent", storage).status, "error");
   blocked = false;
   assert.equal(readRecords("backend:", "recent", storage).status, "ready");

@@ -73,8 +73,9 @@ export function useFileSelection(
     return () => onTouchSelection?.(owner.current, false);
   }, [onTouchSelection, state.mode === "touch"]);
   useEffect(() => {
-    const down = event => {
-      if (press.current && event.pointerId !== press.current.pointerId) cancelPress();
+    const down = (event) => {
+      if (press.current && event.pointerId !== press.current.pointerId)
+        cancelPress();
     };
     const move = (event) => {
       const current = press.current;
@@ -253,7 +254,11 @@ export function useFileSelection(
           cancelPress();
           // Older mobile browsers expose click as MouseEvent, after touch
           // PointerEvents. Keep the gesture's input type for that release click.
-          const pointerType = event.pointerType || (lastPointer.current?.path === item.path ? lastPointer.current.type : undefined);
+          const pointerType =
+            event.pointerType ||
+            (lastPointer.current?.path === item.path
+              ? lastPointer.current.type
+              : undefined);
           const touch = ["touch", "pen"].includes(pointerType);
           if (state.mode === "touch")
             select(item.path, { toggle: true, mode: "touch" });

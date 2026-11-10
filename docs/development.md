@@ -11,6 +11,12 @@ npm run check
 npm test
 ```
 
+## Formatting
+
+Run `npm run format` to format JavaScript, JSX, CSS, HTML, JSON/JSONC, YAML and Markdown with the project's pinned Prettier version. `npm run format:check` checks the same files without changing them and runs in CI. The editor configuration uses Prettier's defaults with LF line endings. Generated output, local secrets, lockfiles, binary fixtures and third-party license text are excluded.
+
+Go uses its native formatter (`gofmt -w server`); the NAS CI job already checks it. Shell scripts use `shfmt -w scripts/*.sh server/*.sh`.
+
 ## Browser tests
 
 See [interface conventions](ui.md) for the interaction audit, shared modal lifecycle, visual tokens and motion behavior.

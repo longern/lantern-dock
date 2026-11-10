@@ -27,16 +27,24 @@ export function useRecords(key, toast) {
   };
   const isFavorite = (item) =>
     favorites.some((entry) => entry.path === item.path);
-  const rememberMany = items => {
+  const rememberMany = (items) => {
     const current = readRecords(key, "recent");
     if (current.status !== "ready") {
       if (current.error) toast(current.error.message, true);
       return;
     }
     const visitedAt = Date.now();
-    const added = [...new Map(items.map(item => [item.path, item])).values()].slice(-30).reverse();
-    const paths = new Set(added.map(item => item.path));
-    save("recent", [...added.map(item => ({ ...item, visitedAt })), ...current.items.filter(item => !paths.has(item.path))].slice(0, 30));
+    const added = [...new Map(items.map((item) => [item.path, item])).values()]
+      .slice(-30)
+      .reverse();
+    const paths = new Set(added.map((item) => item.path));
+    save(
+      "recent",
+      [
+        ...added.map((item) => ({ ...item, visitedAt })),
+        ...current.items.filter((item) => !paths.has(item.path)),
+      ].slice(0, 30),
+    );
   };
   return {
     favorites,
@@ -53,11 +61,18 @@ export function useRecords(key, toast) {
         if (current.error) toast(current.error.message, true);
         return;
       }
-      const paths = new Set(items.map(item => item.path));
-      const kept = current.items.filter(item => !paths.has(item.path));
+      const paths = new Set(items.map((item) => item.path));
+      const kept = current.items.filter((item) => !paths.has(item.path));
       const saved = save("favorites", enabled ? [...items, ...kept] : kept);
       if (saved)
-        toast(t(enabled ? "library.favoritesAddedCount" : "library.favoritesRemovedCount", { count: items.length }));
+        toast(
+          t(
+            enabled
+              ? "library.favoritesAddedCount"
+              : "library.favoritesRemovedCount",
+            { count: items.length },
+          ),
+        );
       return saved;
     },
     toggleFavorite(item) {
@@ -73,9 +88,10 @@ export function useRecords(key, toast) {
           ? current.items.filter((entry) => entry.path !== item.path)
           : [item, ...current.items],
       );
-      if (saved) toast(exists ? t("core.favoriteRemoved") : t("core.favoriteAdded"));
+      if (saved)
+        toast(exists ? t("core.favoriteRemoved") : t("core.favoriteAdded"));
     },
     rememberMany,
-    remember: item => rememberMany([item]),
+    remember: (item) => rememberMany([item]),
   };
 }

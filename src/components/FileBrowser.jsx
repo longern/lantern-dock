@@ -31,8 +31,13 @@ function FileItem({
       <button
         class="file-open"
         data-path={item.path}
-        aria-label={t(item.isDirectory ? "library.openFolderNamed" : "library.previewNamed", { name: item.name })}
-        aria-pressed={selection.isSelected(item) || (!item.isDirectory && selected)}
+        aria-label={t(
+          item.isDirectory ? "library.openFolderNamed" : "library.previewNamed",
+          { name: item.name },
+        )}
+        aria-pressed={
+          selection.isSelected(item) || (!item.isDirectory && selected)
+        }
         {...selection.props(item, onOpen)}
       >
         <span class={`file-art ${item.kind}`}>
@@ -60,7 +65,9 @@ function FileItem({
             {item.name}
           </span>
           <span class="file-meta">
-            <span>{item.isDirectory ? t("library.folder") : bytes(item.size)}</span>
+            <span>
+              {item.isDirectory ? t("library.folder") : bytes(item.size)}
+            </span>
             <span class="separator">·</span>
             <span>{date(recent ? item.visitedAt : item.modified)}</span>
           </span>
@@ -72,9 +79,14 @@ function FileItem({
           {item.isDirectory ? "—" : bytes(item.size)}
         </span>
       </button>
-      {selection.touch && <span class={`selection-mark${selection.isSelected(item) ? " checked" : ""}`} aria-hidden="true">
-        {selection.isSelected(item) && <Icon name="check" />}
-      </span>}
+      {selection.touch && (
+        <span
+          class={`selection-mark${selection.isSelected(item) ? " checked" : ""}`}
+          aria-hidden="true"
+        >
+          {selection.isSelected(item) && <Icon name="check" />}
+        </span>
+      )}
     </li>
   );
 }
@@ -91,7 +103,13 @@ export function FileBrowser({
   pageDialog = false,
 }) {
   const {
-    entries, recent, album, usesDirectory, view, recordsPending, recordsError,
+    entries,
+    recent,
+    album,
+    usesDirectory,
+    view,
+    recordsPending,
+    recordsError,
   } = useMemo(
     () => fileListing(library, records),
     [
@@ -112,15 +130,38 @@ export function FileBrowser({
   const home = library.mode === "home";
   const card = home || (library.mode === "all" && !album);
   const Collection = album ? "div" : "ul";
-  const error = recordsError ||
-    ((usesDirectory || recordsPending) ? library.error : null);
+  const error =
+    recordsError || (usesDirectory || recordsPending ? library.error : null);
   const busy = !error && (recordsPending || (library.loading && usesDirectory));
   const [albumOrder, setAlbumOrder] = useState(null);
-  const onAlbumItems = useCallback(items => setAlbumOrder(current =>
-    current?.source === entries && current.items === items ? current : { source: entries, items }), [entries]);
-  const selectable = error ? noEntries : album ? albumOrder?.source === entries ? albumOrder.items : noEntries : entries;
-  const selection = useFileSelection(selectable,
-    JSON.stringify([library.key, library.mode, library.path, library.kind, library.query]), onTouchSelection, library.copyLinks);
+  const onAlbumItems = useCallback(
+    (items) =>
+      setAlbumOrder((current) =>
+        current?.source === entries && current.items === items
+          ? current
+          : { source: entries, items },
+      ),
+    [entries],
+  );
+  const selectable = error
+    ? noEntries
+    : album
+      ? albumOrder?.source === entries
+        ? albumOrder.items
+        : noEntries
+      : entries;
+  const selection = useFileSelection(
+    selectable,
+    JSON.stringify([
+      library.key,
+      library.mode,
+      library.path,
+      library.kind,
+      library.query,
+    ]),
+    onTouchSelection,
+    library.copyLinks,
+  );
   const status = recordsError
     ? t("library.recordsError")
     : library.error
@@ -135,8 +176,12 @@ export function FileBrowser({
       class={`content${card ? " collection-card" : ""}${home ? " home-content" : ""}${album ? " album-content" : ""}${selection.touch ? " touch-selecting" : ""}`}
       aria-label={t("library.fileBrowser")}
       onKeyDown={selection.keyDown}
-      onPointerDown={event => {
-        if (event.pointerType === "mouse" && !event.target.closest("button,.file-item,.selection-actions")) selection.clear(false);
+      onPointerDown={(event) => {
+        if (
+          event.pointerType === "mouse" &&
+          !event.target.closest("button,.file-item,.selection-actions")
+        )
+          selection.clear(false);
       }}
     >
       {album && !pageDialog && (
@@ -147,14 +192,18 @@ export function FileBrowser({
       <div class="file-toolbar">
         <div class="file-stats">
           {home && (
-            <h2 class="file-section-title">{recent ? t("library.recentFiles") : t("library.files")}</h2>
+            <h2 class="file-section-title">
+              {recent ? t("library.recentFiles") : t("library.files")}
+            </h2>
           )}
           <strong id={countId}>
-            {selection.mode === "desktop" ? t("library.selectedCount", { count: selection.items.length }) : busy
-              ? t("library.loading")
-              : error
-                ? t("library.readFailed")
-                : t("library.itemCount", { count: entries.length })}
+            {selection.mode === "desktop"
+              ? t("library.selectedCount", { count: selection.items.length })
+              : busy
+                ? t("library.loading")
+                : error
+                  ? t("library.readFailed")
+                  : t("library.itemCount", { count: entries.length })}
           </strong>
           {(recordsError ||
             library.error ||
@@ -180,19 +229,30 @@ export function FileBrowser({
           )}
         </div>
         {selection.mode === "desktop" ? (
-          <SelectionActions selection={selection} entries={selectable} records={records} onCopyLinks={library.copyLinks} onDownload={library.downloadMany} downloading={library.downloading} favoritesPage={library.mode === "favorites"} />
-        ) : !recent && (
-          <div class="view-tools">
-            <button
-              class="icon-button mobile-refresh"
-              aria-label={t("library.refreshDirectory")}
-              disabled={library.loading}
-              aria-busy={library.loading}
-              onClick={library.refresh}
-            >
-              <Icon name="refresh" />
-            </button>
-          </div>
+          <SelectionActions
+            selection={selection}
+            entries={selectable}
+            records={records}
+            onCopyLinks={library.copyLinks}
+            onDownload={library.downloadMany}
+            downloading={library.downloading}
+            favoritesPage={library.mode === "favorites"}
+          />
+        ) : (
+          !recent &&
+          !album && (
+            <div class="view-tools">
+              <button
+                class="icon-button mobile-refresh"
+                aria-label={t("library.refreshDirectory")}
+                disabled={library.loading}
+                aria-busy={library.loading}
+                onClick={library.refresh}
+              >
+                <Icon name="refresh" />
+              </button>
+            </div>
+          )
         )}
       </div>
       {error && (
@@ -200,8 +260,18 @@ export function FileBrowser({
           <span class="empty-symbol">
             <Icon name="cloud-off" />
           </span>
-          <h2>{recordsError ? t(library.mode === "favorites" ? "library.favoritesUnavailable" : "library.recentFilesUnavailable") : t("library.filesUnavailable")}</h2>
-          <p>{recordsError ? recordsError.message : t("library.retryConnection")}</p>
+          <h2>
+            {recordsError
+              ? t(
+                  library.mode === "favorites"
+                    ? "library.favoritesUnavailable"
+                    : "library.recentFilesUnavailable",
+                )
+              : t("library.filesUnavailable")}
+          </h2>
+          <p>
+            {recordsError ? recordsError.message : t("library.retryConnection")}
+          </p>
           <div class="empty-actions">
             <button
               class="primary-button"
@@ -213,9 +283,13 @@ export function FileBrowser({
             </button>
             <button
               class="secondary-button"
-              onClick={recordsError ? () => library.selectMode("all") : onSettings}
+              onClick={
+                recordsError ? () => library.selectMode("all") : onSettings
+              }
             >
-              {recordsError ? t("library.viewFiles") : t("library.connectionSettings")}
+              {recordsError
+                ? t("library.viewFiles")
+                : t("library.connectionSettings")}
             </button>
           </div>
         </div>
@@ -223,14 +297,13 @@ export function FileBrowser({
       <div
         class="list-head"
         hidden={
-          album ||
-          view !== "list" ||
-          !!error ||
-          (!busy && !entries.length)
+          album || view !== "list" || !!error || (!busy && !entries.length)
         }
       >
         <span>{t("library.fileName")}</span>
-        <span>{recent ? t("library.accessedAt") : t("library.modifiedAt")}</span>
+        <span>
+          {recent ? t("library.accessedAt") : t("library.modifiedAt")}
+        </span>
         <span>{t("library.size")}</span>
       </div>
       <Collection
@@ -238,13 +311,24 @@ export function FileBrowser({
         tabIndex={-1}
         id={listId}
         role={album ? undefined : "list"}
-        class={album ? "album-timeline" : `file-grid${view === "list" ? " list-layout" : ""}`}
+        class={
+          album
+            ? "album-timeline"
+            : `file-grid${view === "list" ? " list-layout" : ""}`
+        }
         aria-live="polite"
         aria-busy={busy}
-        aria-label={album ? t("library.album") : recent ? t("library.recentFileList") : t("library.fileList")}
+        aria-label={
+          album
+            ? t("library.album")
+            : recent
+              ? t("library.recentFileList")
+              : t("library.fileList")
+        }
       >
         {album ? (
           <Album
+            view={library.albumView}
             entries={error ? noEntries : entries}
             loading={busy}
             client={library.connection?.client}
@@ -254,14 +338,17 @@ export function FileBrowser({
             onItemsChange={onAlbumItems}
             onPreview={onPreview}
           />
-        ) : busy && !entries.length
-          ? Array.from({ length: 8 }, (_, index) => (
-              <li class="skeleton" key={index} aria-hidden="true" />
-            ))
-          : entries.map((item, index) => (
+        ) : busy && !entries.length ? (
+          Array.from({ length: 8 }, (_, index) => (
+            <li class="skeleton" key={index} aria-hidden="true" />
+          ))
+        ) : (
+          entries.map((item, index) => (
             <Fragment key={item.path}>
               {view === "list" && index > 0 && (
-                <li class="file-divider" role="presentation" aria-hidden="true"><hr /></li>
+                <li class="file-divider" role="presentation" aria-hidden="true">
+                  <hr />
+                </li>
               )}
               <FileItem
                 item={item}
@@ -278,9 +365,20 @@ export function FileBrowser({
                 }
               />
             </Fragment>
-            ))}
+          ))
+        )}
       </Collection>
-      {selection.touch && <SelectionActions selection={selection} entries={selectable} records={records} onCopyLinks={library.copyLinks} onDownload={library.downloadMany} downloading={library.downloading} favoritesPage={library.mode === "favorites"} />}
+      {selection.touch && (
+        <SelectionActions
+          selection={selection}
+          entries={selectable}
+          records={records}
+          onCopyLinks={library.copyLinks}
+          onDownload={library.downloadMany}
+          downloading={library.downloading}
+          favoritesPage={library.mode === "favorites"}
+        />
+      )}
       {!busy && !entries.length && !error && (
         <div class="empty-state">
           <span class="empty-symbol">

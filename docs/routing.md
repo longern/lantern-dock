@@ -2,17 +2,17 @@
 
 LanternDock uses the browser History API. The URL identifies the current directory, file preview or application page; a shared URL works in a fresh tab and after reload. Legacy hash routes are not supported.
 
-| Page | Example |
-| --- | --- |
-| Home | `/` |
-| File root | `/files/` |
-| Directory | `/files/Projects/` |
-| File preview | `/files/Projects/guide.pdf` |
-| Album | `/album/` or `/album/Photos/` |
-| Photo in album context | `/files/Photos/coast.jpg?view=album` |
-| Favorites / Me / account | `/favorites`, `/me`, `/account` |
-| Administration | `/admin/links`, `/admin/inbox`, `/admin/inbox?link=<id>` |
-| Temporary collection permission | `/upload#token=<random-token>` |
+| Page                            | Example                                                  |
+| ------------------------------- | -------------------------------------------------------- |
+| Home                            | `/`                                                      |
+| File root                       | `/files/`                                                |
+| Directory                       | `/files/Projects/`                                       |
+| File preview                    | `/files/Projects/guide.pdf`                              |
+| Album                           | `/album/` or `/album/Photos/`                            |
+| Photo in album context          | `/files/Photos/coast.jpg?view=album`                     |
+| Favorites / Me / account        | `/favorites`, `/me`, `/account`                          |
+| Administration                  | `/admin/links`, `/admin/inbox`, `/admin/inbox?link=<id>` |
+| Temporary collection permission | `/upload#token=<random-token>`                           |
 
 File and album paths are relative to the configured public WebDAV root. They never contain a NAS filesystem mount, bridge session URL or backend host. Encode each filename segment exactly once; case, Unicode, spaces, `%`, `#` and `?` in names are preserved. Directory URLs end with `/`, including directories whose names look like filenames. Files can have no extension. A directory opened without the final slash is recognized using its parent's DAV metadata and canonicalized.
 

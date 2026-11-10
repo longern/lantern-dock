@@ -7,7 +7,7 @@
     background-position: -200% 0;
   }
 }
-@media (min-width: 701px) and (max-width: 1100px) {
+@media (--between-md-lg) {
   :root {
     --sidebar: 190px;
     --inspector: 300px;
@@ -40,7 +40,7 @@
     display: none;
   }
 }
-@media (max-width: 700px) {
+@media (--down-md) {
   html {
     scrollbar-gutter: auto;
   }
@@ -118,32 +118,7 @@
   .view-tools {
     gap: 5px;
   }
-  .list-head {
-    display: none !important;
-  }
-  .list-layout .file-open {
-    height: 70px;
-    padding: 0 16px 0 19px;
-    grid-template-columns: 40px minmax(0, 1fr);
-  }
-  .list-layout .file-art {
-    width: 40px;
-    height: 40px;
-  }
-  .list-layout .file-art > svg {
-    width: 32px;
-    height: 32px;
-  }
-  .list-layout .row-modified,
-  .list-layout .row-size {
-    display: none;
-  }
-  .list-layout .file-meta {
-    display: flex;
-    gap: 5px;
-  }
   .file-grid:not(.list-layout) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
   .file-art {
@@ -243,7 +218,7 @@
   }
 }
 /* Keep the document usable beneath a modal preview on tablets. */
-@media (min-width: 701px) and (max-width: 1000px) {
+@media (--between-md-lg) {
   .preview-open .main-area {
     margin-right: 0;
   }
@@ -262,11 +237,41 @@ body:has(dialog:modal) {
   gap: 8px;
   flex-shrink: 0;
 }
-@media (min-width: 701px) {
+@media (--up-md) {
   .list-head {
     grid-template-columns: minmax(0, 1fr) 148px 80px;
   }
   .list-layout .file-open {
     grid-template-columns: 36px minmax(0, 1fr) 148px 80px;
+  }
+}
+
+@media (--down-sm) {
+  .file-grid:not(.list-layout) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .list-head {
+    display: none !important;
+  }
+  .list-layout .file-open {
+    height: 70px;
+    padding: 0 16px 0 19px;
+    grid-template-columns: 40px minmax(0, 1fr);
+  }
+  .list-layout .file-art {
+    width: 40px;
+    height: 40px;
+  }
+  .list-layout .file-art > svg {
+    width: 32px;
+    height: 32px;
+  }
+  .list-layout .row-modified,
+  .list-layout .row-size {
+    display: none;
+  }
+  .list-layout .file-meta {
+    display: flex;
+    gap: 5px;
   }
 }

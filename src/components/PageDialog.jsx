@@ -4,17 +4,39 @@ import { Icon } from "./Icon.jsx";
 // Full-screen mobile subpages share one native-modal lifecycle and app bar.
 // The owner supplies navigation and actions; the shell owns only presentation.
 export function PageDialog({
-  id, title, titleId = `${id}-title`, backId, backLabel,
-  open, animateEntry = true, onClose, onExited, fallbackFocus, actions, children,
-  className = "", headerClassName = "",
+  id,
+  title,
+  titleId = `${id}-title`,
+  backId,
+  backLabel,
+  open,
+  animateEntry = true,
+  onClose,
+  onExited,
+  fallbackFocus,
+  actions,
+  children,
+  className = "",
+  headerClassName = "",
 }) {
   return (
-    <Dialog id={id} class={`page-dialog ${className}`} open={open} animateEntry={animateEntry}
-      onClose={onClose} onExited={onExited} fallbackFocus={fallbackFocus}
-      aria-labelledby={titleId}>
+    <Dialog
+      id={id}
+      class={`page-dialog ${className}`}
+      open={open}
+      animateEntry={animateEntry}
+      onClose={onClose}
+      onExited={onExited}
+      fallbackFocus={fallbackFocus}
+      aria-labelledby={titleId}
+    >
       <header class={`page-dialog-header ${headerClassName}`}>
-        <button id={backId} class="icon-button edge-start" onClick={onClose}
-          aria-label={backLabel}>
+        <button
+          id={backId}
+          class="icon-button edge-start"
+          onClick={onClose}
+          aria-label={backLabel}
+        >
           <Icon name="chevron-left" />
         </button>
         <h1 id={titleId}>{title}</h1>

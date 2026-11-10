@@ -32,7 +32,17 @@ export function kindFor(name, isDirectory) {
   if (isDirectory) return "folder";
   const ext = name.split(".").pop().toLowerCase();
   if (
-    ["jpg", "jpeg", "png", "gif", "webp", "avif", "svg", "heic", "heif"].includes(ext)
+    [
+      "jpg",
+      "jpeg",
+      "png",
+      "gif",
+      "webp",
+      "avif",
+      "svg",
+      "heic",
+      "heif",
+    ].includes(ext)
   )
     return "image";
   if (["mp4", "m4v", "mkv", "mov", "webm", "avi", "ogv"].includes(ext))
@@ -64,8 +74,7 @@ const localChildren = (node, name) =>
 const child = (node, name) => localChildren(node, name)[0];
 const text = (node, name) => child(node, name)?.textContent?.trim() || "";
 export function parseDAV(xml, currentPath, rootPath) {
-  if (/<!DOCTYPE|<!ENTITY/i.test(xml))
-    throw coreError("UNSAFE_XML");
+  if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw coreError("UNSAFE_XML");
   const doc = new DOMParser().parseFromString(xml, "application/xml");
   if (
     doc.querySelector("parsererror") ||
@@ -125,12 +134,9 @@ export function parseDAV(xml, currentPath, rootPath) {
 }
 export function checkResponse(response) {
   if (!response.ok) void response.body?.cancel().catch(() => {});
-  if (response.status === 401)
-    throw coreError("BACKEND_LOGIN_REQUIRED");
-  if (response.status === 407)
-    throw coreError("GATEWAY_AUTH_REQUIRED");
-  if (response.status === 403)
-    throw coreError("BACKEND_ACCESS_DENIED");
+  if (response.status === 401) throw coreError("BACKEND_LOGIN_REQUIRED");
+  if (response.status === 407) throw coreError("GATEWAY_AUTH_REQUIRED");
+  if (response.status === 403) throw coreError("BACKEND_ACCESS_DENIED");
   if (!response.ok)
     throw coreError("BACKEND_RESPONSE_ERROR", { status: response.status });
   return response;
@@ -191,8 +197,7 @@ export class DAVClient {
   async read(path, signal, headers = {}, method = "GET") {
     path = normalizePath(path);
     if (!withinRoot(path, this.root)) throw coreError("OUTSIDE_ROOT");
-    if (!["GET", "HEAD"].includes(method))
-      throw coreError("PREVIEW_READ_ONLY");
+    if (!["GET", "HEAD"].includes(method)) throw coreError("PREVIEW_READ_ONLY");
     return this.transport.request(path, { signal, headers, method });
   }
   async get(path, signal) {

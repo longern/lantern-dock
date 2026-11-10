@@ -9,17 +9,30 @@ export function afterOverlayEntry(node, onEntered) {
     onEntered();
   };
   if (typeof node.getAnimations === "function") {
-    const animations = node.getAnimations().filter((animation) =>
-      animation.effect?.target === node);
-    Promise.allSettled(animations.map((animation) => animation.finished)).then(finish);
+    const animations = node
+      .getAnimations()
+      .filter((animation) => animation.effect?.target === node);
+    Promise.allSettled(animations.map((animation) => animation.finished)).then(
+      finish,
+    );
   } else {
     // Older engines without Web Animations still use the CSS entry duration.
     const style = getComputedStyle(node);
-    const time = (value) => parseFloat(value) * (value.trim().endsWith("ms") ? 1 : 1000) || 0;
+    const time = (value) =>
+      parseFloat(value) * (value.trim().endsWith("ms") ? 1 : 1000) || 0;
     const durations = style.animationDuration.split(",").map(time);
     const delays = style.animationDelay.split(",").map(time);
-    const duration = Math.max(0, ...style.animationName.split(",").map((name, index) =>
-      name.trim() === "none" ? 0 : durations[index % durations.length] + delays[index % delays.length]));
+    const duration = Math.max(
+      0,
+      ...style.animationName
+        .split(",")
+        .map((name, index) =>
+          name.trim() === "none"
+            ? 0
+            : durations[index % durations.length] +
+              delays[index % delays.length],
+        ),
+    );
     timer = setTimeout(finish, duration);
   }
   return () => {

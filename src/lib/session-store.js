@@ -1,18 +1,37 @@
 import { t } from "../../shared/i18n.js";
-import { identitySession, accountConnection, beginLogin, endLogin } from "./identity.js";
+import {
+  identitySession,
+  accountConnection,
+  beginLogin,
+  endLogin,
+} from "./identity.js";
 
-const identityState = (status = "loading", user = null, error = null) => ({ status, user, error });
-const nasState = (status = "idle", account = null, error = null) => ({ status, account, error });
+const identityState = (status = "loading", user = null, error = null) => ({
+  status,
+  user,
+  error,
+});
+const nasState = (status = "idle", account = null, error = null) => ({
+  status,
+  account,
+  error,
+});
 
 function sessionError(error, online) {
   if (error?.kind) return error;
   const value = error instanceof Error ? error : new Error(String(error));
-  value.kind = error?.code === "LOGIN_REQUIRED" ? "session-expired"
-    : !online ? "offline"
-    : error?.status === 401 || error?.status === 403 ? "unauthorized"
-      : error?.code === "NAS_NOT_CONFIGURED" ? "unconfigured"
-        : error?.code === "IDENTITY_MISMATCH" ? "identity-mismatch"
-          : "unavailable";
+  value.kind =
+    error?.code === "LOGIN_REQUIRED"
+      ? "session-expired"
+      : !online
+        ? "offline"
+        : error?.status === 401 || error?.status === 403
+          ? "unauthorized"
+          : error?.code === "NAS_NOT_CONFIGURED"
+            ? "unconfigured"
+            : error?.code === "IDENTITY_MISMATCH"
+              ? "identity-mismatch"
+              : "unavailable";
   return value;
 }
 
@@ -31,8 +50,10 @@ export function createSessionStore({
 } = {}) {
   let state = { identity: identityState(), nas: nasState() };
   let identityRequest, nasRequest, logoutRequest;
-  let identityVersion = 0, nasVersion = 0;
-  let identityUntil = -Infinity, nasAt = -Infinity;
+  let identityVersion = 0,
+    nasVersion = 0;
+  let identityUntil = -Infinity,
+    nasAt = -Infinity;
   let disposed = false;
   const listeners = new Set();
   const publish = (next) => {
@@ -77,7 +98,11 @@ export function createSessionStore({
   };
   const refreshIdentity = () => {
     if (disposed) return Promise.resolve(state.identity);
-    if (logoutRequest) return logoutRequest.then(() => state.identity, () => state.identity);
+    if (logoutRequest)
+      return logoutRequest.then(
+        () => state.identity,
+        () => state.identity,
+      );
     if (identityRequest) return identityRequest.promise;
     cancelNAS();
     identityUntil = -Infinity;
@@ -91,10 +116,19 @@ export function createSessionStore({
         if (!isOnline()) throw new Error(t("account.sessionOffline"));
         const value = await read(readIdentity, controller);
         if (disposed || version !== identityVersion) return state.identity;
-        if (value?.authenticated === true && typeof value.user?.sub === "string" &&
-            value.user.sub && typeof value.user.issuer === "string" && value.user.issuer) {
-          const expires = value.expiresAt == null ? Infinity : Date.parse(value.expiresAt);
-          if ((!Number.isFinite(expires) && expires !== Infinity) || expires <= now()) {
+        if (
+          value?.authenticated === true &&
+          typeof value.user?.sub === "string" &&
+          value.user.sub &&
+          typeof value.user.issuer === "string" &&
+          value.user.issuer
+        ) {
+          const expires =
+            value.expiresAt == null ? Infinity : Date.parse(value.expiresAt);
+          if (
+            (!Number.isFinite(expires) && expires !== Infinity) ||
+            expires <= now()
+          ) {
             throw new Error(t("account.sessionUnavailable"));
           }
           identityUntil = Math.min(now() + maxAge, expires);
@@ -107,7 +141,13 @@ export function createSessionStore({
         }
       } catch (error) {
         if (!disposed && version === identityVersion) {
-          publish({ identity: identityState("error", null, sessionError(error, isOnline())) });
+          publish({
+            identity: identityState(
+              "error",
+              null,
+              sessionError(error, isOnline()),
+            ),
+          });
         }
       } finally {
         if (identityRequest === pending) identityRequest = null;
@@ -116,8 +156,11 @@ export function createSessionStore({
     })();
     return pending.promise;
   };
-  const ensureIdentity = () => identityRequest?.promise ||
-    (now() < identityUntil ? Promise.resolve(state.identity) : refreshIdentity());
+  const ensureIdentity = () =>
+    identityRequest?.promise ||
+    (now() < identityUntil
+      ? Promise.resolve(state.identity)
+      : refreshIdentity());
 
   const refreshNAS = () => {
     if (disposed || logoutRequest) return Promise.resolve(state.nas);
@@ -125,9 +168,12 @@ export function createSessionStore({
     // Starting an identity refresh may invalidate NAS requests. Finish that
     // first, then let concurrent callers join the single NAS request below.
     if (state.identity.status === "loading" || now() >= identityUntil) {
-      return ensureIdentity().then(() => state.identity.status === "authenticated" ? refreshNAS() : state.nas);
+      return ensureIdentity().then(() =>
+        state.identity.status === "authenticated" ? refreshNAS() : state.nas,
+      );
     }
-    if (state.identity.status !== "authenticated") return Promise.resolve(state.nas);
+    if (state.identity.status !== "authenticated")
+      return Promise.resolve(state.nas);
     const version = ++nasVersion;
     const user = state.identity.user;
     const controller = new AbortController();
@@ -146,7 +192,10 @@ export function createSessionStore({
           return metadata;
         }, controller);
         if (disposed || version !== nasVersion) return state.nas;
-        if (account.user?.sub !== user.sub || account.user?.issuer !== user.issuer) {
+        if (
+          account.user?.sub !== user.sub ||
+          account.user?.issuer !== user.issuer
+        ) {
           const error = new Error(t("account.identityMismatch"));
           error.code = "IDENTITY_MISMATCH";
           throw error;
@@ -155,7 +204,9 @@ export function createSessionStore({
         nasAt = now();
       } catch (error) {
         if (!disposed && version === nasVersion) {
-          publish({ nas: nasState("error", null, sessionError(error, isOnline())) });
+          publish({
+            nas: nasState("error", null, sessionError(error, isOnline())),
+          });
         }
       } finally {
         if (nasRequest === pending) nasRequest = null;
@@ -164,8 +215,11 @@ export function createSessionStore({
     })();
     return pending.promise;
   };
-  const ensureNAS = () => nasRequest?.promise ||
-    (now() < identityUntil && now() - nasAt < maxAge ? Promise.resolve(state.nas) : refreshNAS());
+  const ensureNAS = () =>
+    nasRequest?.promise ||
+    (now() < identityUntil && now() - nasAt < maxAge
+      ? Promise.resolve(state.nas)
+      : refreshNAS());
   const invalidate = () => {
     cancelIdentity();
     publish({ identity: identityState(), nas: nasState() });
@@ -180,21 +234,42 @@ export function createSessionStore({
     if (logoutRequest) return logoutRequest;
     cancelIdentity();
     publish({ nas: nasState() });
-    logoutRequest = Promise.resolve().then(finishLogout).then(() => {
-      cancelIdentity();
-      publish({ identity: identityState("signed-out"), nas: nasState() });
-      identityUntil = now() + maxAge;
-      onSessionChange();
-    }, (error) => {
-      // A failed logout is not evidence that the HttpOnly session disappeared.
-      throw error;
-    }).finally(() => { logoutRequest = null; });
+    logoutRequest = Promise.resolve()
+      .then(finishLogout)
+      .then(
+        () => {
+          cancelIdentity();
+          publish({ identity: identityState("signed-out"), nas: nasState() });
+          identityUntil = now() + maxAge;
+          onSessionChange();
+        },
+        (error) => {
+          // A failed logout is not evidence that the HttpOnly session disappeared.
+          throw error;
+        },
+      )
+      .finally(() => {
+        logoutRequest = null;
+      });
     return logoutRequest;
   };
   return {
     getSnapshot: () => state,
-    subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
-    ensureIdentity, ensureNAS, refreshIdentity, refreshNAS, invalidate, login, logout,
-    dispose() { cancelIdentity(); disposed = true; listeners.clear(); },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    ensureIdentity,
+    ensureNAS,
+    refreshIdentity,
+    refreshNAS,
+    invalidate,
+    login,
+    logout,
+    dispose() {
+      cancelIdentity();
+      disposed = true;
+      listeners.clear();
+    },
   };
 }

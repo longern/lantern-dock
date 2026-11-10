@@ -11,7 +11,11 @@ export function SetupConnection({ wizard }) {
         wizard.generate();
       }}
     >
-      <div class="setup-choices" role="group" aria-label={t("account.connectionMethod")}>
+      <div
+        class="setup-choices"
+        role="group"
+        aria-label={t("account.connectionMethod")}
+      >
         <button
           type="button"
           class={`setup-choice${!webtransport ? " selected" : ""}`}
@@ -34,7 +38,9 @@ export function SetupConnection({ wizard }) {
         </button>
       </div>
       <label class="form-label" for="setup-endpoint">
-        {webtransport ? t("account.webtransportAddress") : t("account.webdavAddress")}
+        {webtransport
+          ? t("account.webtransportAddress")
+          : t("account.webdavAddress")}
       </label>
       <input
         id="setup-endpoint"
@@ -75,7 +81,9 @@ export function SetupConnection({ wizard }) {
               id="setup-root"
               value={form.rootPath}
               placeholder={
-                webtransport ? t("account.webtransportRootPlaceholder") : t("account.webdavRootPlaceholder")
+                webtransport
+                  ? t("account.webtransportRootPlaceholder")
+                  : t("account.webdavRootPlaceholder")
               }
               onInput={(event) => update("rootPath", event.currentTarget.value)}
             />
@@ -91,7 +99,9 @@ export function SetupConnection({ wizard }) {
             >
               <option value="none">{t("account.noAuthentication")}</option>
               <option value="basic">{t("account.basicAuthentication")}</option>
-              <option value="bearer">{t("account.bearerAuthentication")}</option>
+              <option value="bearer">
+                {t("account.bearerAuthentication")}
+              </option>
             </select>
           </div>
         </div>

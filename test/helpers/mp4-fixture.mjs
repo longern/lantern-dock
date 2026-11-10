@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 
-const original = readFileSync(new URL("../fixtures/video.mp4", import.meta.url));
+const original = readFileSync(
+  new URL("../fixtures/video.mp4", import.meta.url),
+);
 
 export function boxes(bytes, start = 0, end = bytes.length) {
   const result = [];
@@ -9,7 +11,11 @@ export function boxes(bytes, start = 0, end = bytes.length) {
     const size = bytes.readUInt32BE(offset);
     if (size < 8 || offset + size > end)
       throw new Error("Invalid test box size");
-    result.push({ offset, size, type: bytes.toString("latin1", offset + 4, offset + 8) });
+    result.push({
+      offset,
+      size,
+      type: bytes.toString("latin1", offset + 4, offset + 8),
+    });
     offset += size;
   }
   return result;
@@ -34,7 +40,8 @@ function virtualFile(size, parts) {
       for (const { offset, bytes: part } of parts) {
         const from = Math.max(start, offset);
         const to = Math.min(end, offset + part.length);
-        if (to > from) part.copy(bytes, from - start, from - offset, to - offset);
+        if (to > from)
+          part.copy(bytes, from - start, from - offset, to - offset);
       }
       return bytes;
     },
@@ -44,13 +51,22 @@ function virtualFile(size, parts) {
 const top = boxes(original);
 const moovBox = top.find(({ type }) => type === "moov");
 const mdatBox = top.find(({ type }) => type === "mdat");
-const originalMoov = original.subarray(moovBox.offset, moovBox.offset + moovBox.size);
+const originalMoov = original.subarray(
+  moovBox.offset,
+  moovBox.offset + moovBox.size,
+);
 
 export function baselineMP4() {
   return virtualFile(original.length, [{ offset: 0, bytes: original }]);
 }
 
-export function tailMoovMP4({ metadataType, size, mutateMoov, truncate = 0, padding = 0 } = {}) {
+export function tailMoovMP4({
+  metadataType,
+  size,
+  mutateMoov,
+  truncate = 0,
+  padding = 0,
+} = {}) {
   let moov = Buffer.from(originalMoov);
   if (metadataType) {
     const udta = boxes(moov, 8).find(({ type }) => type === "udta");
@@ -58,23 +74,40 @@ export function tailMoovMP4({ metadataType, size, mutateMoov, truncate = 0, padd
     const payload = Buffer.alloc(4 + location.length);
     payload.writeUInt16BE(location.length);
     location.copy(payload, 4);
-    const replacement = box("udta", Buffer.concat([
-      moov.subarray(udta.offset + 8, udta.offset + udta.size),
-      box(metadataType, payload),
-    ]));
-    moov = box("moov", Buffer.concat([
-      moov.subarray(8, udta.offset), replacement, moov.subarray(udta.offset + udta.size),
-    ]));
+    const replacement = box(
+      "udta",
+      Buffer.concat([
+        moov.subarray(udta.offset + 8, udta.offset + udta.size),
+        box(metadataType, payload),
+      ]),
+    );
+    moov = box(
+      "moov",
+      Buffer.concat([
+        moov.subarray(8, udta.offset),
+        replacement,
+        moov.subarray(udta.offset + udta.size),
+      ]),
+    );
   }
-  if (padding) moov = box("moov", Buffer.concat([moov.subarray(8), box("free", Buffer.alloc(padding))]));
+  if (padding)
+    moov = box(
+      "moov",
+      Buffer.concat([moov.subarray(8), box("free", Buffer.alloc(padding))]),
+    );
   mutateMoov?.(moov);
   const total = size ?? original.length + moov.length;
   const moovOffset = total - moov.length;
-  if (moovOffset < original.length) throw new Error("Test tail moov overlaps original samples");
+  if (moovOffset < original.length)
+    throw new Error("Test tail moov overlaps original samples");
   const head = Buffer.from(original);
   head.write("free", moovBox.offset + 4, "latin1");
   head.writeUInt32BE(moovOffset - mdatBox.offset, mdatBox.offset);
-  return Object.assign(virtualFile(total - truncate, [
-    { offset: 0, bytes: head }, { offset: moovOffset, bytes: moov },
-  ]), { moovOffset, moovSize: moov.length });
+  return Object.assign(
+    virtualFile(total - truncate, [
+      { offset: 0, bytes: head },
+      { offset: moovOffset, bytes: moov },
+    ]),
+    { moovOffset, moovSize: moov.length },
+  );
 }

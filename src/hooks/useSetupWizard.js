@@ -65,7 +65,8 @@ export function useSetupWizard(setup, notify) {
     setForm((current) => ({
       ...current,
       [field]: value,
-      nameConfigured: field === "name" ? Boolean(value.trim()) : current.nameConfigured,
+      nameConfigured:
+        field === "name" ? Boolean(value.trim()) : current.nameConfigured,
     }));
   const chooseTransport = (transport) => {
     if (transport !== form.transport)

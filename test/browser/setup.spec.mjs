@@ -16,7 +16,9 @@ const test = base.extend({
 async function serveConfiguration(page, environment) {
   await page.route("**/api/config", async (route) => {
     const response = await worker.fetch(
-      new Request(route.request().url()),
+      new Request(route.request().url(), {
+        headers: route.request().headers(),
+      }),
       typeof environment === "function" ? environment() : environment,
     );
     await route.fulfill({

@@ -63,7 +63,8 @@ export class ImageClient {
     this.queue = [];
     this.active = 0;
     this.revision = 0;
-    this.persistent = persistentCache || new PersistentImageCache(transport, { root });
+    this.persistent =
+      persistentCache || new PersistentImageCache(transport, { root });
   }
   dispose() {
     this.lifetime.abort();
@@ -189,7 +190,13 @@ export class ImageClient {
     if (cached && Date.now() - cached.time < cached.value.freshFor)
       return cached.value;
     if (persist && !cached) {
-      const value = await this.persistent.get(path, version, accept, limit, signal);
+      const value = await this.persistent.get(
+        path,
+        version,
+        accept,
+        limit,
+        signal,
+      );
       if (value) cached = { value, weight: value.bytes.byteLength };
     }
     signal?.throwIfAborted();
@@ -211,7 +218,8 @@ export class ImageClient {
       };
       if (value.storable) this.responses.set(key, value, cached.weight);
       else this.responses.delete(key);
-      if (persist) await this.persistent.put(path, version, accept, value, signal);
+      if (persist)
+        await this.persistent.put(path, version, accept, value, signal);
       signal?.throwIfAborted();
       return value;
     }
@@ -231,7 +239,8 @@ export class ImageClient {
     };
     if (value.storable) this.responses.set(key, value, bytes.byteLength);
     else this.responses.delete(key);
-    if (persist) await this.persistent.put(path, version, accept, value, signal);
+    if (persist)
+      await this.persistent.put(path, version, accept, value, signal);
     signal?.throwIfAborted();
     return value;
   }

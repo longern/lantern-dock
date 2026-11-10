@@ -38,7 +38,7 @@
 .touch-selecting .list-layout .file-open {
   padding-inline-end: 52px;
 }
-@media (max-width: 700px) {
+@media (--down-md) {
   .touch-selecting .list-layout .file-open {
     padding-inline-end: 68px;
   }

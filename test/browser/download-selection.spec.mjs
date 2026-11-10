@@ -1,3 +1,4 @@
+import { isCompact } from "../helpers/responsive.mjs";
 import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { openItem } from "../helpers/open-item.mjs";
@@ -41,12 +42,13 @@ async function install(page, files = ["a.txt", "b.txt"]) {
 }
 async function selectAll(page) {
   const items = page.locator("#file-list .file-open");
-  if (page.viewportSize().width <= 700) {
+  if (isCompact(page)) {
     await holdItem(page, items.first());
-    if (await items.count() > 1) await page
-      .getByRole("toolbar")
-      .getByRole("button", { name: "全选", exact: true })
-      .tap();
+    if ((await items.count()) > 1)
+      await page
+        .getByRole("toolbar")
+        .getByRole("button", { name: "全选", exact: true })
+        .tap();
   } else {
     await items.first().focus();
     await items.first().press("ControlOrMeta+a");
@@ -152,7 +154,7 @@ test("cancelling the current file stops the remaining queue", async ({
     await page
       .getByRole("button", { name: "下载所选文件", exact: true })
       .click();
-    if (page.viewportSize().width <= 700)
+    if (isCompact(page))
       await expect(page.locator(".transfer-summary")).toContainText(
         "第 2 项，共 3 项",
       );
@@ -177,12 +179,11 @@ async function settleCenter(page) {
   });
 }
 const center = (page) =>
-  page.viewportSize().width <= 700
+  isCompact(page)
     ? page.locator("#transfer-dialog")
     : page.locator(".transfer-window");
 async function openCenter(page) {
-  if (page.viewportSize().width <= 700)
-    await page.locator(".transfer-summary-open").click();
+  if (isCompact(page)) await page.locator(".transfer-summary-open").click();
   await expect(center(page)).toBeVisible();
   await settleCenter(page);
 }
@@ -198,7 +199,7 @@ test("home transfer entry adapts to viewport and supports closing and browser Ba
   await expect(center(page)).toContainText("暂无传输任务");
   await settleCenter(page);
   const bounds = await center(page).boundingBox();
-  if (page.viewportSize().width <= 700) {
+  if (isCompact(page)) {
     expect(bounds.width).toBeCloseTo(page.viewportSize().width, 1);
     await page.goBack();
     await expect(center(page)).toBeHidden();
@@ -330,7 +331,7 @@ test("a failed transfer remains visible and can be retried on its own", async ({
   await selectAll(page);
   await page.getByRole("button", { name: "下载所选文件", exact: true }).click();
   // Fast failures need no persistent compact progress prompt; reopen from Home.
-  if (page.viewportSize().width <= 700) {
+  if (isCompact(page)) {
     await page
       .getByRole("navigation", { name: "移动端资源导航" })
       .getByRole("button", { name: "首页", exact: true })
@@ -353,7 +354,7 @@ test("a failed transfer remains visible and can be retried on its own", async ({
     .click();
   await expect(center(page)).toBeHidden();
   await page.reload();
-  if (page.viewportSize().width > 700)
+  if (!isCompact(page))
     await page
       .getByRole("navigation", { name: "资源导航" })
       .getByRole("button", { name: "首页", exact: true })
@@ -384,7 +385,7 @@ test("transfers inside a preview close independently and leave the download runn
   try {
     await page.getByRole("button", { name: "下载", exact: true }).click();
     await openCenter(page);
-    if (page.viewportSize().width <= 700) await page.goBack();
+    if (isCompact(page)) await page.goBack();
     else
       await center(page)
         .getByRole("button", { name: "收起传输列表", exact: true })
@@ -403,7 +404,7 @@ test("transfers inside a preview close independently and leave the download runn
 test("an expanded desktop window becomes a mobile dialog with its own Back entry", async ({
   page,
 }) => {
-  test.skip(page.viewportSize().width <= 700, "Starts with a desktop window");
+  test.skip(isCompact(page), "Starts with a desktop window");
   await install(page);
   await page.goto("/");
   await page.locator("#transfers-button").click();
@@ -452,7 +453,7 @@ test("cancelling a destination picker keeps a retryable task; retry reports a co
   await selectAll(page);
   await page.getByRole("button", { name: "下载所选文件", exact: true }).click();
   await expect.poll(() => page.evaluate(() => window.pickerAttempts)).toBe(1);
-  if (page.viewportSize().width <= 700) {
+  if (isCompact(page)) {
     await page
       .getByRole("navigation", { name: "移动端资源导航" })
       .getByRole("button", { name: "首页", exact: true })

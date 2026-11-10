@@ -5,15 +5,18 @@ export default {
   links: "Upload links",
   inbox: "Private inbox",
   linksDescription: "Give guests a limited, upload-only link.",
-  inboxDescription: "Completed uploads are private. Only administrators can view and download them here.",
+  inboxDescription:
+    "Completed uploads are private. Only administrators can view and download them here.",
   createLink: "Create link",
   refreshLinks: "Refresh upload links",
   refreshInbox: "Refresh private inbox",
   loading: "Loading…",
   noLinks: "No upload links yet",
-  noLinksDescription: "Create a link with an expiry and collection limits to start receiving files.",
+  noLinksDescription:
+    "Create a link with an expiry and collection limits to start receiving files.",
   noFiles: "No files received",
-  noFilesDescription: "Completed uploads will appear here. Refresh after an upload finishes.",
+  noFilesDescription:
+    "Completed uploads will appear here. Refresh after an upload finishes.",
   expires: "Expires",
   fileLimit: "Per-file limit",
   collectedBytes: "Collected / limit",
@@ -27,8 +30,10 @@ export default {
   "state.revoked": "Revoked",
   "state.expired": "Expired",
   "state.full": "Limit reached",
-  quotaNote: "Limits include completed files and active upload reservations. Moving or deleting received files does not restore a link’s collection allowance.",
-  noTokenRecovery: "Shareable links cannot be recovered from this list. Create a replacement if you lose one.",
+  quotaNote:
+    "Limits include completed files and active upload reservations. Moving or deleting received files does not restore a link’s collection allowance.",
+  noTokenRecovery:
+    "Shareable links cannot be recovered from this list. Create a replacement if you lose one.",
   pagination: "Results pages",
   previous: "Previous",
   next: "Next",
@@ -40,49 +45,69 @@ export default {
   dismissNotice: "Dismiss notification",
   close: "Close dialog",
   cancel: "Cancel",
-  createDescription: "Anyone with this link can upload within its limits. The link does not grant access to existing files.",
+  createDescription:
+    "Anyone with this link can upload within its limits. The link does not grant access to existing files.",
   linkTitle: "Link title",
   titlePlaceholder: "For example, event photos",
   expiryLocal: "Expiry (your local time)",
   fileLimitMiB: "Per-file limit (MiB)",
   totalLimitMiB: "Collection limit (MiB)",
   maxFiles: "Maximum files",
-  invalidTitle: "Enter a title of 1–200 UTF-8 bytes without control characters. Shorten the title if needed.",
+  invalidTitle:
+    "Enter a title of 1–200 UTF-8 bytes without control characters. Shorten the title if needed.",
   invalidExpiry: "Choose an expiry in the future.",
-  invalidLimits: "Use positive limits and a whole number of files. The collection limit must be at least the per-file limit.",
+  invalidLimits:
+    "Use positive limits and a whole number of files. The collection limit must be at least the per-file limit.",
   creating: "Creating link…",
   linkCreated: "Your link is ready",
-  oneTimeWarning: "Save this link now. It is shown only once and cannot be recovered after you close this window.",
+  oneTimeWarning:
+    "Save this link now. It is shown only once and cannot be recovered after you close this window.",
   shareableLink: "Shareable upload link",
-  linkPrivacy: "Share it only with intended uploaders. Anyone who receives it can upload until it expires or is revoked.",
+  linkPrivacy:
+    "Share it only with intended uploaders. Anyone who receives it can upload until it expires or is revoked.",
   copyLink: "Copy link",
   savedLink: "I’ve saved the link",
   linkCopied: "Link copied.",
-  copyFailed: "Could not copy automatically. Select the link and copy it manually before closing.",
-  createUncertain: "The connection was interrupted, so the link may have been created. Close this dialog and refresh the list before trying again. If it appears without a saved URL, revoke it and create a replacement.",
+  copyFailed:
+    "Could not copy automatically. Select the link and copy it manually before closing.",
+  createUncertain:
+    "The connection was interrupted, so the link may have been created. Close this dialog and refresh the list before trying again. If it appears without a saved URL, revoke it and create a replacement.",
   revokeTitle: "Revoke this upload link?",
-  revokeDescription: "This cannot be undone. The link will stop accepting uploads, including uploads that have not finished. Files already received will stay in the private inbox.",
+  revokeDescription:
+    "This cannot be undone. The link will stop accepting uploads, including uploads that have not finished. Files already received will stay in the private inbox.",
   confirmRevoke: "Revoke link",
   revoking: "Revoking…",
   revokedNotice: "Link revoked. Previously received files are still available.",
-  requestTimeout: "The NAS request timed out. Check your connection and refresh to verify the result.",
-  requestFailed: "The request could not be completed. Check your connection and try again.",
-  invalidResponse: "The NAS returned an unexpected response. Refresh and check that its version supports administration.",
-  forbiddenDescription: "This NAS has not granted your account administrator access.",
+  requestTimeout:
+    "The NAS request timed out. Check your connection and refresh to verify the result.",
+  requestFailed:
+    "The request could not be completed. Check your connection and try again.",
+  invalidResponse:
+    "The NAS returned an unexpected response. Refresh and check that its version supports administration.",
+  forbiddenDescription:
+    "This NAS has not granted your account administrator access.",
   "gate.checking.title": "Checking access…",
-  "gate.checking.description": "Waiting for the NAS to verify your account and permissions.",
+  "gate.checking.description":
+    "Waiting for the NAS to verify your account and permissions.",
   "gate.signed-out.title": "Sign in to continue",
-  "gate.signed-out.description": "Administration requires a signed-in account and administrator access verified by this NAS.",
+  "gate.signed-out.description":
+    "Administration requires a signed-in account and administrator access verified by this NAS.",
   "gate.identity-error.title": "Could not check your account",
-  "gate.identity-error.description": "Your identity session is unavailable. Check again before opening administration.",
+  "gate.identity-error.description":
+    "Your identity session is unavailable. Check again before opening administration.",
   "gate.not-configured.title": "NAS not configured",
-  "gate.not-configured.description": "The site needs a connected LanternDock NAS to manage links and receive files. Demo mode does not provide administration.",
+  "gate.not-configured.description":
+    "The site needs a connected LanternDock NAS to manage links and receive files. Demo mode does not provide administration.",
   "gate.nas-error.title": "Could not verify NAS access",
-  "gate.nas-error.description": "The NAS may be offline or unreachable. Your sign-in alone does not confirm administrator permissions. Reconnect and check again.",
+  "gate.nas-error.description":
+    "The NAS may be offline or unreachable. Your sign-in alone does not confirm administrator permissions. Reconnect and check again.",
   "gate.forbidden.title": "Administrator access required",
-  "gate.forbidden.description": "Your account is signed in, but this NAS has not granted it administrator access.",
+  "gate.forbidden.description":
+    "Your account is signed in, but this NAS has not granted it administrator access.",
   "gate.unverified.title": "NAS permissions not confirmed",
-  "gate.unverified.description": "The NAS could not verify a matching authorized account. Check your connection and sign-in, then verify again.",
+  "gate.unverified.description":
+    "The NAS could not verify a matching authorized account. Check your connection and sign-in, then verify again.",
   "gate.unsupported.title": "NAS update required",
-  "gate.unsupported.description": "This NAS verified your administrator role but does not support web administration. Update the NAS to a compatible version and check again.",
+  "gate.unsupported.description":
+    "This NAS verified your administrator role but does not support web administration. Update the NAS to a compatible version and check again.",
 };

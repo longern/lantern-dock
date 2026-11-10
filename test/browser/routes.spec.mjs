@@ -1,3 +1,4 @@
+import { isCompact } from "../helpers/responsive.mjs";
 import { openItem } from "../helpers/open-item.mjs";
 import { test as base, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
@@ -80,13 +81,15 @@ test("folder navigation, reload, Back and Forward restore the URL's resource", a
 }) => {
   await install(page);
   await page.goto("/files/");
-  await openItem(page
-    .getByRole("button", { name: "打开文件夹 旅行 #?%", exact: true }));
+  await openItem(
+    page.getByRole("button", { name: "打开文件夹 旅行 #?%", exact: true }),
+  );
   await expect(page).toHaveURL(new RegExp(`/files/${folder}/$`));
   await page.reload();
   await expect(page.locator("#file-list .file-item")).toHaveCount(4);
-  await openItem(page
-    .getByRole("button", { name: "预览 说明 #?%.txt", exact: true }));
+  await openItem(
+    page.getByRole("button", { name: "预览 说明 #?%.txt", exact: true }),
+  );
   await expect(page).toHaveURL(new RegExp(`/files/${folder}/${name}$`));
   await expect(page.locator(".preview-content pre")).toHaveText(
     "A shared document",
@@ -109,7 +112,10 @@ test("copied links use the portal and relative paths even with a custom DAV moun
 }) => {
   const log = await install(page, "/custom/share/");
   await page.goto("/files/");
-  const folderItem = page.getByRole("button", { name: "打开文件夹 旅行 #?%", exact: true });
+  const folderItem = page.getByRole("button", {
+    name: "打开文件夹 旅行 #?%",
+    exact: true,
+  });
   await folderItem.focus();
   await folderItem.press("Space");
   await page.getByRole("button", { name: "复制所选链接", exact: true }).click();
@@ -136,16 +142,16 @@ test("a direct album photo link restores the gallery and paging replaces one pre
 }) => {
   await install(page);
   await page.goto(`/album/${folder}/`);
-  const grid =
-    page.viewportSize().width <= 700
-      ? page.locator("#album-page-dialog")
-      : page.locator("#file-list");
-  await openItem(grid
-    .getByRole("button", { name: "预览 first.jpg", exact: true }));
+  const grid = isCompact(page)
+    ? page.locator("#album-page-dialog")
+    : page.locator("#file-list");
+  await openItem(
+    grid.getByRole("button", { name: "预览 first.jpg", exact: true }),
+  );
   await expect(page).toHaveURL(
     new RegExp(`/files/${folder}/first.jpg\\?view=album$`),
   );
-  if (page.viewportSize().width <= 700)
+  if (isCompact(page))
     await expect(page.locator(".album-viewer-pager")).toBeHidden();
   else await expect(page.locator(".album-viewer-pager")).toBeVisible();
   await expect(

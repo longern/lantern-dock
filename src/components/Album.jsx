@@ -1,5 +1,11 @@
 import { t } from "../../shared/i18n.js";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "preact/hooks";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { Thumbnail } from "./Thumbnail.jsx";
 import { artwork } from "../lib/demo.js";
@@ -7,7 +13,17 @@ import { groupMediaByDate } from "../lib/album.js";
 import { useLiveMedia } from "../hooks/useLiveMedia.js";
 import { albumLiveItems } from "../lib/live.js";
 
-export function Album({ entries, loading, demo, client, selected, onPreview, selection, onItemsChange }) {
+export function Album({
+  view = "date",
+  entries,
+  loading,
+  demo,
+  client,
+  selected,
+  onPreview,
+  selection,
+  onItemsChange,
+}) {
   const live = useLiveMedia(client, entries);
   const media = useMemo(() => albumLiveItems(entries, live), [entries, live]);
   const elements = useRef(new Map());
@@ -33,8 +49,14 @@ export function Album({ entries, loading, demo, client, selected, onPreview, sel
     };
   }, []);
   const groups = useMemo(() => groupMediaByDate(media, today), [media, today]);
-  const orderedItems = useMemo(() => groups.flatMap(group => group.items), [groups]);
-  useLayoutEffect(() => onItemsChange(orderedItems), [orderedItems, onItemsChange]);
+  const orderedItems = useMemo(
+    () => groups.flatMap((group) => group.items),
+    [groups],
+  );
+  useLayoutEffect(
+    () => onItemsChange(orderedItems),
+    [orderedItems, onItemsChange],
+  );
   if (loading && !entries.length)
     return (
       <div class="file-grid album-layout">
@@ -43,6 +65,97 @@ export function Album({ entries, loading, demo, client, selected, onPreview, sel
         ))}
       </div>
     );
+  const renderItems = (items) => (
+    <div class="file-grid album-layout">
+      {items.map((item) => (
+        <article
+          class={`file-item album-item${selection.isSelected(item) ? " selected" : ""}`}
+          key={item.path}
+          data-selected={selection.isSelected(item) ? "true" : undefined}
+        >
+          <button
+            class="file-open album-preview"
+            ref={(node) =>
+              node
+                ? elements.current.set(item.path, node)
+                : elements.current.delete(item.path)
+            }
+            data-path={item.path}
+            aria-label={t(
+              item.kind === "video"
+                ? "library.previewVideoNamed"
+                : "library.previewNamed",
+              { name: item.name },
+            )}
+            aria-pressed={
+              selection.isSelected(item) || selected?.path === item.path
+            }
+            {...selection.props(item, () =>
+              onPreview(item, {
+                items: orderedItems,
+                origins: new Map(
+                  orderedItems.map((entry) => [
+                    entry.path,
+                    {
+                      get current() {
+                        const button = elements.current.get(entry.path);
+                        const rect = button?.getBoundingClientRect();
+                        if (
+                          !rect ||
+                          rect.bottom <= 0 ||
+                          rect.top >= innerHeight
+                        )
+                          return null;
+                        return button?.querySelector("img") || button || null;
+                      },
+                    },
+                  ]),
+                ),
+              }),
+            )}
+          >
+            {demo && item.kind === "image" ? (
+              <img
+                src={`data:image/svg+xml,${encodeURIComponent(artwork(item.name))}`}
+                alt=""
+                decoding="async"
+              />
+            ) : (
+              <Thumbnail
+                item={item}
+                client={client}
+                side={384}
+                fallback={<Icon name={item.kind} />}
+              />
+            )}
+            {item.kind === "video" && (
+              <span class="album-video-indicator" aria-hidden="true">
+                <Icon name="play" />
+              </span>
+            )}
+            {item.live && (
+              <span
+                class="album-live-indicator"
+                aria-label={t("library.livePhoto")}
+              >
+                <Icon name="live" />
+                <span>LIVE</span>
+              </span>
+            )}
+          </button>
+          {selection.touch && (
+            <span
+              class={`selection-mark${selection.isSelected(item) ? " checked" : ""}`}
+              aria-hidden="true"
+            >
+              {selection.isSelected(item) && <Icon name="check" />}
+            </span>
+          )}
+        </article>
+      ))}
+    </div>
+  );
+  if (view === "continuous") return renderItems(orderedItems);
   return groups.map((group) => (
     <section
       class="album-group"
@@ -56,88 +169,7 @@ export function Album({ entries, loading, demo, client, selected, onPreview, sel
           <time dateTime={group.key}>{group.label}</time>
         )}
       </h2>
-      <div class="file-grid album-layout">
-        {group.items.map((item) => (
-          <article class={`file-item album-item${selection.isSelected(item) ? " selected" : ""}`} key={item.path}
-            data-selected={selection.isSelected(item) ? "true" : undefined}>
-            <button
-              class="file-open album-preview"
-              ref={(node) =>
-                node
-                  ? elements.current.set(item.path, node)
-                  : elements.current.delete(item.path)
-              }
-              data-path={item.path}
-              aria-label={t(
-                item.kind === "video"
-                  ? "library.previewVideoNamed"
-                  : "library.previewNamed",
-                { name: item.name },
-              )}
-              aria-pressed={selection.isSelected(item) || selected?.path === item.path}
-              {...selection.props(item, () =>
-                onPreview(item, {
-                  items: groups.flatMap((group) => group.items),
-                  origins: new Map(
-                    groups
-                      .flatMap((group) => group.items)
-                      .map((entry) => [
-                        entry.path,
-                        {
-                          get current() {
-                            const button = elements.current.get(entry.path);
-                            const rect = button?.getBoundingClientRect();
-                            if (
-                              !rect ||
-                              rect.bottom <= 0 ||
-                              rect.top >= innerHeight
-                            )
-                              return null;
-                            return (
-                              button?.querySelector("img") || button || null
-                            );
-                          },
-                        },
-                      ]),
-                  ),
-                })
-              )}
-            >
-              {demo && item.kind === "image" ? (
-                <img
-                  src={`data:image/svg+xml,${encodeURIComponent(artwork(item.name))}`}
-                  alt=""
-                  decoding="async"
-                />
-              ) : (
-                <Thumbnail
-                  item={item}
-                  client={client}
-                  side={384}
-                  fallback={<Icon name={item.kind} />}
-                />
-              )}
-              {item.kind === "video" && (
-                <span class="album-video-indicator" aria-hidden="true">
-                  <Icon name="play" />
-                </span>
-              )}
-              {item.live && (
-                <span
-                  class="album-live-indicator"
-                  aria-label={t("library.livePhoto")}
-                >
-                  <Icon name="live" />
-                  <span>LIVE</span>
-                </span>
-              )}
-            </button>
-            {selection.touch && <span class={`selection-mark${selection.isSelected(item) ? " checked" : ""}`} aria-hidden="true">
-              {selection.isSelected(item) && <Icon name="check" />}
-            </span>}
-          </article>
-        ))}
-      </div>
+      {renderItems(group.items)}
     </section>
   ));
 }

@@ -17,23 +17,27 @@ const snapshot = () => ({
 export function RouterProvider({ children }) {
   const [value, setValue] = useState(() => ({ ...snapshot(), initial: true }));
   const pendingPop = useRef(null);
-  const commit = useCallback((href, { replace = false, push = false, state = {} } = {}) => {
-    const url = new URL(href, location.origin);
-    if (url.origin !== location.origin)
-      throw new Error("External navigation denied");
-    const next = url.pathname + url.search + url.hash;
-    if (
-      next !== location.pathname + location.search + location.hash ||
-      replace || push
-    ) {
-      history[replace ? "replaceState" : "pushState"](
-        { lanternDockRoute: state },
-        "",
-        next,
-      );
-      window.dispatchEvent(new Event(navigationEvent));
-    }
-  }, []);
+  const commit = useCallback(
+    (href, { replace = false, push = false, state = {} } = {}) => {
+      const url = new URL(href, location.origin);
+      if (url.origin !== location.origin)
+        throw new Error("External navigation denied");
+      const next = url.pathname + url.search + url.hash;
+      if (
+        next !== location.pathname + location.search + location.hash ||
+        replace ||
+        push
+      ) {
+        history[replace ? "replaceState" : "pushState"](
+          { lanternDockRoute: state },
+          "",
+          next,
+        );
+        window.dispatchEvent(new Event(navigationEvent));
+      }
+    },
+    [],
+  );
   const navigate = useCallback(
     (href, options = {}) => {
       // Back is asynchronous; a preview opened during its close must survive it.

@@ -2,7 +2,7 @@ import { t } from "../../shared/i18n.js";
 import { useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { Dialog } from "./Dialog.jsx";
-import { useMediaQuery } from "../hooks/useMediaQuery.js";
+import { useCompactLayout } from "../hooks/useMediaQuery.js";
 
 export function ConnectionDialog({
   backend,
@@ -15,7 +15,7 @@ export function ConnectionDialog({
   feedback,
   fallbackFocus,
 }) {
-  const mobile = useMediaQuery("(max-width: 700px)");
+  const mobile = useCompactLayout();
   const [form, setForm] = useState({
     ...credentials,
     mode:
@@ -42,7 +42,11 @@ export function ConnectionDialog({
       open={open}
       onClose={onClose}
       onExited={onExited}
-      fallbackFocus={!mobile ? "#connection-settings" : fallbackFocus || ".mobile-tabs button:last-child"}
+      fallbackFocus={
+        !mobile
+          ? "#connection-settings"
+          : fallbackFocus || ".mobile-tabs button:last-child"
+      }
       class="settings-dialog"
       aria-labelledby="settings-title"
     >
@@ -76,7 +80,9 @@ export function ConnectionDialog({
                 : "HTTP / HTTPS"}
           </span>
           <strong>{backend?.endpoint || t("library.demoFileSpace")}</strong>
-          <span>{backend && t("library.rootPath", { path: backend.rootPath })}</span>
+          <span>
+            {backend && t("library.rootPath", { path: backend.rootPath })}
+          </span>
         </div>
         <label class="form-label" for="auth-mode">
           {t("library.authentication")}
@@ -93,11 +99,17 @@ export function ConnectionDialog({
         {form.mode === "basic" && (
           <>
             {input("username", t("library.username"), "text", "username")}
-            {input("password", t("library.password"), "password", "current-password")}
+            {input(
+              "password",
+              t("library.password"),
+              "password",
+              "current-password",
+            )}
           </>
         )}
         {form.mode === "bearer" && input("bearer", t("library.accessToken"))}
-        {backend?.gatewayAuth && input("gatewayToken", t("library.gatewayToken"))}
+        {backend?.gatewayAuth &&
+          input("gatewayToken", t("library.gatewayToken"))}
         <p class="field-note">{t("library.credentialsNote")}</p>
         <details class="connection-help">
           <summary>{t("library.connectionHelp")}</summary>

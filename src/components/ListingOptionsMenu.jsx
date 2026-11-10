@@ -2,9 +2,21 @@ import { useId, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { t } from "../../shared/i18n.js";
 import { Icon } from "./Icon.jsx";
 import { afterOverlayEntry } from "../lib/overlay-entry.js";
-import { captureListingMenuMotion, getListingMenuPlacement } from "../lib/listing-menu.js";
+import {
+  captureListingMenuMotion,
+  getListingMenuPlacement,
+} from "../lib/listing-menu.js";
 
-export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange, edge = false }) {
+export function ListingOptionsMenu({
+  sort,
+  view,
+  onSortChange,
+  onViewChange,
+  groups: customGroups,
+  actions = [],
+  label = t("library.listingOptions"),
+  edge = false,
+}) {
   const id = useId();
   const root = useRef(null);
   const trigger = useRef(null);
@@ -31,21 +43,29 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange, edg
     else popup.setAttribute("aria-hidden", "true");
     // Also protect browsers without inert, and programmatic activation during
     // the closing frame before the next render has disabled these controls.
-    popup.querySelectorAll('[role="menuitemradio"]').forEach((item) => { item.disabled = !interactive; });
+    popup.querySelectorAll('[role^="menuitem"]').forEach((item) => {
+      item.disabled = !interactive || item.dataset.unavailable === "true";
+    });
   };
   const close = (restoreFocus = true, immediately = false) => {
-    if (currentState.current.phase === "closed" || (!immediately && currentState.current.phase !== "open")) return;
+    if (
+      currentState.current.phase === "closed" ||
+      (!immediately && currentState.current.phase !== "open")
+    )
+      return;
     captureListingMenuMotion(surface.current);
     transition(immediately ? "closed" : "closing");
     if (restoreFocus) trigger.current?.focus({ preventScroll: true });
-    else if (menu.current?.contains(document.activeElement)) document.activeElement.blur();
+    else if (menu.current?.contains(document.activeElement))
+      document.activeElement.blur();
     setInteractive(false);
   };
   const openMenu = (index = 0) => {
     const dialog = trigger.current?.closest("dialog");
     if (dialog && (!dialog.open || dialog.dataset.state === "closed")) return;
     initialFocus.current = index;
-    if (currentState.current.phase === "closing") captureListingMenuMotion(surface.current);
+    if (currentState.current.phase === "closing")
+      captureListingMenuMotion(surface.current);
     transition("open");
     setInteractive(true);
   };
@@ -97,8 +117,17 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange, edg
     let frame;
     const trackDialog = () => {
       position();
-      if (dialog && (typeof dialog.getAnimations !== "function" || dialog.getAnimations().some((animation) =>
-        animation.playState === "running" || animation.playState === "paused"))) {
+      if (
+        dialog &&
+        (typeof dialog.getAnimations !== "function" ||
+          dialog
+            .getAnimations()
+            .some(
+              (animation) =>
+                animation.playState === "running" ||
+                animation.playState === "paused",
+            ))
+      ) {
         frame = requestAnimationFrame(trackDialog);
       }
     };
@@ -109,12 +138,17 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange, edg
     followDialog();
     // Exit with the owner, but remove immediately if its native dialog closes.
     // A detached/closed owner must never leave a separate top-layer popup.
-    const dialogState = dialog && new MutationObserver(() => {
-      if (!dialog.open) close(false, true);
-      else if (dialog.dataset.state === "closed") close(false);
-      followDialog();
+    const dialogState =
+      dialog &&
+      new MutationObserver(() => {
+        if (!dialog.open) close(false, true);
+        else if (dialog.dataset.state === "closed") close(false);
+        followDialog();
+      });
+    dialogState?.observe(dialog, {
+      attributes: true,
+      attributeFilter: ["open", "data-state"],
     });
-    dialogState?.observe(dialog, { attributes: true, attributeFilter: ["open", "data-state"] });
     const ownerClosed = () => close(false, true);
     dialog?.addEventListener("close", ownerClosed);
     dialog?.addEventListener("animationstart", followDialog);
@@ -139,7 +173,11 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange, edg
       dialog?.removeEventListener("close", ownerClosed);
       dialog?.removeEventListener("animationstart", followDialog);
       if (topLayer && popup.isConnected) {
-        try { popup.hidePopover(); } catch { /* Already closed by its owner. */ }
+        try {
+          popup.hidePopover();
+        } catch {
+          /* Already closed by its owner. */
+        }
       }
       document.removeEventListener("pointerdown", outsidePointer, true);
       document.removeEventListener("focusin", outsideFocus);
@@ -152,8 +190,12 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange, edg
 
   useLayoutEffect(() => {
     if (state.phase === "open") {
-      const items = menu.current.querySelectorAll('[role="menuitemradio"]');
-      items[initialFocus.current < 0 ? items.length - 1 : initialFocus.current]?.focus({ preventScroll: true });
+      const items = menu.current.querySelectorAll(
+        '[role^="menuitem"]:not(:disabled)',
+      );
+      items[
+        initialFocus.current < 0 ? items.length - 1 : initialFocus.current
+      ]?.focus({ preventScroll: true });
     } else if (state.phase === "closing") {
       // Use the actual CSS animation, including cancellation/reduced motion,
       // and the existing computed-duration fallback for older engines.
@@ -177,19 +219,42 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange, edg
     } else if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
       event.preventDefault();
       event.stopPropagation();
-      const items = [...menu.current.querySelectorAll('[role="menuitemradio"]')];
+      const items = [
+        ...menu.current.querySelectorAll('[role^="menuitem"]:not(:disabled)'),
+      ];
       const current = items.indexOf(document.activeElement);
-      const next = event.key === "Home" ? 0
-        : event.key === "End" ? items.length - 1
-          : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      const next =
+        event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? items.length - 1
+            : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) %
+              items.length;
       items[next]?.focus();
     }
   };
-  const groups = [
-    { key: "sort", label: t("library.sort"), selected: sort, change: onSortChange,
-      options: [["name", t("library.name")], ["modified", t("library.modifiedAt")], ["size", t("library.size")]] },
-    { key: "view", label: t("library.viewMode"), selected: view, change: onViewChange,
-      options: [["list", t("library.listView")], ["grid", t("library.gridView")]] },
+  const groups = customGroups || [
+    {
+      key: "sort",
+      label: t("library.sort"),
+      selected: sort,
+      change: onSortChange,
+      options: [
+        ["name", t("library.name")],
+        ["modified", t("library.modifiedAt")],
+        ["size", t("library.size")],
+      ],
+    },
+    {
+      key: "view",
+      label: t("library.viewMode"),
+      selected: view,
+      change: onViewChange,
+      options: [
+        ["list", t("library.listView"), "list"],
+        ["grid", t("library.gridView"), "grid"],
+      ],
+    },
   ];
   return (
     <div class="listing-options" ref={root} onKeyDown={onKeyDown}>
@@ -197,11 +262,13 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange, edg
         ref={trigger}
         type="button"
         class={`icon-button listing-options-trigger${edge === "start" || edge === "end" ? ` edge-${edge}` : ""}`}
-        aria-label={t("library.listingOptions")}
+        aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        onClick={() => currentState.current.phase === "open" ? close() : openMenu()}
+        onClick={() =>
+          currentState.current.phase === "open" ? close() : openMenu()
+        }
         onKeyDown={(event) => {
           if (!open && ["ArrowDown", "ArrowUp"].includes(event.key)) {
             event.preventDefault();
@@ -219,16 +286,22 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange, edg
           popover="manual"
           class="listing-options-menu"
           role="menu"
-          aria-label={t("library.listingOptions")}
+          aria-label={label}
           data-state={open ? "open" : "closed"}
           aria-hidden={open ? undefined : "true"}
           inert={!open}
         >
           <div ref={surface} class="listing-options-surface">
             {groups.map((group) => (
-              <div key={group.key} role="group" aria-labelledby={`${id}-${group.key}`}>
-                <div class="listing-options-label" id={`${id}-${group.key}`}>{group.label}</div>
-                {group.options.map(([value, label]) => (
+              <div
+                key={group.key}
+                role="group"
+                aria-labelledby={`${id}-${group.key}`}
+              >
+                <div class="listing-options-label" id={`${id}-${group.key}`}>
+                  {group.label}
+                </div>
+                {group.options.map(([value, label, icon]) => (
                   <button
                     key={value}
                     type="button"
@@ -243,13 +316,39 @@ export function ListingOptionsMenu({ sort, view, onSortChange, onViewChange, edg
                       close();
                     }}
                   >
-                    {group.key === "view" && <Icon name={value} />}
+                    {icon && <Icon name={icon} />}
                     <span>{label}</span>
                     <Icon name="check" class="listing-options-check" />
                   </button>
                 ))}
               </div>
             ))}
+            {actions.length > 0 && (
+              <div role="group">
+                {actions.map((action) => (
+                  <button
+                    key={action.key}
+                    type="button"
+                    role="menuitem"
+                    tabIndex={-1}
+                    disabled={!open || action.disabled}
+                    data-unavailable={action.disabled ? "true" : undefined}
+                    onClick={() => {
+                      if (
+                        currentState.current.phase !== "open" ||
+                        action.disabled
+                      )
+                        return;
+                      close();
+                      action.onSelect();
+                    }}
+                  >
+                    {action.icon && <Icon name={action.icon} />}
+                    <span>{action.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

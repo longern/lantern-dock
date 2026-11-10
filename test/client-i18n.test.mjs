@@ -3,7 +3,13 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 
 function clientFor(language) {
-  return JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", `
+  return JSON.parse(
+    execFileSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `
     Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { languages: [${JSON.stringify(language)}] } });
     globalThis.location = { protocol: 'https:', origin: 'https://site.example' };
     const { locale, t } = await import('./shared/i18n.js');
@@ -78,14 +84,23 @@ function clientFor(language) {
       diagnostic: { code: diagnostic.code, message: diagnostic.message, detail: diagnostic.diagnostic },
       sanitized: { message: sanitized.message, detail: sanitized.diagnostic },
     }));
-  `], { cwd: new URL("..", import.meta.url), encoding: "utf8" }));
+  `,
+      ],
+      { cwd: new URL("..", import.meta.url), encoding: "utf8" },
+    ),
+  );
 }
 
-for (const [language, locale] of [["en-US", "en"], ["zh-Hant-TW", "zh-CN"]]) {
+for (const [language, locale] of [
+  ["en-US", "en"],
+  ["zh-Hant-TW", "zh-CN"],
+]) {
   test(`browser helpers follow ${language} without changing protocol data`, () => {
     const client = clientFor(language);
     assert.equal(client.locale, locale);
-    assert.deepEqual(client.generated, { WEBDAV_URL: "https://files.example/dav/" });
+    assert.deepEqual(client.generated, {
+      WEBDAV_URL: "https://files.example/dav/",
+    });
     assert.equal(client.custom.BACKEND_NAME, "Personal library");
     assert.equal(client.reset.BACKEND_NAME, "");
     assert.deepEqual(client.emptyGenerated, client.generated);
@@ -95,25 +110,48 @@ for (const [language, locale] of [["en-US", "en"], ["zh-Hant-TW", "zh-CN"]]) {
     assert.deepEqual(client.explicitOther, client.custom);
     assert.deepEqual(client.clearedName, client.reset);
     assert.deepEqual(client.staleFlag, client.reset);
-    assert.deepEqual(client.errors.map(error => error.code), ["PATH_DENIED", "BACKEND_LOGIN_REQUIRED"]);
+    assert.deepEqual(
+      client.errors.map((error) => error.code),
+      ["PATH_DENIED", "BACKEND_LOGIN_REQUIRED"],
+    );
     assert.equal(client.size, "1.5 KB");
     assert.equal(client.date, client.expectedDate);
     assert.deepEqual(client.headers, [locale, locale]);
     assert.equal(client.xhrLanguage, locale);
     assert.ok(client.bridgeHeaders.includes(`accept-language: ${locale}\r\n`));
     assert.equal(client.diagnostic.code, "MP4_PARSE_ERROR");
-    assert.deepEqual(client.diagnostic.detail, { parser: "BoxParser", box: "moov", offset: 123 });
+    assert.deepEqual(client.diagnostic.detail, {
+      parser: "BoxParser",
+      box: "moov",
+      offset: 123,
+    });
     assert.match(client.diagnostic.message, /BoxParser.*moov.*123/);
     assert.deepEqual(client.sanitized.detail, { parser: "MP4Box" });
-    assert.doesNotMatch(JSON.stringify([client.diagnostic, client.sanitized]), /private\.example|token=secret|\/private\/|personal note|secr/);
+    assert.doesNotMatch(
+      JSON.stringify([client.diagnostic, client.sanitized]),
+      /private\.example|token=secret|\/private\/|personal note|secr/,
+    );
     if (locale === "en") {
-      assert.deepEqual(client.labels, ["January 1, 2027", "Today", "December 31, 2025", "Unknown date"]);
+      assert.deepEqual(client.labels, [
+        "January 1, 2027",
+        "Today",
+        "December 31, 2025",
+        "Unknown date",
+      ]);
       assert.deepEqual(client.dayLabels, ["Today", "Yesterday", "November 3"]);
       assert.equal(client.category, "Albums");
-      assert.doesNotMatch(JSON.stringify([client.errors, client.unsupportedVideo]), /\p{Script=Han}/u);
+      assert.doesNotMatch(
+        JSON.stringify([client.errors, client.unsupportedVideo]),
+        /\p{Script=Han}/u,
+      );
       assert.match(client.errors[1].message, /sign-in/);
     } else {
-      assert.deepEqual(client.labels, ["2027年1月1日", "今天", "2025年12月31日", "日期未知"]);
+      assert.deepEqual(client.labels, [
+        "2027年1月1日",
+        "今天",
+        "2025年12月31日",
+        "日期未知",
+      ]);
       assert.deepEqual(client.dayLabels, ["今天", "昨天", "11月3日"]);
       assert.equal(client.category, "相册");
       assert.match(client.errors[1].message, /登录/);

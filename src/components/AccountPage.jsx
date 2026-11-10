@@ -269,7 +269,13 @@ export function AccountPage() {
             {t("account.checkAgain")}
           </button>
           <a class="upload-back" href={returnTo}>
-            {t(returnToMe ? "library.backToMe" : returnTo === "/" ? "account.backToPublicFiles" : "account.backToPrevious")}
+            {t(
+              returnToMe
+                ? "library.backToMe"
+                : returnTo === "/"
+                  ? "account.backToPublicFiles"
+                  : "account.backToPrevious",
+            )}
           </a>
         </div>
       </section>

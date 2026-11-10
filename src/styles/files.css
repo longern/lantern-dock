@@ -241,7 +241,7 @@ ul.file-grid {
 .mobile-refresh {
   display: none;
 }
-@media (max-width: 700px) {
+@media (--down-md) {
   .mobile-refresh {
     display: inline-flex;
   }

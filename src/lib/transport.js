@@ -66,10 +66,7 @@ export class DirectTransport {
           session.ready,
           new Promise((_, reject) => {
             timer = setTimeout(
-              () =>
-                reject(
-                  coreError("CONNECTION_TIMEOUT"),
-                ),
+              () => reject(coreError("CONNECTION_TIMEOUT")),
               12000,
             );
           }),

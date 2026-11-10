@@ -1,9 +1,18 @@
+import { isCompact } from "../helpers/responsive.mjs";
+import { refreshAlbum } from "../helpers/album-options.mjs";
 import { openItem } from "../helpers/open-item.mjs";
 import { holdItem } from "../helpers/hold-item.mjs";
 import { flipAlbum } from "../helpers/album-navigation.mjs";
 import { chooseListingOption } from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
-import { copyFile, readFile, readdir, rm, utimes, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  readFile,
+  readdir,
+  rm,
+  utimes,
+  writeFile,
+} from "node:fs/promises";
 import { resolve } from "node:path";
 import { startFixture, textFile } from "./fixture.mjs";
 import { backendPaths } from "../../shared/backend-paths.js";
@@ -73,18 +82,31 @@ test("default NAS routes and capabilities work through the shared bridge namespa
   });
 });
 
-test("file selection and bulk actions work over WebTransport without exposing DAV addresses", async ({ page }) => {
+test("file selection and bulk actions work over WebTransport without exposing DAV addresses", async ({
+  page,
+}) => {
   await page.addInitScript(() => {
     window.selectedLinks = "";
-    Object.defineProperty(navigator, "clipboard", { configurable: true, value: {
-      writeText: async value => { window.selectedLinks = value; },
-    } });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: async (value) => {
+          window.selectedLinks = value;
+        },
+      },
+    });
   });
   await page.goto(`${fixture.origin}/files/`);
-  const hello = page.getByRole("button", { name: "预览 hello.txt", exact: true });
-  const folder = page.getByRole("button", { name: "打开文件夹 照片", exact: true });
+  const hello = page.getByRole("button", {
+    name: "预览 hello.txt",
+    exact: true,
+  });
+  const folder = page.getByRole("button", {
+    name: "打开文件夹 照片",
+    exact: true,
+  });
   await expect(hello).toBeVisible();
-  if (page.viewportSize().width <= 700) {
+  if (isCompact(page)) {
     await holdItem(page, hello);
     await folder.tap();
     await expect(page.locator(".mobile-tabs")).toBeHidden();
@@ -95,40 +117,73 @@ test("file selection and bulk actions work over WebTransport without exposing DA
   }
   const actions = page.getByRole("toolbar", { name: "所选项目操作" });
   await actions.getByRole("button", { name: "复制所选链接" }).click();
-  const links = await page.evaluate(() => window.selectedLinks.split("\n").sort());
-  expect(links).toEqual([
-    `${fixture.origin}/files/hello.txt`, `${fixture.origin}/files/${encodeURIComponent("照片")}/`,
-  ].sort());
-  await actions.getByRole("button", { name: "收藏所选项目", exact: true }).click();
-  await expect(actions.getByRole("button", { name: "取消收藏所选项目", exact: true })).toBeVisible();
+  const links = await page.evaluate(() =>
+    window.selectedLinks.split("\n").sort(),
+  );
+  expect(links).toEqual(
+    [
+      `${fixture.origin}/files/hello.txt`,
+      `${fixture.origin}/files/${encodeURIComponent("照片")}/`,
+    ].sort(),
+  );
+  await actions
+    .getByRole("button", { name: "收藏所选项目", exact: true })
+    .click();
+  await expect(
+    actions.getByRole("button", { name: "取消收藏所选项目", exact: true }),
+  ).toBeVisible();
   await actions.getByRole("button", { name: "取消选择" }).click();
   await openItem(hello);
   await expect(page.locator(".preview-content pre")).toHaveText(textFile);
 });
 
-test("selected NAS files download separately through WebTransport without an archive", async ({ page }) => {
-  await page.addInitScript(() => { window.showSaveFilePicker = undefined; window.showDirectoryPicker = undefined; });
+test("selected NAS files download separately through WebTransport without an archive", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.showSaveFilePicker = undefined;
+    window.showDirectoryPicker = undefined;
+  });
   await page.goto(`${fixture.origin}/files/`);
-  const hello = page.getByRole("button", { name: "预览 hello.txt", exact: true });
-  const coast = page.getByRole("button", { name: "预览 coast.svg", exact: true });
+  const hello = page.getByRole("button", {
+    name: "预览 hello.txt",
+    exact: true,
+  });
+  const coast = page.getByRole("button", {
+    name: "预览 coast.svg",
+    exact: true,
+  });
   await expect(hello).toBeVisible();
-  if (page.viewportSize().width <= 700) { await holdItem(page, hello); await coast.tap(); }
-  else { await hello.click(); await coast.click({ modifiers: ["ControlOrMeta"] }); }
+  if (isCompact(page)) {
+    await holdItem(page, hello);
+    await coast.tap();
+  } else {
+    await hello.click();
+    await coast.click({ modifiers: ["ControlOrMeta"] });
+  }
   const downloads = [];
-  page.on("download", item => downloads.push(item));
+  page.on("download", (item) => downloads.push(item));
   await page.getByRole("button", { name: "下载所选文件", exact: true }).click();
   await expect.poll(() => downloads.length).toBe(2);
-  const text = downloads.find(item => item.suggestedFilename() === "hello.txt");
-  const picture = downloads.find(item => item.suggestedFilename() === "coast.svg");
+  const text = downloads.find(
+    (item) => item.suggestedFilename() === "hello.txt",
+  );
+  const picture = downloads.find(
+    (item) => item.suggestedFilename() === "coast.svg",
+  );
   expect(await readFile(await text.path(), "utf8")).toBe(textFile);
   expect(await readFile(await picture.path(), "utf8")).toContain("<svg");
 });
 
-test("shared file and album URLs reload through the SPA and resolve the real NAS over WebTransport", async ({ page }) => {
+test("shared file and album URLs reload through the SPA and resolve the real NAS over WebTransport", async ({
+  page,
+}) => {
   const folder = encodeURIComponent("照片");
   await page.goto(`${fixture.origin}/files/${folder}/photo.png?view=album`);
   await expect(page.locator("#album-viewer-name")).toHaveText("photo.png");
-  await expect(page.locator('.album-media[data-current=true] .album-image-high.is-sharp')).toHaveCSS("opacity", "1");
+  await expect(
+    page.locator(".album-media[data-current=true] .album-image-high.is-sharp"),
+  ).toHaveCSS("opacity", "1");
   await page.reload();
   await expect(page.locator("#album-viewer-name")).toHaveText("photo.png");
   await page.getByRole("button", { name: "关闭预览", exact: true }).click();
@@ -149,8 +204,9 @@ test("NAS serves public read-only WebDAV and receives a private file through the
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(fixture.origin);
   await expect(page.locator(".file-item")).toHaveCount(3);
-  await openItem(page
-    .getByRole("button", { name: "预览 hello.txt", exact: true }));
+  await openItem(
+    page.getByRole("button", { name: "预览 hello.txt", exact: true }),
+  );
   await expect(page.locator(".preview-content pre")).toHaveText(textFile);
   const created = await fixture.nas.createLink();
   await page.goto(created.url);
@@ -183,10 +239,13 @@ test("NAS serves public read-only WebDAV and receives a private file through the
     fullPage: true,
   });
   await page.getByRole("link", { name: "返回公开文件", exact: true }).click();
-  await page.getByRole("navigation", {
-    name: page.viewportSize().width <= 700 ? "移动端资源导航" : "资源导航",
-    exact: true,
-  }).getByRole("button", { name: /^文件/ }).click();
+  await page
+    .getByRole("navigation", {
+      name: isCompact(page) ? "移动端资源导航" : "资源导航",
+      exact: true,
+    })
+    .getByRole("button", { name: /^文件/ })
+    .click();
   await expect(page.locator(".file-item")).toHaveCount(3);
   await expect(page.getByText("来访资料.txt")).toHaveCount(0);
   const status = await page.evaluate(async () => {
@@ -349,7 +408,9 @@ test("cancelling a streaming upload through the bridge cleans partial files and 
   await expect(
     page.getByRole("heading", { name: "临时收照片", exact: true }),
   ).toBeVisible();
-  const token = new URLSearchParams(new URL(created.url).hash.slice(1)).get("token");
+  const token = new URLSearchParams(new URL(created.url).hash.slice(1)).get(
+    "token",
+  );
   const cancelled = await page.evaluate(async (token) => {
     const { UploadClient } = await import("/__test/lib/uploads.js");
     const config = await (await fetch("/api/config")).json();
@@ -384,36 +445,56 @@ test("cancelling a streaming upload through the bridge cleans partial files and 
   await expect(page.getByRole("status")).toHaveText("已接收");
 });
 
-test("public image Cache Storage survives reload and revalidates through real WebTransport without a Service Worker", async ({ page }) => {
+test("public image Cache Storage survives reload and revalidates through real WebTransport without a Service Worker", async ({
+  page,
+}) => {
   await page.goto(fixture.origin);
-  const load = async () => page.evaluate(async () => {
-    const { DirectTransport } = await import("/__test/lib/transport.js");
-    const { DAVClient } = await import("/__test/lib/dav.js");
-    const { backend } = await (await fetch("/api/config")).json();
-    const transport = new DirectTransport(backend);
-    const statuses = [], validators = [];
-    const request = transport.request.bind(transport);
-    transport.request = async (path, options) => {
-      const response = await request(path, options);
-      if (path.includes("/iiif/")) {
-        statuses.push(response.status);
-        validators.push(options?.headers?.["If-None-Match"] || null);
+  const load = async () =>
+    page.evaluate(async () => {
+      const { DirectTransport } = await import("/__test/lib/transport.js");
+      const { DAVClient } = await import("/__test/lib/dav.js");
+      const { backend } = await (await fetch("/api/config")).json();
+      const transport = new DirectTransport(backend);
+      const statuses = [],
+        validators = [];
+      const request = transport.request.bind(transport);
+      transport.request = async (path, options) => {
+        const response = await request(path, options);
+        if (path.includes("/iiif/")) {
+          statuses.push(response.status);
+          validators.push(options?.headers?.["If-None-Match"] || null);
+        }
+        return response;
+      };
+      const client = new DAVClient(transport, backend);
+      try {
+        const entries = await client.list(
+          backend.rootPath + encodeURIComponent("照片") + "/",
+        );
+        const item = entries.find((entry) => entry.name === "photo.png");
+        const preview = await client.images.image(item, 384);
+        const image = new Image();
+        image.src = URL.createObjectURL(preview.blob);
+        try {
+          await image.decode();
+        } finally {
+          URL.revokeObjectURL(image.src);
+        }
+        const cache = await caches.open("lantern-dock-public-images-v1");
+        const keys = (await cache.keys()).filter(
+          (key) => !key.url.endsWith("/index"),
+        );
+        return {
+          statuses,
+          validators,
+          width: image.naturalWidth,
+          entries: keys.length,
+        };
+      } finally {
+        client.dispose();
+        transport.close();
       }
-      return response;
-    };
-    const client = new DAVClient(transport, backend);
-    try {
-      const entries = await client.list(backend.rootPath + encodeURIComponent("照片") + "/");
-      const item = entries.find((entry) => entry.name === "photo.png");
-      const preview = await client.images.image(item, 384);
-      const image = new Image();
-      image.src = URL.createObjectURL(preview.blob);
-      try { await image.decode(); } finally { URL.revokeObjectURL(image.src); }
-      const cache = await caches.open("lantern-dock-public-images-v1");
-      const keys = (await cache.keys()).filter((key) => !key.url.endsWith("/index"));
-      return { statuses, validators, width: image.naturalWidth, entries: keys.length };
-    } finally { client.dispose(); transport.close(); }
-  });
+    });
   const initial = await load();
   expect(initial.statuses).toEqual([200, 200]);
   expect(initial.entries).toBe(2);
@@ -426,15 +507,29 @@ test("public image Cache Storage survives reload and revalidates through real We
   expect(reloaded.entries).toBe(2);
   expect(page.context().serviceWorkers()).toHaveLength(0);
   // Exercise the real logout action, not only the cache helper in isolation.
-  await page.route("**/api/auth/session", (route) => route.fulfill({ json: {
-    authenticated: true, user: { issuer: fixture.origin, sub: "ld_1KzSHPuTIpRkcYiSJTXRlA", name: "Cache test" },
-  } }));
+  await page.route("**/api/auth/session", (route) =>
+    route.fulfill({
+      json: {
+        authenticated: true,
+        user: {
+          issuer: fixture.origin,
+          sub: "ld_1KzSHPuTIpRkcYiSJTXRlA",
+          name: "Cache test",
+        },
+      },
+    }),
+  );
   await page.goto(fixture.origin + "/account");
   await page.getByRole("button", { name: "退出登录", exact: true }).click();
-  await expect.poll(() => page.evaluate(async () => {
-    const cache = await caches.open("lantern-dock-public-images-v1");
-    return (await cache.keys()).filter((key) => !key.url.endsWith("/index")).length;
-  })).toBe(0);
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const cache = await caches.open("lantern-dock-public-images-v1");
+        return (await cache.keys()).filter((key) => !key.url.endsWith("/index"))
+          .length;
+      }),
+    )
+    .toBe(0);
 });
 
 test("IIIF thumbnails, preview and conditional cache work over real WebTransport", async ({
@@ -443,8 +538,9 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(fixture.origin);
-  await openItem(page
-    .getByRole("button", { name: "打开文件夹 照片", exact: true }));
+  await openItem(
+    page.getByRole("button", { name: "打开文件夹 照片", exact: true }),
+  );
   await expect(page.locator(".file-item")).toHaveCount(2);
   const thumbnail = page
     .locator("#file-list .file-item")
@@ -460,29 +556,44 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
   await expect
     .poll(() => thumbnail.evaluate((img) => img.naturalWidth))
     .toBe(384);
-  if (page.viewportSize().width <= 700)
-    await page.goto(fixture.origin + "/album/" + encodeURIComponent("照片") + "/");
-  else await page.getByRole("navigation", { name: "文件类型", exact: true })
-    .getByRole("button", { name: "图片", exact: true }).click();
+  if (isCompact(page))
+    await page.goto(
+      fixture.origin + "/album/" + encodeURIComponent("照片") + "/",
+    );
+  else
+    await page
+      .getByRole("navigation", { name: "文件类型", exact: true })
+      .getByRole("button", { name: "图片", exact: true })
+      .click();
   await expect(page.locator("#file-list")).toHaveClass(/album-timeline/);
   await expect(thumbnail).toBeVisible();
   await expect(page.locator("#file-list .file-info")).toHaveCount(0);
-  await expect.poll(() => thumbnail.evaluate((img) => img.naturalWidth)).toBe(384);
-  await openItem(page
-    .locator("#file-list")
-    .getByRole("button", { name: "预览 photo.png", exact: true }));
-  const preview = page.locator(".album-media[data-current=true] .album-image-high.is-sharp");
+  await expect
+    .poll(() => thumbnail.evaluate((img) => img.naturalWidth))
+    .toBe(384);
+  await openItem(
+    page
+      .locator("#file-list")
+      .getByRole("button", { name: "预览 photo.png", exact: true }),
+  );
+  const preview = page.locator(
+    ".album-media[data-current=true] .album-image-high.is-sharp",
+  );
   await expect(preview).toBeVisible();
   await expect
     .poll(() => preview.evaluate((img) => img.naturalWidth))
     .toBe(1600);
   await page.getByRole("button", { name: "文件详情", exact: true }).click();
-  await expect(page.locator("#album-viewer-details")).toContainText("2400 × 1600");
+  await expect(page.locator("#album-viewer-details")).toContainText(
+    "2400 × 1600",
+  );
   await page.screenshot({ path: testInfo.outputPath("iiif-preview.png") });
   await page.getByRole("button", { name: "关闭预览", exact: true }).click();
   await expect(page.locator("#album-viewer")).toHaveCount(0);
   const oldThumbnail = await thumbnail.getAttribute("src");
-  await page.locator(page.viewportSize().width <= 700 ? "#album-refresh" : "#refresh-button").click();
+  await refreshAlbum(
+    page.locator(isCompact(page) ? "#album-page-dialog" : ".main-area"),
+  );
   await expect(thumbnail).toBeVisible();
   await expect(thumbnail).not.toHaveAttribute("src", oldThumbnail);
   await expect
@@ -535,7 +646,9 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
   expect(errors).toEqual([]);
 });
 
-test("album slides from IIIF images to an active MP4Box video over real WebTransport", async ({ page }, testInfo) => {
+test("album slides from IIIF images to an active MP4Box video over real WebTransport", async ({
+  page,
+}, testInfo) => {
   const photo = resolve(fixture.nas.publicDir, "album-photo.png");
   const videoPath = resolve(fixture.nas.publicDir, "album-video.mp4");
   await copyFile(resolve("test/fixtures/photo.png"), photo);
@@ -547,33 +660,69 @@ test("album slides from IIIF images to an active MP4Box video over real WebTrans
   page.on("pageerror", (error) => errors.push(error.message));
   try {
     await page.goto(fixture.origin);
-    await page.getByRole("navigation", { name: "文件分类", exact: true })
-      .getByRole("button", { name: "相册", exact: true }).click();
-    const open = page.locator('.album-preview[data-path="/dav/album-photo.png"]');
+    await page
+      .getByRole("navigation", { name: "文件分类", exact: true })
+      .getByRole("button", { name: "相册", exact: true })
+      .click();
+    const open = page.locator(
+      '.album-preview[data-path="/dav/album-photo.png"]',
+    );
     await expect(open.locator("img")).toBeVisible();
     await openItem(open);
-    await expect(page.locator(".album-media[data-current=true] .album-image-high.is-sharp")).toHaveCSS("opacity", "1");
+    await expect(
+      page.locator(
+        ".album-media[data-current=true] .album-image-high.is-sharp",
+      ),
+    ).toHaveCSS("opacity", "1");
     expect(await page.locator("#album-viewer video").count()).toBe(0);
     await flipAlbum(page);
-    await expect(page.locator("#album-viewer-name")).toHaveText("album-video.mp4");
+    await expect(page.locator("#album-viewer-name")).toHaveText(
+      "album-video.mp4",
+    );
     const player = page.locator("#album-viewer video");
     await expect(player).toBeVisible();
-    await expect.poll(() => player.evaluate((video) => video.readyState)).toBeGreaterThanOrEqual(1);
+    await expect
+      .poll(() => player.evaluate((video) => video.readyState))
+      .toBeGreaterThanOrEqual(1);
     expect(await player.getAttribute("src")).toMatch(/^blob:/);
     expect(await player.evaluate((video) => video.paused)).toBe(true);
-    await player.evaluate((video) => { window.albumBridgeVideo = video; video.muted = true; return video.play(); });
-    await expect.poll(() => player.evaluate((video) => video.currentTime)).toBeGreaterThan(.2);
-    await player.evaluate((video) => { video.currentTime = 6; });
-    await expect.poll(() => player.evaluate((video) => !video.seeking && video.currentTime >= 6)).toBe(true);
-    await page.screenshot({ path: testInfo.outputPath("album-webtransport-video.png") });
+    await player.evaluate((video) => {
+      window.albumBridgeVideo = video;
+      video.muted = true;
+      return video.play();
+    });
+    await expect
+      .poll(() => player.evaluate((video) => video.currentTime))
+      .toBeGreaterThan(0.2);
+    await player.evaluate((video) => {
+      video.currentTime = 6;
+    });
+    await expect
+      .poll(() =>
+        player.evaluate((video) => !video.seeking && video.currentTime >= 6),
+      )
+      .toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath("album-webtransport-video.png"),
+    });
     await flipAlbum(page, -1);
-    await expect(page.locator("#album-viewer-name")).toHaveText("album-photo.png");
-    expect(await page.evaluate(() => ({ paused: window.albumBridgeVideo.paused, src: window.albumBridgeVideo.getAttribute("src") })))
-      .toEqual({ paused: true, src: null });
+    await expect(page.locator("#album-viewer-name")).toHaveText(
+      "album-photo.png",
+    );
+    expect(
+      await page.evaluate(() => ({
+        paused: window.albumBridgeVideo.paused,
+        src: window.albumBridgeVideo.getAttribute("src"),
+      })),
+    ).toEqual({ paused: true, src: null });
     await page.keyboard.press("Escape");
     await expect(page.locator("#album-viewer")).toHaveCount(0);
     await expect(open).toBeFocused();
-    expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
+    expect(
+      await page.evaluate(
+        async () => (await navigator.serviceWorker.getRegistrations()).length,
+      ),
+    ).toBe(0);
     expect(errors).toEqual([]);
   } finally {
     await rm(photo, { force: true });
@@ -587,16 +736,18 @@ test("video posters and MP4Box MediaSource playback seek over the real bridge", 
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(fixture.origin);
-  await openItem(page
-    .getByRole("button", { name: "打开文件夹 照片", exact: true }));
+  await openItem(
+    page.getByRole("button", { name: "打开文件夹 照片", exact: true }),
+  );
   const card = page.locator(".file-item").filter({
     has: page.getByRole("button", { name: "预览 video.mp4", exact: true }),
   });
   const poster = card.locator(".thumbnail-slot img");
   await expect(poster).toBeVisible();
   await expect.poll(() => poster.evaluate((img) => img.naturalWidth)).toBe(128);
-  await openItem(page
-    .getByRole("button", { name: "预览 video.mp4", exact: true }));
+  await openItem(
+    page.getByRole("button", { name: "预览 video.mp4", exact: true }),
+  );
   const video = page.locator(".preview-content video");
   await expect(video).toBeVisible();
   await expect
@@ -667,10 +818,12 @@ test("long moov-at-end videos load by Range, seek outside the buffer and seek ba
       };
     });
     await page.goto(fixture.origin);
-    await openItem(page
-      .getByRole("button", { name: "打开文件夹 照片", exact: true }));
-    await openItem(page
-      .getByRole("button", { name: "预览 long.mp4", exact: true }));
+    await openItem(
+      page.getByRole("button", { name: "打开文件夹 照片", exact: true }),
+    );
+    await openItem(
+      page.getByRole("button", { name: "预览 long.mp4", exact: true }),
+    );
     const video = page.locator(".preview-content video");
     await expect(video).toBeVisible();
     await expect
@@ -744,10 +897,12 @@ test("public HTTPS videos use the original URL and native playback", async ({
       await route.fulfill({ response });
     });
     await page.goto(fixture.origin);
-    await openItem(page
-      .getByRole("button", { name: "打开文件夹 照片", exact: true }));
-    await openItem(page
-      .getByRole("button", { name: "预览 video.mp4", exact: true }));
+    await openItem(
+      page.getByRole("button", { name: "打开文件夹 照片", exact: true }),
+    );
+    await openItem(
+      page.getByRole("button", { name: "预览 video.mp4", exact: true }),
+    );
     const video = page.locator(".preview-content video");
     await expect(video).toBeVisible();
     await expect(video).toHaveAttribute(
@@ -807,11 +962,13 @@ test("rotated MOV playback preserves portrait orientation and releases each Medi
       };
     });
     await page.goto(fixture.origin);
-    await openItem(page
-      .getByRole("button", { name: "打开文件夹 照片", exact: true }));
+    await openItem(
+      page.getByRole("button", { name: "打开文件夹 照片", exact: true }),
+    );
     for (const name of ["portrait.mov", "video.mp4", "portrait.mov"]) {
-      await openItem(page
-        .getByRole("button", { name: `预览 ${name}`, exact: true }));
+      await openItem(
+        page.getByRole("button", { name: `预览 ${name}`, exact: true }),
+      );
       const video = page.locator(".preview-content video");
       await expect(video).toBeVisible();
       await expect
@@ -848,43 +1005,84 @@ test("rotated MOV playback preserves portrait orientation and releases each Medi
   }
 });
 
-test("NAS identifies Apple and Android live photos and plays virtual ranges through MP4Box over WebTransport", async ({ page }, testInfo) => {
-  const apple = resolve(fixture.nas.publicDir, 'live-apple.heic');
-  const paired = resolve(fixture.nas.publicDir, 'different-name.mov');
-  const android = resolve(fixture.nas.publicDir, 'live-android.jpg');
-  await copyFile(resolve('test/fixtures/live-photo.heic'), apple);
+test("NAS identifies Apple and Android live photos and plays virtual ranges through MP4Box over WebTransport", async ({
+  page,
+}, testInfo) => {
+  const apple = resolve(fixture.nas.publicDir, "live-apple.heic");
+  const paired = resolve(fixture.nas.publicDir, "different-name.mov");
+  const android = resolve(fixture.nas.publicDir, "live-android.jpg");
+  await copyFile(resolve("test/fixtures/live-photo.heic"), apple);
   appleVideo(paired);
   await writeFile(android, await motionFixture());
   const errors = [];
-  page.on('pageerror', error => errors.push(error.message));
+  page.on("pageerror", (error) => errors.push(error.message));
   try {
     await page.goto(fixture.origin);
     // Ordinary file browsing still exposes both originals independently.
-    await expect(page.getByRole('button', { name: '预览 different-name.mov', exact: true })).toBeVisible();
-    await page.getByRole('navigation', { name: '文件分类', exact: true }).getByRole('button', { name: '相册', exact: true }).click();
-    await expect(page.locator('.album-live-indicator')).toHaveCount(2);
-    await expect(page.getByRole('button', { name: '预览视频 different-name.mov', exact: true })).toHaveCount(0);
-    for (const name of ['live-apple.heic', 'live-android.jpg']) {
+    await expect(
+      page.getByRole("button", {
+        name: "预览 different-name.mov",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page
+      .getByRole("navigation", { name: "文件分类", exact: true })
+      .getByRole("button", { name: "相册", exact: true })
+      .click();
+    await expect(page.locator(".album-live-indicator")).toHaveCount(2);
+    await expect(
+      page.getByRole("button", {
+        name: "预览视频 different-name.mov",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    for (const name of ["live-apple.heic", "live-android.jpg"]) {
       await openItem(page.locator(`.album-preview[data-path="/dav/${name}"]`));
-      await expect(page.locator('.album-media[data-current=true] .album-image-high.is-sharp')).toHaveCSS('opacity', '1');
-      const player = page.locator('.album-media[data-current=true] video.album-live-video');
-      expect(await player.getAttribute('src')).toBeNull();
-      await page.getByRole('button', { name: '播放动态照片', exact: true }).click();
+      await expect(
+        page.locator(
+          ".album-media[data-current=true] .album-image-high.is-sharp",
+        ),
+      ).toHaveCSS("opacity", "1");
+      const player = page.locator(
+        ".album-media[data-current=true] video.album-live-video",
+      );
+      expect(await player.getAttribute("src")).toBeNull();
+      await page
+        .getByRole("button", { name: "播放动态照片", exact: true })
+        .click();
       await expect(player).toHaveClass(/is-playing/);
-      expect(await player.getAttribute('src')).toMatch(/^blob:/);
-      await expect.poll(() => player.evaluate(v => v.currentTime)).toBeGreaterThan(.2);
-      await player.evaluate(v => { window.lastLiveBridgePlayer = v; });
+      expect(await player.getAttribute("src")).toMatch(/^blob:/);
+      await expect
+        .poll(() => player.evaluate((v) => v.currentTime))
+        .toBeGreaterThan(0.2);
+      await player.evaluate((v) => {
+        window.lastLiveBridgePlayer = v;
+      });
       await page.screenshot({ path: testInfo.outputPath(`${name}-live.png`) });
-      await page.getByRole('button', { name: '停止动态照片', exact: true }).click();
+      await page
+        .getByRole("button", { name: "停止动态照片", exact: true })
+        .click();
       await expect(player).not.toHaveClass(/is-playing/);
-      expect(await player.evaluate(v => v.paused)).toBe(true);
-      await page.getByRole('button', { name: '关闭预览', exact: true }).click();
-      await expect(page.locator('#album-viewer')).toHaveCount(0);
-      expect(await page.evaluate(() => window.lastLiveBridgePlayer.paused && !window.lastLiveBridgePlayer.getAttribute('src'))).toBe(true);
+      expect(await player.evaluate((v) => v.paused)).toBe(true);
+      await page.getByRole("button", { name: "关闭预览", exact: true }).click();
+      await expect(page.locator("#album-viewer")).toHaveCount(0);
+      expect(
+        await page.evaluate(
+          () =>
+            window.lastLiveBridgePlayer.paused &&
+            !window.lastLiveBridgePlayer.getAttribute("src"),
+        ),
+      ).toBe(true);
     }
-    expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
+    expect(
+      await page.evaluate(
+        async () => (await navigator.serviceWorker.getRegistrations()).length,
+      ),
+    ).toBe(0);
     expect(errors).toEqual([]);
   } finally {
-    await Promise.all([apple,paired,android].map(path => rm(path, { force: true })));
+    await Promise.all(
+      [apple, paired, android].map((path) => rm(path, { force: true })),
+    );
   }
 });

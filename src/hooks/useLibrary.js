@@ -29,6 +29,7 @@ export function useLibrary() {
   const [sort, setSort] = useState("name");
   const [homeSort, setHomeSort] = useState("name");
   const [view, setView] = useState("list");
+  const [albumView, setAlbumView] = useState("date");
   const forceListing = useRef(false);
   const listingPath = useRef(null);
 
@@ -194,6 +195,8 @@ export function useLibrary() {
     setSort: mode === "home" ? setHomeSort : setSort,
     view,
     setView,
+    albumView,
+    setAlbumView,
     navigate,
     selectMode,
     loading:

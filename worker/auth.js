@@ -449,7 +449,9 @@ async function issueGrant(request, env, cfg, t) {
     );
   // Request scopes only restrict a browser-bound credential. They never assert
   // an administrator role: NAS checks ADMIN_SUBJECTS on every protected request.
-  const scope = NAS_SCOPES.filter((value) => requestedScopes.includes(value)).join(" ");
+  const scope = NAS_SCOPES.filter((value) =>
+    requestedScopes.includes(value),
+  ).join(" ");
   const session = await siteSession(request, env, cfg.site);
   if (!session)
     return oauthError(
@@ -565,7 +567,9 @@ function accountError(env, message, destination) {
   const back = safeReturnPath(destination);
   const response = redirect(
     settings(env).site,
-    "/account?error=" + encodeURIComponent(message) + (back === "/account" ? "" : "&return=" + encodeURIComponent(back)),
+    "/account?error=" +
+      encodeURIComponent(message) +
+      (back === "/account" ? "" : "&return=" + encodeURIComponent(back)),
   );
   setCookie(response, STATE_COOKIE, "", 0);
   return response;
@@ -709,8 +713,13 @@ async function handleAuthentication(request, env, t) {
       }
       let returnTo = "/account";
       if (request.body) {
-        try { returnTo = safeReturnPath(JSON.parse(await limitedText(request.body, 16384)).returnTo); }
-        catch { return json({ error: t("server.invalidLoginRequest") }, 400); }
+        try {
+          returnTo = safeReturnPath(
+            JSON.parse(await limitedText(request.body, 16384)).returnTo,
+          );
+        } catch {
+          return json({ error: t("server.invalidLoginRequest") }, 400);
+        }
       }
       // Leave room for the other encrypted OAuth state fields within a cookie.
       if (returnTo.length > 1536) returnTo = "/account";
@@ -764,7 +773,11 @@ async function handleAuthentication(request, env, t) {
         return accountError(env, t("server.loginExpired"));
       returnOnError = safeReturnPath(state.returnTo);
       if (query.has("iss") && query.get("iss") !== cfg.issuer)
-        return accountError(env, t("server.loginProviderMismatch"), returnOnError);
+        return accountError(
+          env,
+          t("server.loginProviderMismatch"),
+          returnOnError,
+        );
       if (query.has("error"))
         return accountError(env, t("server.loginCancelled"), returnOnError);
       if (
@@ -772,7 +785,11 @@ async function handleAuthentication(request, env, t) {
         !query.get("code") ||
         query.get("code").length > 4096
       )
-        return accountError(env, t("server.loginResponseInvalid"), returnOnError);
+        return accountError(
+          env,
+          t("server.loginResponseInvalid"),
+          returnOnError,
+        );
       const p = await provider(env, t);
       const body = new URLSearchParams({
         grant_type: "authorization_code",
@@ -884,7 +901,11 @@ async function handleAuthentication(request, env, t) {
     return json({ error: t("server.notFound") }, 404);
   } catch (error) {
     if (path === "/auth/callback")
-      return accountError(env, t("server.loginVerificationFailed"), returnOnError);
+      return accountError(
+        env,
+        t("server.loginVerificationFailed"),
+        returnOnError,
+      );
     if (path === "/api/auth/login" && error instanceof OIDCProviderError)
       return json({ error: error.message, code: error.code }, 503);
     if (path === "/api/auth/token")

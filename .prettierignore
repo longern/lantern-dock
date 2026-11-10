@@ -1,0 +1,15 @@
+# Generated output, dependencies and local configuration.
+node_modules/
+dist/
+.wrangler/
+coverage/
+playwright-report/
+test-results/
+.env*
+.dev.vars*
+.webhook-secret
+package-lock.json
+
+# Fixture bytes and third-party license text must remain unchanged.
+test/fixtures/
+public/licenses/

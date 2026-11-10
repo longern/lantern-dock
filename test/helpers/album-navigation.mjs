@@ -1,6 +1,7 @@
+import { isCompact } from "./responsive.mjs";
 import { expect } from "@playwright/test";
 export async function flipAlbum(page, direction = 1) {
-  if (page.viewportSize().width > 700) {
+  if (!isCompact(page)) {
     await page
       .locator("#album-viewer")
       .getByRole("button", {

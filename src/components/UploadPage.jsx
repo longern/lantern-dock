@@ -152,7 +152,9 @@ export function UploadPage({ token }) {
             <div>
               <dt>{t("account.remainingFiles")}</dt>
               <dd>
-                {Math.max(0, link.maxFiles - link.usedFiles).toLocaleString(locale)}
+                {Math.max(0, link.maxFiles - link.usedFiles).toLocaleString(
+                  locale,
+                )}
               </dd>
             </div>
             <div>
@@ -190,7 +192,11 @@ export function UploadPage({ token }) {
                   ? t("account.chooseOrDropFiles")
                   : t("account.inboxUnavailable")}
             </strong>
-            <span>{working ? t("account.keepPageOpen") : t("account.multipleFilesHelp")}</span>
+            <span>
+              {working
+                ? t("account.keepPageOpen")
+                : t("account.multipleFilesHelp")}
+            </span>
             <input
               type="file"
               multiple
@@ -217,7 +223,9 @@ export function UploadPage({ token }) {
                     <progress
                       value={row.loaded}
                       max={row.file.size || 1}
-                      aria-label={t("account.uploadProgress", { name: row.file.name })}
+                      aria-label={t("account.uploadProgress", {
+                        name: row.file.name,
+                      })}
                     />
                     <div class="upload-file-status">
                       <span>

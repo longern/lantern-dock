@@ -6,8 +6,15 @@ export function readRecords(key, suffix, storage) {
   try {
     const raw = (storage || globalThis.localStorage).getItem(key + suffix);
     const items = raw === null ? [] : JSON.parse(raw);
-    if (!Array.isArray(items) || items.some((item) =>
-      !item || typeof item.path !== "string" || typeof item.name !== "string"))
+    if (
+      !Array.isArray(items) ||
+      items.some(
+        (item) =>
+          !item ||
+          typeof item.path !== "string" ||
+          typeof item.name !== "string",
+      )
+    )
       throw new Error("Invalid local records");
     return { status: "ready", items, error: null };
   } catch {

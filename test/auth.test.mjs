@@ -153,7 +153,9 @@ async function fixture() {
                   resource: site + "/nas",
                 }),
             }
-          : body !== undefined ? { body } : {}),
+          : body !== undefined
+            ? { body }
+            : {}),
       }),
       env,
     );
@@ -169,7 +171,11 @@ async function fixture() {
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await request("/api/auth/token", {
         method: "POST",
-        body: new URLSearchParams({ grant_type: SESSION_GRANT_TYPE, client_id: site + "/", scope }),
+        body: new URLSearchParams({
+          grant_type: SESSION_GRANT_TYPE,
+          client_id: site + "/",
+          scope,
+        }),
         headers: {
           DPoP: await proof("/api/auth/token", pair, nonce ? { nonce } : {}),
         },
@@ -282,7 +288,12 @@ test("CIMD describes the app, and site cookies are encrypted, HttpOnly and separ
 });
 
 test("OIDC state preserves local deep links and rejects external or credential-bearing destinations", async () => {
-  for (const [requested, expected] of [["/files/trip/photo.jpg?view=album", "/files/trip/photo.jpg?view=album"], ["/admin/inbox", "/admin/inbox"], ["//evil.example", "/account"], ["/upload#token=secret", "/account"]]) {
+  for (const [requested, expected] of [
+    ["/files/trip/photo.jpg?view=album", "/files/trip/photo.jpg?view=album"],
+    ["/admin/inbox", "/admin/inbox"],
+    ["//evil.example", "/account"],
+    ["/upload#token=secret", "/account"],
+  ]) {
     const f = await fixture();
     const response = await f.login(requested);
     assert.equal(response.headers.get("Location"), site + expected);
@@ -292,10 +303,20 @@ test("OIDC state preserves local deep links and rejects external or credential-b
 test("a cancelled login retains a validated local destination on the account error page", async () => {
   const f = await fixture();
   await f.begin("/files/trip/photo.jpg?view=album");
-  const response = await f.request("/auth/callback?" + new URLSearchParams({ state: f.flow().get("state"), iss: issuer, error: "access_denied" }));
+  const response = await f.request(
+    "/auth/callback?" +
+      new URLSearchParams({
+        state: f.flow().get("state"),
+        iss: issuer,
+        error: "access_denied",
+      }),
+  );
   const destination = new URL(response.headers.get("Location"));
   assert.equal(destination.pathname, "/account");
-  assert.equal(destination.searchParams.get("return"), "/files/trip/photo.jpg?view=album");
+  assert.equal(
+    destination.searchParams.get("return"),
+    "/files/trip/photo.jpg?view=album",
+  );
   assert.ok(destination.searchParams.get("error"));
 });
 test("login binds state, nonce, PKCE and provider; a copied grant cannot renew a session", async () => {
@@ -402,8 +423,13 @@ test("only verified management grants renew the one-hour idle window", async (t)
     { Origin: "https://other.example" },
   ]) {
     const response = await f.request("/api/auth/token", {
-      method: "POST", headers,
-      body: new URLSearchParams({ grant_type: SESSION_GRANT_TYPE, client_id: site + "/", scope: "links:read" }),
+      method: "POST",
+      headers,
+      body: new URLSearchParams({
+        grant_type: SESSION_GRANT_TYPE,
+        client_id: site + "/",
+        scope: "links:read",
+      }),
     });
     assert.notEqual(response.status, 200);
     assert.equal(response.headers.get("Set-Cookie"), null);
@@ -411,7 +437,10 @@ test("only verified management grants renew the one-hour idle window", async (t)
   }
   const management = await f.grant("links:read");
   assert.equal(management.status, 200);
-  assert.match(management.headers.get("Set-Cookie"), /Max-Age=3600; HttpOnly; Secure; SameSite=Lax/);
+  assert.match(
+    management.headers.get("Set-Cookie"),
+    /Max-Age=3600; HttpOnly; Secure; SameSite=Lax/,
+  );
   assert.equal((await management.json()).expires_in, 60);
   assert.notEqual(f.jar.get("__Host-lantern-session"), originalCookie);
   timestamp += 20 * 60 * 1000;
@@ -419,7 +448,10 @@ test("only verified management grants renew the one-hour idle window", async (t)
   assert.equal(renewed.authenticated, true);
   assert.equal(Date.parse(renewed.expiresAt), timestamp + 40 * 60 * 1000);
   timestamp += 40 * 60 * 1000;
-  assert.equal((await (await f.request("/api/auth/session")).json()).authenticated, false);
+  assert.equal(
+    (await (await f.request("/api/auth/session")).json()).authenticated,
+    false,
+  );
   const expired = await f.grant("inbox:read");
   assert.equal((await expired.json()).code, "LOGIN_REQUIRED");
   assert.equal(expired.headers.get("Set-Cookie"), null);
@@ -440,13 +472,19 @@ test("frequent management requests renew only after half the one-hour lifetime",
     assert.equal(f.jar.get("__Host-lantern-session"), original);
   }
   timestamp = started + 30 * 60 * 1000;
-  assert.match((await f.grant("links:read")).headers.get("Set-Cookie"), /Max-Age=3600;/);
+  assert.match(
+    (await f.grant("links:read")).headers.get("Set-Cookie"),
+    /Max-Age=3600;/,
+  );
   const renewed = f.jar.get("__Host-lantern-session");
   timestamp = started + 59 * 60 * 1000;
   assert.equal((await f.grant("links:read")).headers.get("Set-Cookie"), null);
   assert.equal(f.jar.get("__Host-lantern-session"), renewed);
   timestamp = started + 60 * 60 * 1000;
-  assert.match((await f.grant("links:read")).headers.get("Set-Cookie"), /Max-Age=3600;/);
+  assert.match(
+    (await f.grant("links:read")).headers.get("Set-Cookie"),
+    /Max-Age=3600;/,
+  );
 });
 
 test("continued management activity cannot exceed eight hours from login", async (t) => {
@@ -460,17 +498,27 @@ test("continued management activity cannot exceed eight hours from login", async
     timestamp = started + minutes * 60 * 1000;
     const latest = await f.grant("inbox:read");
     assert.equal(latest.status, 200);
-    if (latest.headers.has("Set-Cookie")) latestRenewal = { response: latest, at: timestamp };
+    if (latest.headers.has("Set-Cookie"))
+      latestRenewal = { response: latest, at: timestamp };
   }
   const deadline = started + 8 * 60 * 60 * 1000;
-  assert.match(latestRenewal.response.headers.get("Set-Cookie"), new RegExp(`Max-Age=${(deadline - latestRenewal.at) / 1000};`));
-  assert.equal(Date.parse((await (await f.request("/api/auth/session")).json()).expiresAt), deadline);
+  assert.match(
+    latestRenewal.response.headers.get("Set-Cookie"),
+    new RegExp(`Max-Age=${(deadline - latestRenewal.at) / 1000};`),
+  );
+  assert.equal(
+    Date.parse((await (await f.request("/api/auth/session")).json()).expiresAt),
+    deadline,
+  );
   timestamp = deadline - 1000;
   const last = await f.grant("links:write");
   assert.equal(last.status, 200);
   assert.equal(last.headers.get("Set-Cookie"), null);
   timestamp = deadline;
-  assert.equal((await (await f.request("/api/auth/session")).json()).authenticated, false);
+  assert.equal(
+    (await (await f.request("/api/auth/session")).json()).authenticated,
+    false,
+  );
   const expired = await f.grant("links:write");
   assert.equal((await expired.json()).code, "LOGIN_REQUIRED");
   assert.equal(expired.headers.get("Set-Cookie"), null);
@@ -483,18 +531,44 @@ test("a fixed-lifetime cookie keeps its original login time when upgraded", asyn
   const f = await fixture();
   await f.login();
   const name = "__Host-lantern-session";
-  const key = await crypto.subtle.importKey("raw", Buffer.from(await deriveSecret(f.env.SECRET_KEY,
-    "lantern-dock:identity-cookies:v1:" + site), "hex"), "AES-GCM", false, ["encrypt", "decrypt"]);
+  const key = await crypto.subtle.importKey(
+    "raw",
+    Buffer.from(
+      await deriveSecret(
+        f.env.SECRET_KEY,
+        "lantern-dock:identity-cookies:v1:" + site,
+      ),
+      "hex",
+    ),
+    "AES-GCM",
+    false,
+    ["encrypt", "decrypt"],
+  );
   const decode = async () => {
     const bytes = Buffer.from(f.jar.get(name), "base64url");
-    return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: bytes.subarray(0, 12), additionalData: encoder.encode(name) }, key, bytes.subarray(12))));
+    return JSON.parse(
+      new TextDecoder().decode(
+        await crypto.subtle.decrypt(
+          {
+            name: "AES-GCM",
+            iv: bytes.subarray(0, 12),
+            additionalData: encoder.encode(name),
+          },
+          key,
+          bytes.subarray(12),
+        ),
+      ),
+    );
   };
   const session = await decode();
   delete session.startedAt;
   session.expires = started / 1000 + 30 * 60;
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv, additionalData: encoder.encode(name) }, key, encoder.encode(JSON.stringify(session)));
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv, additionalData: encoder.encode(name) },
+    key,
+    encoder.encode(JSON.stringify(session)),
+  );
   f.jar.set(name, encode(Buffer.concat([iv, Buffer.from(encrypted)])));
   timestamp += 20 * 60 * 1000;
   assert.equal((await f.grant("links:read")).status, 200);
@@ -746,13 +820,22 @@ test("site subject validation accepts only canonical 25-character IDs", () => {
     assert.equal(validSiteSubject("ld_" + "A".repeat(21) + suffix), true);
   }
   for (const subject of [
-    undefined, null, 25, {}, "", "upstream,subject",
+    undefined,
+    null,
+    25,
+    {},
+    "",
+    "upstream,subject",
     "ld_" + "A".repeat(43), // Legacy full SHA-256 ID.
     "ld_" + "A".repeat(21) + "B", // Nonzero unused Base64 bits.
-    "ld_" + "+".repeat(21) + "A", "ld_" + "/".repeat(21) + "A",
-    "LD_" + "A".repeat(22), expectedSiteSubject + "=",
-    expectedSiteSubject + "\n", " " + expectedSiteSubject,
-    expectedSiteSubject.slice(0, -1), expectedSiteSubject + "A",
+    "ld_" + "+".repeat(21) + "A",
+    "ld_" + "/".repeat(21) + "A",
+    "LD_" + "A".repeat(22),
+    expectedSiteSubject + "=",
+    expectedSiteSubject + "\n",
+    " " + expectedSiteSubject,
+    expectedSiteSubject.slice(0, -1),
+    expectedSiteSubject + "A",
   ]) {
     assert.equal(validSiteSubject(subject), false, String(subject));
   }
@@ -766,16 +849,30 @@ test("legacy or malformed site subjects cannot keep sessions or mint NAS grants"
   const bytes = Buffer.from(original, "base64url");
   const key = await crypto.subtle.importKey(
     "raw",
-    Buffer.from(await deriveSecret(f.env.SECRET_KEY, "lantern-dock:identity-cookies:v1:" + site), "hex"),
+    Buffer.from(
+      await deriveSecret(
+        f.env.SECRET_KEY,
+        "lantern-dock:identity-cookies:v1:" + site,
+      ),
+      "hex",
+    ),
     "AES-GCM",
     false,
     ["encrypt", "decrypt"],
   );
-  const session = JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv: bytes.subarray(0, 12), additionalData: encoder.encode(name) },
-    key,
-    bytes.subarray(12),
-  )));
+  const session = JSON.parse(
+    new TextDecoder().decode(
+      await crypto.subtle.decrypt(
+        {
+          name: "AES-GCM",
+          iv: bytes.subarray(0, 12),
+          additionalData: encoder.encode(name),
+        },
+        key,
+        bytes.subarray(12),
+      ),
+    ),
+  );
   for (const sub of [
     "ld_1KzSHPuTIpRkcYiSJTXRlCJhVX0uRCVptuP6f7tF0rM",
     "upstream,subject",
@@ -790,19 +887,34 @@ test("legacy or malformed site subjects cannot keep sessions or mint NAS grants"
       encoder.encode(JSON.stringify(session)),
     );
     f.jar.set(name, encode(Buffer.concat([iv, Buffer.from(encrypted)])));
-    assert.equal((await (await f.request("/api/auth/session")).json()).authenticated, false);
+    assert.equal(
+      (await (await f.request("/api/auth/session")).json()).authenticated,
+      false,
+    );
     const grant = await f.grant();
     assert.equal(grant.status, 400);
     assert.equal((await grant.json()).error, "invalid_grant");
   }
   f.jar.set(name, original);
-  assert.equal((await (await f.request("/api/auth/session")).json()).authenticated, true);
+  assert.equal(
+    (await (await f.request("/api/auth/session")).json()).authenticated,
+    true,
+  );
   assert.equal((await f.grant()).status, 200);
 });
 
 test("site subjects are canonical comma-free IDs even when upstream subjects contain delimiters", async () => {
-  const subjects = ["owner", "owner,other", 'owner"other', "owner other", "[owner]", "owner/other"];
-  const ids = await Promise.all(subjects.map((subject) => siteSubject(issuer, subject)));
+  const subjects = [
+    "owner",
+    "owner,other",
+    'owner"other',
+    "owner other",
+    "[owner]",
+    "owner/other",
+  ];
+  const ids = await Promise.all(
+    subjects.map((subject) => siteSubject(issuer, subject)),
+  );
   for (const id of ids) {
     assert.match(id, /^ld_[A-Za-z0-9_-]{22}$/);
     assert.equal(validSiteSubject(id), true);
@@ -1065,15 +1177,21 @@ test("callback errors use the browser language and remain encoded in a private r
   }
 });
 
-
 test("NAS grants carry only explicitly requested supported scopes and never assert admin", async () => {
   const f = await fixture();
   await f.login();
-  for (const requested of ["links:read", "links:write", "inbox:read", "inbox:read links:write account:read"]) {
+  for (const requested of [
+    "links:read",
+    "links:write",
+    "inbox:read",
+    "inbox:read links:write account:read",
+  ]) {
     const response = await f.grant(requested);
     assert.equal(response.status, 200);
     const token = await response.json();
-    const expected = NAS_SCOPES.filter((scope) => requested.split(" ").includes(scope)).join(" ");
+    const expected = NAS_SCOPES.filter((scope) =>
+      requested.split(" ").includes(scope),
+    ).join(" ");
     assert.equal(token.scope, expected);
     const payload = decodeJwt(token.access_token);
     assert.equal(payload.scope, expected);

@@ -15,8 +15,11 @@ export function AdminEntry({ className = "my-list-button", id = "my-admin" }) {
   if (access !== "ready" && access !== "unsupported") return null;
   return (
     <a id={id} class={className} href="/admin/links">
-      <span class="my-list-icon"><Icon name="shield" /></span>
-      <span>{t("admin.title")}</span><Icon name="chevron-right" />
+      <span class="my-list-icon">
+        <Icon name="shield" />
+      </span>
+      <span>{t("admin.title")}</span>
+      <Icon name="chevron-right" />
     </a>
   );
 }

@@ -32,25 +32,13 @@
   flex-wrap: wrap;
   gap: 8px 12px;
 }
-@media (min-width: 701px) and (max-width: 1100px) {
+@media (--between-md-lg) {
   .collection-card {
     margin-left: 18px;
     margin-right: 18px;
   }
 }
-@media (max-width: 350px) {
-  .home-content .file-toolbar {
-    flex-wrap: wrap;
-    gap: 4px;
-  }
-  .home-content .file-stats {
-    flex-basis: 100%;
-  }
-  .home-content .view-tools {
-    margin-left: auto;
-  }
-}
-@media (max-width: 700px) {
+@media (--down-md) {
   .main-area.collection-page {
     padding-bottom: 0;
   }

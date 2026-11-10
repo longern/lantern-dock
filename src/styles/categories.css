@@ -44,7 +44,7 @@
 .category-card:active {
   background: var(--accent-soft);
 }
-@media (min-width: 701px) and (max-width: 1100px) {
+@media (--between-md-lg) {
   .category-cards {
     padding-left: 18px;
     padding-right: 18px;
@@ -53,17 +53,17 @@
     padding: 16px;
   }
 }
-@media (max-width: 700px) {
+@media (--down-md) {
   .category-cards {
     grid-template-rows: repeat(2, 60px);
     gap: 10px;
     padding: 18px 16px 0;
   }
   .category-card {
-    padding: 12px;
+    padding: clamp(10px, 3vw, 12px);
     gap: 6px;
     border-radius: 14px;
-    font-size: 16px;
+    font-size: clamp(14px, 4vw, 16px);
   }
   .category-card svg {
     width: 26px;
@@ -75,18 +75,5 @@
   .category-album svg {
     width: 42px;
     height: 42px;
-  }
-}
-@media (max-width: 350px) {
-  .category-cards {
-    gap: 8px;
-  }
-  .category-card:not(.category-album) {
-    padding: 10px;
-    font-size: 14px;
-  }
-  .category-card:not(.category-album) svg {
-    width: 24px;
-    height: 24px;
   }
 }

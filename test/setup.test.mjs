@@ -102,7 +102,10 @@ test("a default WebDAV setup generates just one variable and resolves its root",
   assert.equal(backend.endpoint, "https://files.example.com");
   assert.equal(backend.rootPath, "/dav/public/");
   assert.equal(backend.name, "My files");
-  assert.equal((await configuration(vars, createTranslator("zh-CN"))).backend.name, "我的文件");
+  assert.equal(
+    (await configuration(vars, createTranslator("zh-CN"))).backend.name,
+    "我的文件",
+  );
   assert.equal(backend.auth, "none");
 });
 

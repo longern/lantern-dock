@@ -1,52 +1,94 @@
+import { isCompact } from "../helpers/responsive.mjs";
 import { favoriteItem } from "../helpers/favorite-item.mjs";
 import { openItem } from "../helpers/open-item.mjs";
-import { chooseListingOption, listingOptionsButton } from "../helpers/listing-options.mjs";
+import {
+  chooseListingOption,
+  listingOptionsButton,
+} from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
-import { closeFavorites, mainNavigation as nav, openFavorites } from "../helpers/navigation.mjs";
+import {
+  closeFavorites,
+  mainNavigation as nav,
+  openFavorites,
+} from "../helpers/navigation.mjs";
 
-const home = (page) => nav(page).getByRole("button", { name: "首页", exact: true });
+const home = (page) =>
+  nav(page).getByRole("button", { name: "首页", exact: true });
 const files = (page) => nav(page).getByRole("button", { name: /^文件/ });
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".file-item")).toHaveCount(12);
-  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(1);
+  await expect(
+    page.getByRole("searchbox", { includeHidden: true }),
+  ).toHaveCount(1);
   await expect(page.getByRole("searchbox")).toBeVisible();
-  await expect(page.locator(".topbar").getByRole("button", {
-    name: "连接设置", exact: true, includeHidden: true,
-  })).toHaveCount(0);
+  await expect(
+    page.locator(".topbar").getByRole("button", {
+      name: "连接设置",
+      exact: true,
+      includeHidden: true,
+    }),
+  ).toHaveCount(0);
 });
 
-test("home and files are separate destinations, with breadcrumbs only in files", async ({ page }) => {
+test("home and files are separate destinations, with breadcrumbs only in files", async ({
+  page,
+}) => {
   await expect(nav(page).getByRole("button").nth(0)).toHaveText("首页");
   await expect(nav(page).getByRole("button").nth(1)).toContainText("文件");
   await expect(home(page)).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(
+    0,
+  );
   await expect(page.locator(".file-section-title")).toHaveText("文件");
   await files(page).click();
-  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
-  await expect(page.getByRole("navigation", { name: "文件路径" })).toBeVisible();
+  await expect(
+    page.getByRole("searchbox", { includeHidden: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "文件路径" }),
+  ).toBeVisible();
   await expect(page.locator(".category-cards")).toHaveCount(0);
-  await openItem(page.getByRole("button", { name: "打开文件夹 照片", exact: true }));
+  await openItem(
+    page.getByRole("button", { name: "打开文件夹 照片", exact: true }),
+  );
   await expect(page.locator(".file-item")).toHaveCount(4);
-  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("searchbox", { includeHidden: true }),
+  ).toHaveCount(0);
   await home(page).click();
   await expect(page.locator(".file-item")).toHaveCount(12);
-  await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(
+    0,
+  );
   await expect(page.getByRole("searchbox")).toHaveValue("");
 });
 
-test("leaving Home clears search for Files, Favorites, folders and sidebar categories", async ({ page }) => {
-  await favoriteItem(page.getByRole("button", { name: "预览 项目笔记.md", exact: true }));
-  for (const [mode, count] of [["files", 12], ["favorites", 1]]) {
+test("leaving Home clears search for Files, Favorites, folders and sidebar categories", async ({
+  page,
+}) => {
+  await favoriteItem(
+    page.getByRole("button", { name: "预览 项目笔记.md", exact: true }),
+  );
+  for (const [mode, count] of [
+    ["files", 12],
+    ["favorites", 1],
+  ]) {
     await page.getByRole("searchbox").fill("no-matching-file");
     await expect(page.locator(".file-item")).toHaveCount(0);
     if (mode === "favorites") await openFavorites(page);
     else await files(page).click();
-    await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
-    await expect(page.locator(".topbar").getByRole("button", {
-      name: "连接设置", exact: true, includeHidden: true,
-    })).toHaveCount(0);
+    await expect(
+      page.getByRole("searchbox", { includeHidden: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.locator(".topbar").getByRole("button", {
+        name: "连接设置",
+        exact: true,
+        includeHidden: true,
+      }),
+    ).toHaveCount(0);
     await expect(page.locator(".file-item")).toHaveCount(count);
     await expect(page.locator(".empty-state")).toHaveCount(0);
     if (mode === "favorites") await closeFavorites(page);
@@ -55,27 +97,41 @@ test("leaving Home clears search for Files, Favorites, folders and sidebar categ
     await expect(page.locator(".file-item")).toHaveCount(12);
   }
   await page.getByRole("searchbox").fill("照片");
-  await openItem(page.getByRole("button", { name: "打开文件夹 照片", exact: true }));
-  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  await openItem(
+    page.getByRole("button", { name: "打开文件夹 照片", exact: true }),
+  );
+  await expect(
+    page.getByRole("searchbox", { includeHidden: true }),
+  ).toHaveCount(0);
   await expect(page.locator(".file-item")).toHaveCount(4);
-  await page.getByRole("navigation", { name: "文件路径" })
-    .getByRole("button", { name: "公开资源库", exact: true }).click();
-  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  await page
+    .getByRole("navigation", { name: "文件路径" })
+    .getByRole("button", { name: "公开资源库", exact: true })
+    .click();
+  await expect(
+    page.getByRole("searchbox", { includeHidden: true }),
+  ).toHaveCount(0);
   await expect(page.locator(".file-item")).toHaveCount(12);
   await home(page).click();
   await expect(page.getByRole("searchbox")).toHaveValue("");
 
   await page.getByRole("searchbox").fill("no-matching-file");
-  await page.getByRole("navigation", { name: "文件分类", exact: true })
-    .getByRole("button", { name: "文档", exact: true }).click();
-  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  await page
+    .getByRole("navigation", { name: "文件分类", exact: true })
+    .getByRole("button", { name: "文档", exact: true })
+    .click();
+  await expect(
+    page.getByRole("searchbox", { includeHidden: true }),
+  ).toHaveCount(0);
   await expect(page.locator(".file-item")).toHaveCount(4);
   await home(page).click();
   await expect(page.getByRole("searchbox")).toHaveValue("");
   await expect(page.locator(".file-item")).toHaveCount(12);
 });
 
-test("slash focuses Home search without navigating from other destinations", async ({ page }) => {
+test("slash focuses Home search without navigating from other destinations", async ({
+  page,
+}) => {
   await home(page).focus();
   await page.keyboard.press("/");
   await expect(page.getByRole("searchbox")).toBeFocused();
@@ -83,26 +139,36 @@ test("slash focuses Home search without navigating from other destinations", asy
   await page.keyboard.press("/");
   await expect(page.getByRole("searchbox")).toHaveValue("note/");
   for (const mode of ["files", "favorites"]) {
-    const destination = mode === "favorites" ? await openFavorites(page) : files(page);
+    const destination =
+      mode === "favorites" ? await openFavorites(page) : files(page);
     if (mode === "files") await destination.click();
     await destination.focus();
     await page.keyboard.press("/");
     if (mode === "favorites") await expect(page).toHaveURL(/\/favorites$/);
     else await expect(destination).toHaveAttribute("aria-current", "page");
     await expect(destination).toBeFocused();
-    await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+    await expect(
+      page.getByRole("searchbox", { includeHidden: true }),
+    ).toHaveCount(0);
     if (mode === "favorites") await closeFavorites(page);
   }
   await files(page).click();
-  await openItem(page.getByRole("button", { name: "打开文件夹 照片", exact: true }));
-  const root = page.getByRole("navigation", { name: "文件路径" })
+  await openItem(
+    page.getByRole("button", { name: "打开文件夹 照片", exact: true }),
+  );
+  const root = page
+    .getByRole("navigation", { name: "文件路径" })
     .getByRole("button", { name: "公开资源库", exact: true });
   await root.focus();
   await page.keyboard.press("/");
   await expect(root).toBeFocused();
-  await expect(page.getByRole("navigation", { name: "文件路径" })).toContainText("照片");
+  await expect(
+    page.getByRole("navigation", { name: "文件路径" }),
+  ).toContainText("照片");
   await expect(page.locator(".file-item")).toHaveCount(4);
-  await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("searchbox", { includeHidden: true }),
+  ).toHaveCount(0);
   await home(page).click();
   await home(page).focus();
   await page.keyboard.press("/");
@@ -110,49 +176,83 @@ test("slash focuses Home search without navigating from other destinations", asy
   await expect(page.getByRole("searchbox")).toHaveValue("");
 });
 
-test("home shows actual recent visits, persists them and does not fall back after an unmatched search", async ({ page }) => {
+test("home shows actual recent visits, persists them and does not fall back after an unmatched search", async ({
+  page,
+}) => {
   await chooseListingOption(page, "名称");
-  await openItem(page.getByRole("button", { name: "预览 项目笔记.md", exact: true }));
+  await openItem(
+    page.getByRole("button", { name: "预览 项目笔记.md", exact: true }),
+  );
   await page.getByRole("button", { name: "关闭预览" }).click();
   await expect(page.locator(".file-section-title")).toHaveText("最近文件");
-  await expect(page.locator("#file-list")).toHaveAttribute("aria-label", "最近文件列表");
+  await expect(page.locator("#file-list")).toHaveAttribute(
+    "aria-label",
+    "最近文件列表",
+  );
   await expect(page.locator(".file-name")).toHaveText(["项目笔记.md"]);
   await files(page).click();
   await expect(page.locator(".file-item")).toHaveCount(12);
-  await openItem(page.getByRole("button", { name: "预览 阅读清单.txt", exact: true }));
+  await openItem(
+    page.getByRole("button", { name: "预览 阅读清单.txt", exact: true }),
+  );
   await page.getByRole("button", { name: "关闭预览" }).click();
   await home(page).click();
-  await expect(page.locator(".file-name")).toHaveText(["阅读清单.txt", "项目笔记.md"]);
+  await expect(page.locator(".file-name")).toHaveText([
+    "阅读清单.txt",
+    "项目笔记.md",
+  ]);
   await expect(listingOptionsButton(page)).toHaveCount(0);
   await page.getByRole("searchbox").fill("山间");
   await expect(page.locator(".file-item")).toHaveCount(0);
   await expect(page.locator(".file-section-title")).toHaveText("最近文件");
-  await expect(page.locator(".empty-state")).toContainText("没有找到匹配的文件");
+  await expect(page.locator(".empty-state")).toContainText(
+    "没有找到匹配的文件",
+  );
   await expect(listingOptionsButton(page)).toHaveCount(0);
-  await page.locator(".empty-state").getByRole("button", { name: "清除搜索" }).click();
+  await page
+    .locator(".empty-state")
+    .getByRole("button", { name: "清除搜索" })
+    .click();
   await page.reload();
-  await expect(page.locator(".file-name")).toHaveText(["阅读清单.txt", "项目笔记.md"]);
+  await expect(page.locator(".file-name")).toHaveText([
+    "阅读清单.txt",
+    "项目笔记.md",
+  ]);
   await files(page).click();
   await expect(page.locator(".file-item")).toHaveCount(12);
   await chooseListingOption(page, "大小");
   await home(page).click();
-  await expect(page.locator(".file-name")).toHaveText(["阅读清单.txt", "项目笔记.md"]);
+  await expect(page.locator(".file-name")).toHaveText([
+    "阅读清单.txt",
+    "项目笔记.md",
+  ]);
   await expect(listingOptionsButton(page)).toHaveCount(0);
 });
 
-test("Home and Files headers have no divider above their collection cards", async ({ page }) => {
-  const headerRow = page.locator(page.viewportSize().width <= 700 ? ".mobile-home-search,.mobile-file-tools" : ".topbar");
+test("Home and Files headers have no divider above their collection cards", async ({
+  page,
+}) => {
+  const headerRow = page.locator(
+    isCompact(page) ? ".mobile-home-search,.mobile-file-tools" : ".topbar",
+  );
   await expect(headerRow).toHaveCSS("border-bottom-width", "0px");
-  await expect(page.locator(".category-cards")).toHaveCSS("border-top-width", "0px");
+  await expect(page.locator(".category-cards")).toHaveCSS(
+    "border-top-width",
+    "0px",
+  );
   await files(page).click();
   await expect(headerRow).toHaveCSS("border-bottom-width", "0px");
 });
 
-test("Home search stays 36px tall with and without the clear control after returning", async ({ page }) => {
+test("Home search stays 36px tall with and without the clear control after returning", async ({
+  page,
+}) => {
   for (const returnHome of [false, true]) {
     if (returnHome) {
       await files(page).click();
-      await expect(page.getByRole("searchbox", { includeHidden: true })).toHaveCount(0);
+      await expect(
+        page.getByRole("searchbox", { includeHidden: true }),
+      ).toHaveCount(0);
       await home(page).click();
     }
     for (const value of ["", "笔记", ""]) {
@@ -169,14 +269,24 @@ test("Home search stays 36px tall with and without the clear control after retur
   }
 });
 
-test("mobile Files search opens from the header, focuses and survives query reloads", async ({ page }, testInfo) => {
-  test.skip(page.viewportSize().width > 700, "Mobile Files search");
+test("mobile Files search opens from the header, focuses and survives query reloads", async ({
+  page,
+}, testInfo) => {
+  test.skip(!isCompact(page), "Mobile Files search");
   await files(page).click();
   const header = page.locator(".topbar");
   await expect(header.locator(".mobile-brand")).toHaveText("文件");
-  await expect(header.getByRole("link", { name: "LanternDock" })).toHaveCount(0);
-  const searchButton = header.getByRole("button", { name: "搜索文件", exact: true });
-  const closeSearch = header.getByRole("button", { name: "关闭搜索", exact: true });
+  await expect(header.getByRole("link", { name: "LanternDock" })).toHaveCount(
+    0,
+  );
+  const searchButton = header.getByRole("button", {
+    name: "搜索文件",
+    exact: true,
+  });
+  const closeSearch = header.getByRole("button", {
+    name: "关闭搜索",
+    exact: true,
+  });
   await expect(searchButton).toHaveAttribute("aria-expanded", "false");
   const searchBounds = await searchButton.boundingBox();
   const menuBounds = await listingOptionsButton(header).boundingBox();
@@ -188,7 +298,9 @@ test("mobile Files search opens from the header, focuses and survives query relo
   await searchButton.tap();
   const search = page.getByRole("searchbox");
   await expect(search).toBeFocused();
-  await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(
+    0,
+  );
   expect(await tools.boundingBox()).toEqual(toolsBounds);
   expect((await page.locator(".content").boundingBox()).y).toBe(contentY);
   await expect(closeSearch).toHaveAttribute("aria-expanded", "true");
@@ -207,7 +319,9 @@ test("mobile Files search opens from the header, focuses and survives query relo
   expect(field.y).toBe(toolsBounds.y + 2);
   expect(await tools.boundingBox()).toEqual(toolsBounds);
   expect((await page.locator(".content").boundingBox()).y).toBe(contentY);
-  expect(await tools.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  expect(
+    await tools.evaluate((node) => node.scrollWidth <= node.clientWidth),
+  ).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("files-search.png") });
   await search.fill("照片");
   await header.locator(".mobile-brand").click();
@@ -216,7 +330,9 @@ test("mobile Files search opens from the header, focuses and survives query relo
   await closeSearch.tap();
   await expect(search).toHaveCount(0);
   await expect(searchButton).toBeFocused();
-  await expect(page.getByRole("navigation", { name: "文件路径" })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "文件路径" }),
+  ).toBeVisible();
   expect(await tools.boundingBox()).toEqual(toolsBounds);
   expect((await page.locator(".content").boundingBox()).y).toBe(contentY);
   await expect(page).not.toHaveURL(/[?&]q=/);
@@ -229,7 +345,9 @@ test("mobile Files search opens from the header, focuses and survives query relo
   await expect(searchButton).toBeFocused();
   await expect(page).not.toHaveURL(/[?&]q=/);
   await expect(page.locator(".file-item")).toHaveCount(12);
-  await openItem(page.getByRole("button", { name: "打开文件夹 照片", exact: true }));
+  await openItem(
+    page.getByRole("button", { name: "打开文件夹 照片", exact: true }),
+  );
   await expect(search).toHaveCount(0);
   await searchButton.tap();
   await expect(search).toBeFocused();
@@ -239,37 +357,66 @@ test("mobile Files search opens from the header, focuses and survives query relo
   await expect(search).toHaveCount(0);
 });
 
-test("mobile headers keep page titles and listing actions without a navigation drawer", async ({ page }) => {
+test("mobile headers keep page titles and listing actions without a navigation drawer", async ({
+  page,
+}) => {
   for (const destination of [home(page), files(page)]) {
     await destination.click();
     const header = page.locator(".topbar");
-    await expect(header.getByRole("link", { name: "我的账户", exact: true, includeHidden: true })).toHaveCount(0);
+    await expect(
+      header.getByRole("link", {
+        name: "我的账户",
+        exact: true,
+        includeHidden: true,
+      }),
+    ).toHaveCount(0);
     await expect(header.locator(".account-entry")).toHaveCount(0);
-    await expect(header.getByRole("button", { name: "连接设置", includeHidden: true })).toHaveCount(0);
-    if (page.viewportSize().width <= 700) {
+    await expect(
+      header.getByRole("button", { name: "连接设置", includeHidden: true }),
+    ).toHaveCount(0);
+    if (isCompact(page)) {
       await expect(header).toHaveCSS("display", "flex");
       await expect(listingOptionsButton(header)).toBeVisible();
       await expect(page.locator("#sidebar,#navigation-toggle")).toHaveCount(0);
     }
-    expect(await header.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+    expect(
+      await header.evaluate((node) => node.scrollWidth <= node.clientWidth),
+    ).toBe(true);
   }
-  await page.evaluate(() => localStorage.setItem("lantern-dock:demo::/:recent", JSON.stringify([{
-    path: "/%E9%A1%B9%E7%9B%AE%E7%AC%94%E8%AE%B0.md", name: "项目笔记.md",
-    kind: "text", isDirectory: false, size: 1248, visitedAt: Date.now(),
-  }])));
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "lantern-dock:demo::/:recent",
+      JSON.stringify([
+        {
+          path: "/%E9%A1%B9%E7%9B%AE%E7%AC%94%E8%AE%B0.md",
+          name: "项目笔记.md",
+          kind: "text",
+          isDirectory: false,
+          size: 1248,
+          visitedAt: Date.now(),
+        },
+      ]),
+    ),
+  );
   await page.reload();
   await home(page).click();
-  await expect(page.locator("#file-list .file-name")).toHaveText(["项目笔记.md"]);
+  await expect(page.locator("#file-list .file-name")).toHaveText([
+    "项目笔记.md",
+  ]);
   const recentHeader = page.locator(".topbar");
   await expect(listingOptionsButton(recentHeader)).toHaveCount(0);
-  if (page.viewportSize().width <= 700) {
+  if (isCompact(page)) {
     await expect(recentHeader).toHaveCSS("display", "flex");
   }
 });
 
-test("desktop account remains keyboard reachable from the sidebar", async ({ page }) => {
-  test.skip(page.viewportSize().width <= 700, "Desktop sidebar account entry");
-  const account = page.locator("#sidebar").getByRole("link", { name: "我的账户", exact: true });
+test("desktop account remains keyboard reachable from the sidebar", async ({
+  page,
+}) => {
+  test.skip(isCompact(page), "Desktop sidebar account entry");
+  const account = page
+    .locator("#sidebar")
+    .getByRole("link", { name: "我的账户", exact: true });
   await expect(account).toBeVisible();
   await account.focus();
   await expect(account).toBeFocused();
@@ -277,24 +424,48 @@ test("desktop account remains keyboard reachable from the sidebar", async ({ pag
   await expect(page).toHaveURL(/\/account$/);
 });
 
-test("mobile home card is edge-to-edge, fills the screen and grows with its contents without negative margins", async ({ page }, testInfo) => {
-  test.skip(page.viewportSize().width > 700, "Mobile card layout");
+test("mobile home card is edge-to-edge, fills the screen and grows with its contents without negative margins", async ({
+  page,
+}, testInfo) => {
+  test.skip(!isCompact(page), "Mobile card layout");
   // One recent file exercises the otherwise empty space below short lists.
-  await openItem(page.getByRole("button", { name: "预览 项目笔记.md", exact: true }));
+  await openItem(
+    page.getByRole("button", { name: "预览 项目笔记.md", exact: true }),
+  );
   await page.getByRole("button", { name: "关闭预览" }).click();
-  const inspect = () => page.locator(".home-content").evaluate((node) => {
-    const box = node.getBoundingClientRect();
-    const style = getComputedStyle(node);
-    return {
-      left: box.left, right: box.right, bottom: box.bottom, width: innerWidth,
-      viewportHeight: innerHeight, height: box.height,
-      background: style.backgroundColor,
-      radii: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomLeftRadius, style.borderBottomRightRadius],
-      margins: [style.marginTop, style.marginRight, style.marginBottom, style.marginLeft].map(parseFloat),
-      overflow: [document.documentElement, node, ...node.querySelectorAll(".file-toolbar,.file-open")]
-        .filter((element) => element.scrollWidth > element.clientWidth + 1).map((element) => element.className),
-    };
-  });
+  const inspect = () =>
+    page.locator(".home-content").evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return {
+        left: box.left,
+        right: box.right,
+        bottom: box.bottom,
+        width: innerWidth,
+        viewportHeight: innerHeight,
+        height: box.height,
+        background: style.backgroundColor,
+        radii: [
+          style.borderTopLeftRadius,
+          style.borderTopRightRadius,
+          style.borderBottomLeftRadius,
+          style.borderBottomRightRadius,
+        ],
+        margins: [
+          style.marginTop,
+          style.marginRight,
+          style.marginBottom,
+          style.marginLeft,
+        ].map(parseFloat),
+        overflow: [
+          document.documentElement,
+          node,
+          ...node.querySelectorAll(".file-toolbar,.file-open"),
+        ]
+          .filter((element) => element.scrollWidth > element.clientWidth + 1)
+          .map((element) => element.className),
+      };
+    });
   const short = await inspect();
   expect(short.left).toBe(0);
   expect(short.right).toBe(short.width);
@@ -303,13 +474,26 @@ test("mobile home card is edge-to-edge, fills the screen and grows with its cont
   expect(short.radii).toEqual(["20px", "20px", "0px", "0px"]);
   expect(short.margins.every((value) => value >= 0)).toBe(true);
   expect(short.overflow).toEqual([]);
-  await page.screenshot({ path: testInfo.outputPath("home-recent.png"), fullPage: false });
+  await page.screenshot({
+    path: testInfo.outputPath("home-recent.png"),
+    fullPage: false,
+  });
   await page.evaluate(() => {
-    const key = Object.keys(localStorage).find((key) => key.endsWith(":recent"));
+    const key = Object.keys(localStorage).find((key) =>
+      key.endsWith(":recent"),
+    );
     const first = JSON.parse(localStorage.getItem(key))[0];
-    localStorage.setItem(key, JSON.stringify(Array.from({ length: 30 }, (_, index) => ({
-      ...first, path: `/note-${index}.md`, name: `笔记 ${index}.md`, visitedAt: Date.now() - index,
-    }))));
+    localStorage.setItem(
+      key,
+      JSON.stringify(
+        Array.from({ length: 30 }, (_, index) => ({
+          ...first,
+          path: `/note-${index}.md`,
+          name: `笔记 ${index}.md`,
+          visitedAt: Date.now() - index,
+        })),
+      ),
+    );
   });
   await page.reload();
   await expect(page.locator(".file-item")).toHaveCount(30);

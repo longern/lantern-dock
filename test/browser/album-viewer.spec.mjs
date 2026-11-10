@@ -1,3 +1,4 @@
+import { isCompact } from "../helpers/responsive.mjs";
 import { openItem } from "../helpers/open-item.mjs";
 import { flipAlbum } from "../helpers/album-navigation.mjs";
 import { test as base, expect } from "@playwright/test";
@@ -12,7 +13,10 @@ const test = base.extend({
   },
 });
 const gates = new Set();
-test.afterEach(() => { for (const release of gates) release(); gates.clear(); });
+test.afterEach(() => {
+  for (const release of gates) release();
+  gates.clear();
+});
 const thumbnail = await readFile(
   new URL("../fixtures/album-thumbnail.jpg", import.meta.url),
 );
@@ -490,8 +494,13 @@ test("reduced motion disables zoom and sharpening animations without trapping di
     "opacity",
     "1",
   );
-  await button(page, "放大").click();
-  await expect(button(page, "缩小")).toBeEnabled();
+  if (!isCompact(page)) {
+    await button(page, "放大").click();
+    await expect(button(page, "缩小")).toBeEnabled();
+  } else {
+    await expect(button(page, "放大")).toHaveCount(0);
+    await expect(button(page, "缩小")).toHaveCount(0);
+  }
   await page.keyboard.press("Escape");
   await expect(viewer(page)).toHaveCount(0);
   await expect(page.locator(".album-preview").first()).toBeFocused();
@@ -516,13 +525,13 @@ test("longer albums keep only adjacent media mounted and resize without overflow
       "1",
     );
     expect(await page.locator(".album-media").count()).toBeLessThanOrEqual(3);
-    if (index < photos.length - 1)
-      await flipAlbum(page);
+    if (index < photos.length - 1) await flipAlbum(page);
   }
-  if (page.viewportSize().width > 700) await expect(button(page, "下一张照片或视频")).toBeDisabled();
+  if (!isCompact(page))
+    await expect(button(page, "下一张照片或视频")).toBeDisabled();
   else await expect(page.locator(".album-viewer-pager")).toBeHidden();
-  const changesParent = page.viewportSize().width <= 700;
-  await page.setViewportSize({ width: 844, height: 390 });
+  const changesParent = isCompact(page);
+  await page.setViewportSize({ width: 1024, height: 600 });
   if (changesParent) {
     // Moving from the mobile page dialog to the desktop page releases the old
     // native modal before another viewer is opened from the new thumbnail.
@@ -563,7 +572,7 @@ test("longer albums keep only adjacent media mounted and resize without overflow
 test("touch swipes follow the finger and pinch zoom remains independent of paging", async ({
   page,
 }) => {
-  test.skip(page.viewportSize().width > 700, "Touch devices only");
+  test.skip(!isCompact(page), "Touch devices only");
   await install(page, {
     items: items.filter((item) => !item.name.endsWith(".mp4")),
   });
@@ -580,6 +589,9 @@ test("touch swipes follow the finger and pinch zoom remains independent of pagin
     });
   const w = page.viewportSize().width,
     y = page.viewportSize().height / 2;
+  await expect(button(page, "放大")).toHaveCount(0);
+  await expect(button(page, "缩小")).toHaveCount(0);
+  const originalWidth = (await current(page).boundingBox()).width;
   await touch("touchStart", [
     [w * 0.35, y],
     [w * 0.65, y],
@@ -590,10 +602,25 @@ test("touch swipes follow the finger and pinch zoom remains independent of pagin
       [w * (0.65 + offset), y],
     ]);
   await touch("touchEnd", []);
-  await expect(button(page, "缩小")).toBeEnabled();
-  while (await button(page, "缩小").isEnabled())
-    await button(page, "缩小").click();
-  await expect(button(page, "缩小")).toBeDisabled();
+  await expect
+    .poll(async () => (await current(page).boundingBox()).width)
+    .toBeGreaterThan(originalWidth * 1.3);
+  await expect(page.locator("#album-viewer-name")).toHaveText("first.png");
+  await touch("touchStart", [
+    [w * 0.1, y],
+    [w * 0.9, y],
+  ]);
+  for (const offset of [0.1, 0.2, 0.3, 0.36])
+    await touch("touchMove", [
+      [w * (0.1 + offset), y],
+      [w * (0.9 - offset), y],
+    ]);
+  await touch("touchEnd", []);
+  await expect
+    .poll(async () =>
+      Math.abs((await current(page).boundingBox()).width - originalWidth),
+    )
+    .toBeLessThan(1);
   await touch("touchStart", [[w * 0.8, y]]);
   for (const fraction of [0.7, 0.6, 0.5, 0.4, 0.25, 0.1])
     await touch("touchMove", [[w * fraction, y]]);

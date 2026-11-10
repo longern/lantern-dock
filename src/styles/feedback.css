@@ -46,7 +46,7 @@ progress {
 .toast::backdrop {
   display: none;
 }
-@media (max-width: 700px) {
+@media (--down-md) {
   .toast {
     top: 72dvh;
   }

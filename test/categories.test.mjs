@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fileCategories, matchesCategory, categoryLabel } from "../src/lib/categories.js";
+import {
+  fileCategories,
+  matchesCategory,
+  categoryLabel,
+} from "../src/lib/categories.js";
 import { kindFor } from "../src/lib/dav.js";
 
 const item = (name, isDirectory = false) => ({
@@ -25,7 +29,9 @@ test("album mixes images and videos while the separate type filters stay specifi
 test("home categories have unique filters and match image, video and audio files", () => {
   assert.equal(new Set(fileCategories.map(({ kind }) => kind)).size, 5);
   for (const [name, kind] of [
-    ["PHOTO.JPG", "image"], ["clip.mp4", "video"], ["song.flac", "audio"],
+    ["PHOTO.JPG", "image"],
+    ["clip.mp4", "video"],
+    ["song.flac", "audio"],
   ]) {
     assert.equal(matchesCategory(item(name), kind), true);
     assert.equal(matchesCategory(item(name), "text"), false);
@@ -33,14 +39,30 @@ test("home categories have unique filters and match image, video and audio files
 });
 
 test("documents include PDF, plain text and office files without enabling binary previews", () => {
-  for (const name of ["notes.md", "data.csv", "guide.PDF", "report.DOCX", "sheet.xlsx", "slides.pptx", "letter.odt", "memo.rtf"])
+  for (const name of [
+    "notes.md",
+    "data.csv",
+    "guide.PDF",
+    "report.DOCX",
+    "sheet.xlsx",
+    "slides.pptx",
+    "letter.odt",
+    "memo.rtf",
+  ])
     assert.equal(matchesCategory(item(name), "text"), true, name);
   assert.equal(kindFor("report.docx", false), "file");
   assert.equal(matchesCategory(item("backup.zip"), "text"), false);
 });
 
 test("books match ebook formats, not PDF documents or similarly named folders", () => {
-  for (const name of ["novel.EPUB", "book.mobi", "reader.azw3", "book.fb2", "scan.djvu", "comic.cbz"])
+  for (const name of [
+    "novel.EPUB",
+    "book.mobi",
+    "reader.azw3",
+    "book.fb2",
+    "scan.djvu",
+    "comic.cbz",
+  ])
     assert.equal(matchesCategory(item(name), "book"), true, name);
   assert.equal(matchesCategory(item("guide.pdf"), "book"), false);
   assert.equal(matchesCategory(item("novel.epub", true), "book"), false);

@@ -22,7 +22,12 @@ Accept: application/json
   "grant_types_supported": ["urn:lantern-dock:params:oauth:grant-type:session"],
   "response_types_supported": [],
   "token_endpoint_auth_methods_supported": ["none"],
-  "scopes_supported": ["account:read", "links:read", "links:write", "inbox:read"],
+  "scopes_supported": [
+    "account:read",
+    "links:read",
+    "links:write",
+    "inbox:read"
+  ],
   "dpop_signing_alg_values_supported": ["ES256"],
   "lantern_dock": {
     "protocol_version": 2,
@@ -90,7 +95,7 @@ The protected header uses `typ: at+jwt`, `alg: EdDSA` and the signing key's `kid
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `iss`               | Exact configured LanternDock site origin.                                                                                             |
 | `aud`               | Includes `SITE_ORIGIN + "/nas"`, the NAS resource identifier.                                                                         |
-| `sub`               | Current opaque site ID: `ld_` plus canonical unpadded Base64URL of 16 bytes (25 characters total).                                  |
+| `sub`               | Current opaque site ID: `ld_` plus canonical unpadded Base64URL of 16 bytes (25 characters total).                                    |
 | `client_id`         | Built-in client identifier, `SITE_ORIGIN + "/"`. The NAS requires a nonempty identifier.                                              |
 | `iat`, `exp`, `jti` | Required issuance/expiry times and unique token identifier. Lifetime is positive and at most 60 seconds; expired tokens are rejected. |
 | `scope`             | `account:read` is required for the account endpoint.                                                                                  |
@@ -124,17 +129,16 @@ The NAS does not require its own DPoP nonce: its short-lived grants and persiste
 
 Upgrade both Worker and NAS for version 2, refresh the account page and sign in again. Administrators must replace previously configured upstream subjects with the new site subject shown on the account page. Existing public DAV/file-drop APIs are unaffected. See [key rotation](authentication.md#rotate-nas-signing-keys) for maintaining overlapping verification keys.
 
-
 ## Administrative NAS resources
 
 All endpoints below use the same 60-second access-token validation and persistent DPoP replay protection as `/api/account`. A fresh DPoP proof is required for each HTTP request, including each download range and HEAD. The proof URI uses the configured NAS resource origin and exact request path; query parameters are omitted according to DPoP. With WebTransport this normally uses the site origin, while direct HTTPS uses `NAS_RESOURCE_ORIGIN` when the NAS and frontend origins differ. CORS allows Authorization, DPoP, Content-Type, Range and If-Range from configured exact origins.
 
-| Endpoint | Required scope | Additional check |
-| --- | --- | --- |
-| `GET /api/admin/links` | `links:read` | Current NAS administrator |
-| `POST /api/admin/links` | `links:write` | Current NAS administrator |
-| `DELETE /api/admin/links/<id>` | `links:write` | Current NAS administrator |
-| `GET /api/admin/inbox` | `inbox:read` | Current NAS administrator |
-| `GET`, `HEAD /api/admin/inbox/<id>/download` | `inbox:read` | Current NAS administrator |
+| Endpoint                                     | Required scope | Additional check          |
+| -------------------------------------------- | -------------- | ------------------------- |
+| `GET /api/admin/links`                       | `links:read`   | Current NAS administrator |
+| `POST /api/admin/links`                      | `links:write`  | Current NAS administrator |
+| `DELETE /api/admin/links/<id>`               | `links:write`  | Current NAS administrator |
+| `GET /api/admin/inbox`                       | `inbox:read`   | Current NAS administrator |
+| `GET`, `HEAD /api/admin/inbox/<id>/download` | `inbox:read`   | Current NAS administrator |
 
 `GET /api/account` adds `capabilities: { "adminLinks": true, "adminInbox": true }` for administrators and false values for other users. Clients must not infer authorization from public capability metadata or the Worker session alone. Older NAS versions omit these fields and do not support the administrative UI. See [NAS API details](nas-server.md#administrative-http-interface) for payloads and pagination.

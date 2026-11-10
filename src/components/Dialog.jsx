@@ -1,3 +1,4 @@
+import { mediaQueries } from "../lib/breakpoints.js";
 import { useLayoutEffect, useRef } from "preact/hooks";
 import { afterOverlayEntry } from "../lib/overlay-entry.js";
 
@@ -18,7 +19,14 @@ export function Dialog({
   const outsidePress = useRef(false);
   const returnFocus = useRef(null);
   const callbacks = useRef(null);
-  callbacks.current = { open, animateEntry, onClose, onEntered, onExited, fallbackFocus };
+  callbacks.current = {
+    open,
+    animateEntry,
+    onClose,
+    onEntered,
+    onExited,
+    fallbackFocus,
+  };
   useLayoutEffect(() => {
     const node = element.current;
     if (open) {
@@ -26,7 +34,9 @@ export function Dialog({
       if (!node.open) {
         // Latch the entry mode per opening: later navigation inside a direct
         // link must not start an animation on an already visible page.
-        node.dataset.entry = callbacks.current.animateEntry ? "animated" : "instant";
+        node.dataset.entry = callbacks.current.animateEntry
+          ? "animated"
+          : "instant";
         returnFocus.current ||= document.activeElement;
         modal ? node.showModal() : node.show();
       }
@@ -42,7 +52,7 @@ export function Dialog({
       .getPropertyValue("--motion-exit")
       .trim();
     const parsed = parseFloat(value);
-    const duration = matchMedia("(prefers-reduced-motion: reduce)").matches
+    const duration = matchMedia(mediaQueries.reducedMotion).matches
       ? 0
       : Number.isFinite(parsed)
         ? parsed * (value.endsWith("ms") ? 1 : 1000)
@@ -54,14 +64,19 @@ export function Dialog({
         const trigger = returnFocus.current;
         const topModal = [...document.querySelectorAll("dialog:modal")].at(-1);
         const canFocus = (target) =>
-          target && target !== document.body && target !== document.documentElement &&
-          target.isConnected && target.getClientRects().length &&
+          target &&
+          target !== document.body &&
+          target !== document.documentElement &&
+          target.isConnected &&
+          target.getClientRects().length &&
           !target.closest("dialog:not([open]), [inert]") &&
           (!topModal || topModal.contains(target));
         if (canFocus(trigger)) {
           trigger.focus({ preventScroll: true });
         } else if (callbacks.current.fallbackFocus) {
-          const fallback = document.querySelector(callbacks.current.fallbackFocus);
+          const fallback = document.querySelector(
+            callbacks.current.fallbackFocus,
+          );
           if (canFocus(fallback)) fallback.focus({ preventScroll: true });
         }
         returnFocus.current = null;

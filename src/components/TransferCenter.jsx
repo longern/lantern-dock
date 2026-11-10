@@ -1,3 +1,4 @@
+import { mediaQueries } from "../lib/breakpoints.js";
 import { useLayoutEffect, useRef } from "preact/hooks";
 import { t } from "../../shared/i18n.js";
 import { bytes } from "../lib/format.js";
@@ -83,7 +84,7 @@ export function TransferCenter({ transfer, mobile, open, onOpen, onClose }) {
           target?.focus({ preventScroll: true });
         }
       },
-      matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 200,
+      matchMedia(mediaQueries.reducedMotion).matches ? 0 : 200,
     );
     return () => clearTimeout(timer);
   }, [open, mobile]);

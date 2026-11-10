@@ -24,8 +24,7 @@ async function browserKey() {
     const db = await new Promise((resolve, reject) => {
       const request = indexedDB.open("lantern-dock-identity", 1);
       request.onupgradeneeded = () => request.result.createObjectStore("keys");
-      request.onerror = () =>
-        reject(coreError("IDENTITY_STORAGE_REQUIRED"));
+      request.onerror = () => reject(coreError("IDENTITY_STORAGE_REQUIRED"));
       request.onsuccess = () => resolve(request.result);
     });
     try {
@@ -134,8 +133,17 @@ export async function beginLogin(signal) {
     await fetch("/api/auth/login", {
       method: "POST",
       credentials: "same-origin",
-      headers: { DPoP: proof, "Accept-Language": locale, "Content-Type": "application/json" },
-      body: JSON.stringify({ returnTo: location.pathname === "/account" ? safeReturnPath(new URLSearchParams(location.search).get("return")) : location.pathname + location.search }),
+      headers: {
+        DPoP: proof,
+        "Accept-Language": locale,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        returnTo:
+          location.pathname === "/account"
+            ? safeReturnPath(new URLSearchParams(location.search).get("return"))
+            : location.pathname + location.search,
+      }),
       signal,
     }),
   );
@@ -159,7 +167,11 @@ export async function endLogin() {
 let tokenNonce;
 export async function requestNASGrant(signal, scope = ACCOUNT_SCOPE) {
   const metadata = await result(
-    await fetch(AUTHORIZATION_METADATA_PATH, { cache: "no-store", headers: { "Accept-Language": locale }, signal }),
+    await fetch(AUTHORIZATION_METADATA_PATH, {
+      cache: "no-store",
+      headers: { "Accept-Language": locale },
+      signal,
+    }),
   );
   const endpoint = new URL(metadata.token_endpoint);
   if (
@@ -223,7 +235,11 @@ export async function requestNASGrant(signal, scope = ACCOUNT_SCOPE) {
 }
 export async function accountConnection(signal) {
   const config = await result(
-    await fetch("/api/config", { cache: "no-store", headers: { "Accept-Language": locale }, signal }),
+    await fetch("/api/config", {
+      cache: "no-store",
+      headers: { "Accept-Language": locale },
+      signal,
+    }),
   );
   if (
     config.setupRequired ||

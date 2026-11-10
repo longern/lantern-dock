@@ -14,6 +14,8 @@ export default {
   forest: "Forest light.svg",
   privacy: "Your files travel directly between your browser and your backend.",
   unavailable: "This is a demo item. Connect your backend to download files.",
-  readingText: "Reading list\n\n01. HTTP Semantics — RFC 9110\n02. WebDAV — RFC 4918\n03. WebTransport — W3C\n\nStay curious and take your time.",
-  markdown: "# {{name}}\n\nWelcome to LanternDock.\n\nThis demo file lets you try browsing, previewing, saving favorites and downloading files.\n\n## Connection\n\nThe Worker only supplies configuration. Your browser connects directly to your backend for file content.\nHTTPS and WebTransport are supported, with WebDAV for file access.\n\n## Your data\n\nLogin credentials stay in this page's memory.\nFavorites and recent visits are stored in this browser.\n\nConnect your backend to replace these demo files with your own.",
+  readingText:
+    "Reading list\n\n01. HTTP Semantics — RFC 9110\n02. WebDAV — RFC 4918\n03. WebTransport — W3C\n\nStay curious and take your time.",
+  markdown:
+    "# {{name}}\n\nWelcome to LanternDock.\n\nThis demo file lets you try browsing, previewing, saving favorites and downloading files.\n\n## Connection\n\nThe Worker only supplies configuration. Your browser connects directly to your backend for file content.\nHTTPS and WebTransport are supported, with WebDAV for file access.\n\n## Your data\n\nLogin credentials stay in this page's memory.\nFavorites and recent visits are stored in this browser.\n\nConnect your backend to replace these demo files with your own.",
 };

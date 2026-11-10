@@ -112,13 +112,23 @@ test("real workers-sso CIMD login uses HttpOnly cookies and shows a copyable adm
   expect(errors).toEqual([]);
 });
 
-test("real OIDC login returns to a shared file instead of losing its location", async ({ page }) => {
-  await page.goto(fixture.origin + "/account?return=" + encodeURIComponent("/files/hello.txt"));
+test("real OIDC login returns to a shared file instead of losing its location", async ({
+  page,
+}) => {
+  await page.goto(
+    fixture.origin +
+      "/account?return=" +
+      encodeURIComponent("/files/hello.txt"),
+  );
   await page.getByRole("button", { name: "统一登录", exact: true }).click();
-  await page.getByRole("button", { name: "允许登录 LanternDock", exact: true }).click();
+  await page
+    .getByRole("button", { name: "允许登录 LanternDock", exact: true })
+    .click();
   await expect(page).toHaveURL(fixture.origin + "/files/hello.txt");
   await expect(page.locator("#preview-name")).toHaveText("hello.txt");
-  await expect(page.locator(".preview-content pre")).toContainText("WebTransport");
+  await expect(page.locator(".preview-content pre")).toContainText(
+    "WebTransport",
+  );
 });
 
 test("administrator subjects are enforced on the NAS and apply to an existing login", async ({

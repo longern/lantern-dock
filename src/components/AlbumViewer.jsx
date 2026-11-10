@@ -11,7 +11,7 @@ import "react-photo-view/dist/react-photo-view.css";
 import { t } from "../../shared/i18n.js";
 import { bytes, date } from "../lib/format.js";
 import { fitAlbumMedia } from "../lib/album-media.js";
-import { useMediaQuery } from "../hooks/useMediaQuery.js";
+import { useCompactLayout, useReducedMotion } from "../hooks/useMediaQuery.js";
 import { AlbumMedia } from "./AlbumMedia.jsx";
 import { Dialog } from "./Dialog.jsx";
 import { Icon } from "./Icon.jsx";
@@ -41,7 +41,8 @@ export function AlbumViewer({
     width: innerWidth,
     height: innerHeight,
   });
-  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const reducedMotion = useReducedMotion();
+  const compact = useCompactLayout();
   const [lifetime] = useState(() => new AbortController());
   const [snapshots] = useState(
     () =>
@@ -209,6 +210,7 @@ export function AlbumViewer({
             controls.current = params;
             return (
               <AlbumControls
+                showZoomControls={!compact}
                 params={params}
                 item={item}
                 favorite={favorite}
@@ -232,6 +234,7 @@ export function AlbumViewer({
 }
 
 function AlbumControls({
+  showZoomControls,
   params,
   item,
   favorite,
@@ -268,7 +271,13 @@ function AlbumControls({
           <Icon name="x" />
         </button>
         <strong id="album-viewer-name">{item.name}</strong>
-        <button class="icon-button" aria-label={t("library.copyLink")} onClick={() => onCopyLink(item)}><Icon name="copy" /></button>
+        <button
+          class="icon-button"
+          aria-label={t("library.copyLink")}
+          onClick={() => onCopyLink(item)}
+        >
+          <Icon name="copy" />
+        </button>
         {live && (
           <span class="album-live-label" aria-label={t("library.livePhoto")}>
             <Icon name="live" /> LIVE
@@ -320,7 +329,7 @@ function AlbumControls({
         >
           <Icon name="star" />
         </button>
-        {item.kind === "image" && (
+        {item.kind === "image" && showZoomControls && (
           <>
             <button
               class="icon-button"

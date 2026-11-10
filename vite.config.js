@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { Readable } from "node:stream";
 import worker from "./worker/index.js";
 import { loadLocalEnvironment } from "./scripts/local-env.mjs";
+import { breakpointMedia } from "./scripts/breakpoint-media.mjs";
 
 function connectionAPI() {
   const setup = async (server) => {
@@ -42,6 +43,7 @@ function connectionAPI() {
 
 export default defineConfig({
   plugins: [preact(), connectionAPI()],
+  css: { postcss: { plugins: [breakpointMedia()] } },
   server: {
     host: "127.0.0.1",
     port: Number(process.env.PORT || 8787),

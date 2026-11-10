@@ -11,7 +11,14 @@ export function bytes(size) {
     index++;
   }
   const digits = value >= 100 ? 0 : 1;
-  return new Intl.NumberFormat(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(value) + " " + units[index];
+  return (
+    new Intl.NumberFormat(locale, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    }).format(value) +
+    " " +
+    units[index]
+  );
 }
 
 export function date(value, full = false) {

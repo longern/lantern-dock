@@ -15,8 +15,7 @@ export async function limitedBytes(response, limit, signal) {
       const { done, value } = await reader.read();
       if (done) break;
       total += value.length;
-      if (total > limit)
-        throw coreError("MEMORY_LIMIT");
+      if (total > limit) throw coreError("MEMORY_LIMIT");
       chunks.push(value);
     }
   } catch (error) {

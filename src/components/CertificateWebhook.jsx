@@ -32,10 +32,7 @@ export function CertificateWebhook({
           if (active) setResult({ key, origin, url });
         })
         .catch(() => {
-          if (active)
-            setError(
-              t("account.webhookGenerationFailed"),
-            );
+          if (active) setError(t("account.webhookGenerationFailed"));
         });
     }
     return () => {
@@ -76,15 +73,14 @@ export function CertificateWebhook({
   };
   if (!key)
     return (
-      <section class="setup-webhook" aria-label={t("account.certificateWebhook")}>
-        <p>
-          {t("account.webhookSavedInstructions")}
-        </p>
+      <section
+        class="setup-webhook"
+        aria-label={t("account.certificateWebhook")}
+      >
+        <p>{t("account.webhookSavedInstructions")}</p>
         <details class="setup-webhook-existing">
           <summary>{t("account.recalculateWebhook")}</summary>
-          <p>
-            {t("account.webhookExistingInstructions")}
-          </p>
+          <p>{t("account.webhookExistingInstructions")}</p>
           <code>
             npm run webhook --{" "}
             {location.protocol === "https:"
@@ -97,9 +93,7 @@ export function CertificateWebhook({
   return (
     <section class="setup-webhook" aria-label={t("account.certificateWebhook")}>
       <h3>{t("account.bridgeConfiguration")}</h3>
-      <p>
-        {t("account.webhookBridgeInstructions")}
-      </p>
+      <p>{t("account.webhookBridgeInstructions")}</p>
       {showAddress && (
         <>
           <label class="form-label" for="webhook-origin">
@@ -150,9 +144,7 @@ export function CertificateWebhook({
           {t("account.downloadBridgeEnv")}
         </button>
       </div>
-      <p class="field-note">
-        {t("account.webhookSaveInstructions")}
-      </p>
+      <p class="field-note">{t("account.webhookSaveInstructions")}</p>
       {error && <p role="status">{error}</p>}
     </section>
   );

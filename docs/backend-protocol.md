@@ -2,15 +2,15 @@
 
 The included NAS service exposes one HTTP origin behind a WebTransport bridge or an HTTPS reverse proxy. Container mount paths (`/public` and `/data`) are independent of these public URL paths.
 
-| Service              | Default path        | Protocol                                                |
-| -------------------- | ------------------- | ------------------------------------------------------- |
-| Public files         | `/dav/`             | Anonymous, read-only WebDAV                             |
-| Images               | `/api/iiif/3`       | IIIF Image API 3, Level 0; public generated JPGs        |
-| Motion media          | `/api/media`        | LanternDock media v1; metadata discovery and ranged video resources |
-| Temporary file drops | `/api/uploads`      | LanternDock inbox v1; Bearer collection-link permission |
-| Account              | `/api/account`      | LanternDock identity v2; DPoP-bound site credential     |
+| Service              | Default path        | Protocol                                                                   |
+| -------------------- | ------------------- | -------------------------------------------------------------------------- |
+| Public files         | `/dav/`             | Anonymous, read-only WebDAV                                                |
+| Images               | `/api/iiif/3`       | IIIF Image API 3, Level 0; public generated JPGs                           |
+| Motion media         | `/api/media`        | LanternDock media v1; metadata discovery and ranged video resources        |
+| Temporary file drops | `/api/uploads`      | LanternDock inbox v1; Bearer collection-link permission                    |
+| Account              | `/api/account`      | LanternDock identity v2; DPoP-bound site credential                        |
 | Management           | `/api/admin`        | LanternDock admin v1; scoped DPoP credential plus local administrator role |
-| Capabilities         | `/api/capabilities` | Public LanternDock capability document v1               |
+| Capabilities         | `/api/capabilities` | Public LanternDock capability document v1                                  |
 
 Only the backend connection URL needs to be configured. An unset or empty `BACKEND_ROOT` defaults to `/dav/` for WebTransport and for an HTTP(S) URL with no mount path. An explicit path in `WEBDAV_URL` takes precedence over that default; an explicit `BACKEND_ROOT` overrides either transport. To browse a third-party DAV server mounted at `/`, set `BACKEND_ROOT="/"` (or enter `/` in the setup wizard's advanced root field).
 

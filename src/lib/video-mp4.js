@@ -12,10 +12,36 @@ const queueLimit = 16 * 1024 * 1024;
 // only known parser/box names and a numeric byte offset for useful diagnostics.
 const parserModules = new Set(["ISOFile", "BoxParser", "DataStream"]);
 const diagnosticBoxes = new Set([
-  "ftyp", "moov", "mdat", "moof", "mvhd", "trak", "tkhd", "mdia", "mdhd",
-  "hdlr", "minf", "stbl", "stsd", "stsz", "stz2", "stco", "co64", "stsc",
-  "stts", "ctts", "stss", "udta", "meta", "ilst", "iinf", "avcC", "hvcC",
-  "av1C", "esds", "©xyz",
+  "ftyp",
+  "moov",
+  "mdat",
+  "moof",
+  "mvhd",
+  "trak",
+  "tkhd",
+  "mdia",
+  "mdhd",
+  "hdlr",
+  "minf",
+  "stbl",
+  "stsd",
+  "stsz",
+  "stz2",
+  "stco",
+  "co64",
+  "stsc",
+  "stts",
+  "ctts",
+  "stss",
+  "udta",
+  "meta",
+  "ilst",
+  "iinf",
+  "avcC",
+  "hvcC",
+  "av1C",
+  "esds",
+  "©xyz",
 ]);
 export function mp4ParseError(module, detail = "", offset) {
   const diagnostic = {
@@ -27,9 +53,15 @@ export function mp4ParseError(module, detail = "", offset) {
   const position = /at position (\d{1,16})\b/.exec(message);
   const value = position ? Number(position[1]) : offset;
   if (Number.isSafeInteger(value) && value >= 0) diagnostic.offset = value;
-  const context = [diagnostic.parser, diagnostic.box,
-    diagnostic.offset === undefined ? null : t("core.diagnosticByte", { offset: diagnostic.offset }),
-  ].filter(Boolean).join(t("core.diagnosticSeparator"));
+  const context = [
+    diagnostic.parser,
+    diagnostic.box,
+    diagnostic.offset === undefined
+      ? null
+      : t("core.diagnosticByte", { offset: diagnostic.offset }),
+  ]
+    .filter(Boolean)
+    .join(t("core.diagnosticSeparator"));
   const error = coreError("MP4_PARSE_ERROR", { context });
   error.diagnostic = Object.freeze(diagnostic);
   return error;
@@ -107,7 +139,8 @@ export class MP4MediaSource {
         : 10;
     for (const track of tracks) {
       const mime = `${track.video ? "video" : "audio"}/mp4; codecs="${track.codec}"`;
-      if (!MediaSource.isTypeSupported(mime)) throw coreError("VIDEO_UNSUPPORTED");
+      if (!MediaSource.isTypeSupported(mime))
+        throw coreError("VIDEO_UNSUPPORTED");
       const source = this.media.addSourceBuffer(mime);
       const buffer = { id: track.id, source, queue: [], current: null };
       buffer.updated = () => {
@@ -334,8 +367,11 @@ export class MP4MediaSource {
         if (this.failed) return;
         // Malformed nested boxes can throw instead of invoking onError. Avoid
         // leaking raw metadata/property text or an unhelpful JavaScript error.
-        if (error instanceof TypeError || error instanceof RangeError ||
-          error instanceof SyntaxError)
+        if (
+          error instanceof TypeError ||
+          error instanceof RangeError ||
+          error instanceof SyntaxError
+        )
           throw mp4ParseError("MP4Box", "", data.fileStart);
         throw error;
       }
@@ -358,7 +394,9 @@ export class MP4MediaSource {
     this.controller.abort();
     this.file.stop();
     this.notify();
-    this.onError?.(error instanceof Error ? error : coreError("VIDEO_UNSUPPORTED"));
+    this.onError?.(
+      error instanceof Error ? error : coreError("VIDEO_UNSUPPORTED"),
+    );
   }
   dispose() {
     if (this.disposed) return;

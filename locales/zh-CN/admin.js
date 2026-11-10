@@ -5,7 +5,8 @@ export default {
   links: "收件链接",
   inbox: "私有收件",
   linksDescription: "给访客一个限时、限量、仅可上传的链接。",
-  inboxDescription: "这里只显示已完成的上传。收到的文件保持私有，仅管理员可查看和下载。",
+  inboxDescription:
+    "这里只显示已完成的上传。收到的文件保持私有，仅管理员可查看和下载。",
   createLink: "创建链接",
   refreshLinks: "刷新收件链接",
   refreshInbox: "刷新私有收件",
@@ -27,7 +28,8 @@ export default {
   "state.revoked": "已撤销",
   "state.expired": "已过期",
   "state.full": "额度已用完",
-  quotaNote: "额度包含已完成文件和进行中的上传预留。移走或删除已收文件，不会返还链接的累计收集额度。",
+  quotaNote:
+    "额度包含已完成文件和进行中的上传预留。移走或删除已收文件，不会返还链接的累计收集额度。",
   noTokenRecovery: "列表无法恢复分享链接。链接遗失后，请创建替代链接。",
   pagination: "结果分页",
   previous: "上一页",
@@ -40,49 +42,61 @@ export default {
   dismissNotice: "关闭提示",
   close: "关闭对话框",
   cancel: "取消",
-  createDescription: "持有链接的人可在限额内上传文件，但无法查看或下载已有文件。",
+  createDescription:
+    "持有链接的人可在限额内上传文件，但无法查看或下载已有文件。",
   linkTitle: "链接名称",
   titlePlaceholder: "例如：活动照片收集",
   expiryLocal: "到期时间（当前本地时区）",
   fileLimitMiB: "单文件上限（MiB）",
   totalLimitMiB: "累计收集额度（MiB）",
   maxFiles: "最多文件数",
-  invalidTitle: "请输入 1–200 个 UTF-8 字节的名称，且不能包含控制字符。名称过长时请缩短。",
+  invalidTitle:
+    "请输入 1–200 个 UTF-8 字节的名称，且不能包含控制字符。名称过长时请缩短。",
   invalidExpiry: "请选择未来的到期时间。",
   invalidLimits: "额度须为正数，文件数须为正整数，累计额度不能小于单文件上限。",
   creating: "正在创建链接…",
   linkCreated: "链接已创建",
   oneTimeWarning: "请立即保存链接。链接仅展示这一次，关闭后无法再次获取。",
   shareableLink: "可分享的收件链接",
-  linkPrivacy: "请仅分享给预期的上传者。任何获得链接的人都可上传，直到链接到期或被撤销。",
+  linkPrivacy:
+    "请仅分享给预期的上传者。任何获得链接的人都可上传，直到链接到期或被撤销。",
   copyLink: "复制链接",
   savedLink: "我已保存链接",
   linkCopied: "链接已复制。",
   copyFailed: "自动复制失败，请选中链接并手动复制后再关闭。",
-  createUncertain: "连接中断，链接可能已创建。请关闭此窗口并刷新列表，确认结果后再重试。如果链接已出现但未保存地址，请撤销后创建替代链接。",
+  createUncertain:
+    "连接中断，链接可能已创建。请关闭此窗口并刷新列表，确认结果后再重试。如果链接已出现但未保存地址，请撤销后创建替代链接。",
   revokeTitle: "撤销这个收件链接？",
-  revokeDescription: "此操作无法撤回。链接将停止接受上传，尚未完成的上传也会停止。已收到的文件仍保留在私有收件箱中。",
+  revokeDescription:
+    "此操作无法撤回。链接将停止接受上传，尚未完成的上传也会停止。已收到的文件仍保留在私有收件箱中。",
   confirmRevoke: "撤销链接",
   revoking: "正在撤销…",
   revokedNotice: "链接已撤销，之前收到的文件仍可查看。",
   requestTimeout: "NAS 请求超时，请检查连接并刷新以确认操作结果。",
   requestFailed: "请求未能完成，请检查连接后重试。",
-  invalidResponse: "NAS 返回了不符合预期的响应，请刷新并检查 NAS 版本是否支持管理后台。",
+  invalidResponse:
+    "NAS 返回了不符合预期的响应，请刷新并检查 NAS 版本是否支持管理后台。",
   forbiddenDescription: "此 NAS 尚未授予你的账户管理员权限。",
   "gate.checking.title": "正在检查权限…",
   "gate.checking.description": "正在等待 NAS 验证你的账户和权限。",
   "gate.signed-out.title": "请先登录",
-  "gate.signed-out.description": "管理后台需要登录，并由此 NAS 验证管理员权限。",
+  "gate.signed-out.description":
+    "管理后台需要登录，并由此 NAS 验证管理员权限。",
   "gate.identity-error.title": "暂时无法检查账户",
-  "gate.identity-error.description": "当前无法获取登录状态，请重新检查后再进入管理后台。",
+  "gate.identity-error.description":
+    "当前无法获取登录状态，请重新检查后再进入管理后台。",
   "gate.not-configured.title": "尚未配置 NAS",
-  "gate.not-configured.description": "站点需要连接 LanternDock NAS 才能管理链接和接收文件。演示模式不提供管理后台。",
+  "gate.not-configured.description":
+    "站点需要连接 LanternDock NAS 才能管理链接和接收文件。演示模式不提供管理后台。",
   "gate.nas-error.title": "暂时无法验证 NAS 权限",
-  "gate.nas-error.description": "NAS 可能离线或无法连接。仅登录站点并不代表拥有管理员权限，请恢复连接后重新检查。",
+  "gate.nas-error.description":
+    "NAS 可能离线或无法连接。仅登录站点并不代表拥有管理员权限，请恢复连接后重新检查。",
   "gate.forbidden.title": "需要管理员权限",
   "gate.forbidden.description": "你已登录，但此 NAS 尚未授予该账户管理员权限。",
   "gate.unverified.title": "NAS 权限尚未确认",
-  "gate.unverified.description": "NAS 未能验证一致且已授权的账户。请检查连接和登录状态，再次验证权限。",
+  "gate.unverified.description":
+    "NAS 未能验证一致且已授权的账户。请检查连接和登录状态，再次验证权限。",
   "gate.unsupported.title": "需要更新 NAS",
-  "gate.unsupported.description": "此 NAS 已验证你的管理员身份，但尚不支持网页管理。请更新到支持管理后台的 NAS 版本后重新检查。",
+  "gate.unsupported.description":
+    "此 NAS 已验证你的管理员身份，但尚不支持网页管理。请更新到支持管理后台的 NAS 版本后重新检查。",
 };

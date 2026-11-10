@@ -10,8 +10,7 @@ export function setupVariables(form, resetVariables = []) {
   const defaultName = t("core.defaultLibraryName");
   const enteredName = (form.name || "").trim();
   const name = enteredName || defaultName;
-  if (/[\x00-\x1f]/.test(name))
-    throw coreError("INVALID_LIBRARY_NAME");
+  if (/[\x00-\x1f]/.test(name)) throw coreError("INVALID_LIBRARY_NAME");
   if (!["http", "webtransport"].includes(form.transport))
     throw coreError("TRANSPORT_REQUIRED");
   let endpoint;

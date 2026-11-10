@@ -1,11 +1,15 @@
 import { expect } from "@playwright/test";
 
-export const listingOptionsButton = (scope) => scope.getByRole("button", {
-  name: "排序与视图", exact: true,
-});
-export const listingOptionsMenu = (scope) => scope.getByRole("menu", {
-  name: "排序与视图", exact: true,
-});
+export const listingOptionsButton = (scope) =>
+  scope.getByRole("button", {
+    name: "排序与视图",
+    exact: true,
+  });
+export const listingOptionsMenu = (scope) =>
+  scope.getByRole("menu", {
+    name: "排序与视图",
+    exact: true,
+  });
 
 export async function openListingOptions(scope) {
   const trigger = listingOptionsButton(scope);
@@ -25,7 +29,9 @@ export async function chooseListingOption(scope, name) {
 export async function expectListingOptions(scope, names) {
   const menu = await openListingOptions(scope);
   for (const name of names)
-    await expect(menu.getByRole("menuitemradio", { name, exact: true })).toHaveAttribute("aria-checked", "true");
+    await expect(
+      menu.getByRole("menuitemradio", { name, exact: true }),
+    ).toHaveAttribute("aria-checked", "true");
   await menu.press("Escape");
   await expect(menu).toHaveCount(0);
 }

@@ -1,6 +1,8 @@
 /* Dialog surfaces use shape and shadow, not an outer frame. Focus outlines
    and interior dividers remain part of their controls and content. */
-dialog { border: 0; }
+dialog {
+  border: 0;
+}
 
 /* Keep each native modal and its backdrop in the top layer through the exit. */
 .settings-dialog:not([open]),
@@ -84,19 +86,42 @@ dialog { border: 0; }
     transform: translateX(24px);
   }
 }
-.page-dialog::backdrop { background: var(--scrim); animation: backdrop-in var(--motion-enter) var(--ease-standard) both; }
-.page-dialog[data-state="closed"]::backdrop { animation: backdrop-out var(--motion-exit) ease-in both; }
-.page-dialog[open] { animation: page-dialog-in var(--motion-enter) var(--ease-standard) both; }
-.page-dialog[open][data-state="closed"] { animation: page-dialog-out var(--motion-exit) ease-in both; }
+.page-dialog::backdrop {
+  background: var(--scrim);
+  animation: backdrop-in var(--motion-enter) var(--ease-standard) both;
+}
+.page-dialog[data-state="closed"]::backdrop {
+  animation: backdrop-out var(--motion-exit) ease-in both;
+}
+.page-dialog[open] {
+  animation: page-dialog-in var(--motion-enter) var(--ease-standard) both;
+}
+.page-dialog[open][data-state="closed"] {
+  animation: page-dialog-out var(--motion-exit) ease-in both;
+}
 .page-dialog[open][data-state="open"][data-entry="instant"],
-.page-dialog[open][data-state="open"][data-entry="instant"]::backdrop { animation: none; }
+.page-dialog[open][data-state="open"][data-entry="instant"]::backdrop {
+  animation: none;
+}
 @keyframes page-dialog-in {
-  from { opacity: 0; transform: translateX(100%); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 @keyframes page-dialog-out {
-  from { opacity: 1; transform: translateX(0); }
-  to { opacity: 0; transform: translateX(100%); }
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

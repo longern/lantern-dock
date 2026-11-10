@@ -82,11 +82,11 @@ export class DemoClient {
         ),
         { headers: { "Content-Type": "application/json" } },
       );
-    if (name.endsWith(".zip"))
-      throw new Error(t("demo.unavailable"));
-    const text = name === t("demo.reading")
-      ? t("demo.readingText")
-      : t("demo.markdown", { name: name.replace(/\.[^.]+$/, "") });
+    if (name.endsWith(".zip")) throw new Error(t("demo.unavailable"));
+    const text =
+      name === t("demo.reading")
+        ? t("demo.readingText")
+        : t("demo.markdown", { name: name.replace(/\.[^.]+$/, "") });
     return new Response(text, {
       headers: { "Content-Type": "text/plain; charset=utf-8" },
     });

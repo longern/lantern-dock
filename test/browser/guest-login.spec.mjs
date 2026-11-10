@@ -1,3 +1,4 @@
+import { isCompact } from "../helpers/responsive.mjs";
 import { test as base, expect } from "@playwright/test";
 
 const test = base.extend({
@@ -93,10 +94,7 @@ for (const language of ["zh-CN", "en"]) {
   test.describe(`${language} guest login dialog`, () => {
     test.use({ locale: language === "en" ? "en-US" : language });
     test.beforeEach(async ({ page }) => {
-      test.skip(
-        page.viewportSize().width > 700,
-        "Guest login entry is on mobile My",
-      );
+      test.skip(!isCompact(page), "Guest login entry is on mobile My");
     });
     const copy = copyByLanguage[language];
 
@@ -292,7 +290,7 @@ for (const dismissal of [
   test(`pending login is cancelled on ${dismissal}; a late response cannot redirect`, async ({
     page,
   }) => {
-    test.skip(page.viewportSize().width > 700, "Starts on mobile My");
+    test.skip(!isCompact(page), "Starts on mobile My");
     const copy = copyByLanguage["zh-CN"];
     await installDeferredLogin(page);
     // A same-document destination makes an accidental redirect observable
@@ -362,7 +360,7 @@ for (const dismissal of [
 test("an old login response cannot redirect or clear a newer attempt after reopening", async ({
   page,
 }) => {
-  test.skip(page.viewportSize().width > 700, "Mobile guest login");
+  test.skip(!isCompact(page), "Mobile guest login");
   await installDeferredLogin(page);
   const copy = copyByLanguage["zh-CN"];
   const trigger = await openGuest(page, copy);
@@ -402,10 +400,7 @@ test("an old login response cannot redirect or clear a newer attempt after reope
 test("the account return destination survives refresh without a session-storage hint", async ({
   page,
 }) => {
-  test.skip(
-    page.viewportSize().width > 700,
-    "Mobile account return destination",
-  );
+  test.skip(!isCompact(page), "Mobile account return destination");
   await page.route("**/api/auth/session", (route) =>
     route.fulfill({
       json: {

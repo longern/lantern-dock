@@ -7,6 +7,15 @@ import { locale, t } from "../shared/i18n.js";
 
 document.documentElement.lang = locale;
 document.title = t("app.title");
-document.querySelector('meta[name="description"]')?.setAttribute("content", t("app.description"));
+document
+  .querySelector('meta[name="description"]')
+  ?.setAttribute("content", t("app.description"));
 
-render(<RouterProvider><SessionProvider><App /></SessionProvider></RouterProvider>, document.getElementById("app"));
+render(
+  <RouterProvider>
+    <SessionProvider>
+      <App />
+    </SessionProvider>
+  </RouterProvider>,
+  document.getElementById("app"),
+);
