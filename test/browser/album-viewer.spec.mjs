@@ -49,6 +49,19 @@ const viewer = (page) => page.locator("#album-viewer");
 const button = (page, name) =>
   viewer(page).getByRole("button", { name, exact: true });
 
+async function originalRaster(page) {
+  const encoded = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 2400;
+    canvas.height = 1600;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#45638a";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg").split(",")[1];
+  });
+  return Buffer.from(encoded, "base64");
+}
+
 async function install(page, options = {}) {
   const state = { high: [], originals: [], liveReads: [], ...options };
   // A real decoded high-resolution raster, generated without an extra dependency.
@@ -190,6 +203,8 @@ async function install(page, options = {}) {
     });
   });
   await page.route("**/dav/**", (route) => {
+    if (route.request().method() === "OPTIONS")
+      return route.fulfill({ status: 204, headers: { DAV: "1" } });
     if (route.request().method() === "PROPFIND")
       return route.fulfill({
         status: 207,
@@ -197,6 +212,8 @@ async function install(page, options = {}) {
         body: `<d:multistatus xmlns:d="DAV:">${(state.items || items).map((item) => `<d:response><d:href>/dav/${item.name}</d:href><d:propstat><d:prop><d:resourcetype/><d:getcontentlength>${item.name.endsWith(".mp4") ? video.length : high.length}</d:getcontentlength><d:getlastmodified>${item.modified}</d:getlastmodified></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`).join("")}</d:multistatus>`,
       });
     state.originals.push(route.request().url());
+    if (state.originalResponse && !route.request().url().endsWith(".mp4"))
+      return state.originalResponse(route);
     if (!route.request().url().endsWith(".mp4"))
       return route.fulfill({ contentType: "image/jpeg", body: high });
     const range = /^bytes=(\d+)-(\d*)$/.exec(
@@ -573,14 +590,22 @@ test("touch swipes follow the finger and pinch zoom remains independent of pagin
   page,
 }) => {
   test.skip(!isCompact(page), "Touch devices only");
-  await install(page, {
+  await page.addInitScript(() =>
+    Object.defineProperty(window, "devicePixelRatio", { value: 4 }),
+  );
+  const photo = await originalRaster(page);
+  const state = await install(page, {
     items: items.filter((item) => !item.name.endsWith(".mp4")),
+    originalResponse: (route) =>
+      route.fulfill({ contentType: "image/jpeg", body: photo }),
   });
   await openItem(page.locator(".album-preview").first());
   await expect(current(page).locator(".album-image-high.is-sharp")).toHaveCSS(
     "opacity",
     "1",
   );
+  expect(state.originals).toHaveLength(0);
+  await expect(button(page, "查看原图")).toHaveCount(0);
   const cdp = await page.context().newCDPSession(page);
   const touch = (type, points) =>
     cdp.send("Input.dispatchTouchEvent", {
@@ -606,6 +631,11 @@ test("touch swipes follow the finger and pinch zoom remains independent of pagin
     .poll(async () => (await current(page).boundingBox()).width)
     .toBeGreaterThan(originalWidth * 1.3);
   await expect(page.locator("#album-viewer-name")).toHaveText("first.png");
+  const sharp = current(page).locator(".album-image-original");
+  await expect(sharp).toBeVisible();
+  expect(await sharp.evaluate((image) => image.naturalWidth)).toBe(2400);
+  expect(state.originals).toHaveLength(1);
+  const originalURL = await sharp.getAttribute("src");
   await touch("touchStart", [
     [w * 0.1, y],
     [w * 0.9, y],
@@ -621,11 +651,19 @@ test("touch swipes follow the finger and pinch zoom remains independent of pagin
       Math.abs((await current(page).boundingBox()).width - originalWidth),
     )
     .toBeLessThan(1);
+  await expect(sharp).toHaveAttribute("src", originalURL);
   await touch("touchStart", [[w * 0.8, y]]);
   for (const fraction of [0.7, 0.6, 0.5, 0.4, 0.25, 0.1])
     await touch("touchMove", [[w * fraction, y]]);
   await touch("touchEnd", []);
   await expect(page.locator("#album-viewer-name")).toHaveText("last.png");
+  await expect(sharp).toHaveCount(0);
+  expect(state.originals).toHaveLength(1);
+  await expect
+    .poll(() =>
+      page.evaluate((src) => window.albumOwnedURLs.has(src), originalURL),
+    )
+    .toBe(false);
   await expect
     .poll(() =>
       current(page).evaluate((node) =>
@@ -639,6 +677,47 @@ test("touch swipes follow the finger and pinch zoom remains independent of pagin
   await touch("touchEnd", []);
   await expect(viewer(page)).toHaveCount(0);
   await cdp.detach();
+});
+
+test("desktop zoom keeps the preview after an original load fails and can retry", async ({
+  page,
+}) => {
+  test.skip(isCompact(page), "Desktop zoom controls only");
+  const photo = await originalRaster(page);
+  let fail = true;
+  const state = await install(page, {
+    originalResponse: (route) =>
+      fail
+        ? route.fulfill({ status: 503 })
+        : route.fulfill({ contentType: "image/jpeg", body: photo }),
+  });
+  await openItem(page.locator(".album-preview").first());
+  await expect(current(page).locator(".album-image-high.is-sharp")).toHaveCSS(
+    "opacity",
+    "1",
+  );
+  expect(state.originals).toHaveLength(0);
+  await expect(button(page, "查看原图")).toHaveCount(0);
+  await button(page, "放大").click();
+  await expect(current(page).getByRole("status")).toContainText("原图加载失败");
+  await expect(current(page).locator(".album-image-high.is-sharp")).toHaveCSS(
+    "opacity",
+    "1",
+  );
+  fail = false;
+  await button(page, "缩小").click();
+  await expect(current(page).getByRole("status")).toHaveCount(0);
+  await button(page, "放大").click();
+  const image = current(page).locator(".album-image-original");
+  await expect(image).toBeVisible();
+  expect(await image.evaluate((node) => node.naturalWidth)).toBe(2400);
+  expect(state.originals).toHaveLength(2);
+  const url = await image.getAttribute("src");
+  await button(page, "关闭预览").click();
+  await expect(viewer(page)).toHaveCount(0);
+  expect(
+    await page.evaluate((src) => window.albumOwnedURLs.has(src), url),
+  ).toBe(false);
 });
 
 test("verified live pairs merge only in the album and play on hold, stop on release and dispose on close", async ({

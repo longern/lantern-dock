@@ -113,6 +113,17 @@ html:has(.album-viewer[open]) {
 .album-image-high.is-cached {
   transition: none;
 }
+.album-image-original {
+  animation: album-original-in 180ms ease-out both;
+}
+@keyframes album-original-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 .album-media-placeholder {
   position: absolute;
   inset: 0;
@@ -255,6 +266,9 @@ html:has(.album-viewer[open]) {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .album-image-original {
+    animation: none;
+  }
   .album-live-video {
     transition: none;
   }

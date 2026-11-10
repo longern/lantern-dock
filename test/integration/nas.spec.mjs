@@ -517,7 +517,7 @@ test("cancelling a streaming upload through the bridge cleans partial files and 
   await expect(page.getByRole("status")).toHaveText("已接收");
 });
 
-test("public image Cache Storage survives reload and revalidates through real WebTransport without a Service Worker", async ({
+test("public previews and originals survive reload and revalidate through real WebTransport without a Service Worker", async ({
   page,
 }) => {
   await page.goto(fixture.origin);
@@ -528,7 +528,8 @@ test("public image Cache Storage survives reload and revalidates through real We
       const { backend } = await (await fetch("/api/config")).json();
       const transport = new DirectTransport(backend);
       const statuses = [],
-        validators = [];
+        validators = [],
+        originals = [];
       const request = transport.request.bind(transport);
       transport.request = async (path, options) => {
         const response = await request(path, options);
@@ -536,6 +537,11 @@ test("public image Cache Storage survives reload and revalidates through real We
           statuses.push(response.status);
           validators.push(options?.headers?.["If-None-Match"] || null);
         }
+        if (path.endsWith("/photo.png") && options?.method === "GET")
+          originals.push([
+            response.status,
+            options.headers["If-None-Match"] || null,
+          ]);
         return response;
       };
       const client = new DAVClient(transport, backend);
@@ -556,11 +562,20 @@ test("public image Cache Storage survives reload and revalidates through real We
         const keys = (await cache.keys()).filter(
           (key) => !key.url.endsWith("/index"),
         );
+        const original = await client.readOriginal(item);
+        const originalCache = await caches.open(
+          "lantern-dock-public-originals-v1",
+        );
         return {
           statuses,
           validators,
           width: image.naturalWidth,
           entries: keys.length,
+          originals,
+          originalSize: original.size,
+          originalEntries: (await originalCache.keys()).filter(
+            (key) => !key.url.endsWith("/index"),
+          ).length,
         };
       } finally {
         client.dispose();
@@ -571,12 +586,18 @@ test("public image Cache Storage survives reload and revalidates through real We
   expect(initial.statuses).toEqual([200, 200]);
   expect(initial.entries).toBe(2);
   expect(initial.width).toBe(384);
+  expect(initial.originals).toEqual([[200, null]]);
+  expect(initial.originalEntries).toBe(1);
+  expect(initial.originalSize).toBeGreaterThan(0);
   await page.reload();
   const reloaded = await load();
   expect(reloaded.statuses).toEqual([304, 304]);
   expect(reloaded.validators.every(Boolean)).toBe(true);
   expect(reloaded.width).toBe(384);
   expect(reloaded.entries).toBe(2);
+  expect(reloaded.originals).toEqual([[304, expect.any(String)]]);
+  expect(reloaded.originalEntries).toBe(1);
+  expect(reloaded.originalSize).toBe(initial.originalSize);
   expect(page.context().serviceWorkers()).toHaveLength(0);
   // Exercise the real logout action, not only the cache helper in isolation.
   await page.route("**/api/auth/session", (route) =>
@@ -596,12 +617,17 @@ test("public image Cache Storage survives reload and revalidates through real We
   await expect
     .poll(() =>
       page.evaluate(async () => {
-        const cache = await caches.open("lantern-dock-public-images-v1");
-        return (await cache.keys()).filter((key) => !key.url.endsWith("/index"))
-          .length;
+        return Promise.all(
+          ["images", "originals"].map(async (bucket) => {
+            const cache = await caches.open(`lantern-dock-public-${bucket}-v1`);
+            return (await cache.keys()).filter(
+              (key) => !key.url.endsWith("/index"),
+            ).length;
+          }),
+        );
       }),
     )
-    .toBe(0);
+    .toEqual([0, 0]);
 });
 
 test("IIIF thumbnails, preview and conditional cache work over real WebTransport", async ({
@@ -609,6 +635,9 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
 }, testInfo) => {
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  await page.addInitScript(() =>
+    Object.defineProperty(window, "devicePixelRatio", { value: 4 }),
+  );
   await page.goto(fixture.origin);
   await openItem(
     page.getByRole("button", { name: "打开文件夹 照片", exact: true }),
@@ -660,6 +689,37 @@ test("IIIF thumbnails, preview and conditional cache work over real WebTransport
     "2400 × 1600",
   );
   await page.screenshot({ path: testInfo.outputPath("iiif-preview.png") });
+  const original = page.locator(
+    ".album-media[data-current=true] .album-image-original",
+  );
+  await expect(original).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "查看原图", exact: true }),
+  ).toHaveCount(0);
+  if (isCompact(page)) {
+    const cdp = await page.context().newCDPSession(page);
+    const { width, height } = page.viewportSize();
+    const touch = (type, points) =>
+      cdp.send("Input.dispatchTouchEvent", {
+        type,
+        touchPoints: points.map((x, id) => ({ x, y: height / 2, id })),
+      });
+    try {
+      await touch("touchStart", [width * 0.35, width * 0.65]);
+      for (const offset of [0.04, 0.08, 0.12, 0.16])
+        await touch("touchMove", [
+          width * (0.35 - offset),
+          width * (0.65 + offset),
+        ]);
+      await touch("touchEnd", []);
+    } finally {
+      await cdp.detach();
+    }
+  } else {
+    await page.getByRole("button", { name: "放大", exact: true }).click();
+  }
+  await expect(original).toBeVisible();
+  expect(await original.evaluate((img) => img.naturalWidth)).toBe(2400);
   await page.getByRole("button", { name: "关闭预览", exact: true }).click();
   await expect(page.locator("#album-viewer")).toHaveCount(0);
   const oldThumbnail = await thumbnail.getAttribute("src");

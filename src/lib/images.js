@@ -2,7 +2,12 @@ import { t } from "../../shared/i18n.js";
 import { MemoryCache, cachePolicy } from "./cache.js";
 import { limitedBytes } from "./content.js";
 import { backendPaths } from "../../shared/backend-paths.js";
-import { PersistentImageCache } from "./image-cache.js";
+import {
+  originalImageAccept,
+  originalImageLimit,
+  PersistentImageCache,
+  supportedImageVary,
+} from "./image-cache.js";
 
 const freshness = 15000;
 export class ImageServiceError extends Error {
@@ -52,9 +57,10 @@ export function iiifSize(info, side) {
 }
 
 export class ImageClient {
-  constructor(transport, { root, persistentCache } = {}) {
+  constructor(transport, { root, persistentCache, originalCache } = {}) {
     this.transport = transport;
     this.responses = new MemoryCache(16 * 1024 * 1024, 512);
+    this.originalResponses = new MemoryCache(32 * 1024 * 1024, 3);
     this.previews = new MemoryCache(16 * 1024 * 1024, 256);
     this.failed = new MemoryCache(16384, 128);
     this.liveIndexes = new MemoryCache(2 * 1024 * 1024, 32);
@@ -65,11 +71,17 @@ export class ImageClient {
     this.revision = 0;
     this.persistent =
       persistentCache || new PersistentImageCache(transport, { root });
+    this.persistentOriginal =
+      transport.config?.transport === "webtransport"
+        ? originalCache ||
+          new PersistentImageCache(transport, { root, original: true })
+        : null;
   }
   dispose() {
     this.lifetime.abort();
     for (const job of this.queue.splice(0)) job.cancel();
     this.responses.clear();
+    this.originalResponses.clear();
     this.previews.clear();
     this.failed.clear();
     this.liveIndexes.clear();
@@ -77,6 +89,7 @@ export class ImageClient {
   expire() {
     this.revision++;
     this.responses.expire();
+    this.originalResponses.expire();
     this.previews.expire();
     this.failed.clear();
     this.liveIndexes.clear();
@@ -157,6 +170,13 @@ export class ImageClient {
           );
           const service = value.version === 1 && value.services?.images;
           const media = value.version === 1 && value.services?.media;
+          const files = value.version === 1 && value.services?.files;
+          this.publicFiles =
+            files?.enabled === true &&
+            files.readOnly === true &&
+            files.protocol === "webdav" &&
+            files.version === 1 &&
+            files.href === backendPaths.files;
           if (
             media?.enabled &&
             media.protocol === "lantern-dock-media" &&
@@ -182,27 +202,40 @@ export class ImageClient {
       })();
     return this.capabilities;
   }
-  async read(path, version, signal, limit, accept, persist = true) {
+  async read(
+    path,
+    version,
+    signal,
+    limit,
+    accept,
+    {
+      persist = true,
+      memory = this.responses,
+      storage = this.persistent,
+      request = (headers, signal) =>
+        this.transport.request(path, { headers, signal }),
+    } = {},
+  ) {
     signal?.throwIfAborted();
-    const key = path + "\0" + version;
-    let cached = this.responses.get(key);
-    if (!persist) await this.persistent.delete(path, version, accept);
+    const key = path + "\0" + version + "\0" + accept;
+    let cached = memory.get(key);
+    if (!persist) await storage?.delete(path, version, accept);
     if (cached && Date.now() - cached.time < cached.value.freshFor)
       return cached.value;
     if (persist && !cached) {
-      const value = await this.persistent.get(
-        path,
-        version,
-        accept,
-        limit,
-        signal,
-      );
+      const value = await storage?.get(path, version, accept, limit, signal);
       if (value) cached = { value, weight: value.bytes.byteLength };
     }
     signal?.throwIfAborted();
     const headers = { Accept: accept };
     if (cached?.value.etag) headers["If-None-Match"] = cached.value.etag;
-    const response = await this.transport.request(path, { headers, signal });
+    const response = await request(headers, signal);
+    const original = accept === originalImageAccept;
+    const policy = (headers) => {
+      const value = cachePolicy(headers);
+      if (original && !supportedImageVary(headers)) value.storable = false;
+      return value;
+    };
     if (response.status === 304 && cached) {
       await response.body?.cancel();
       const headers = new Headers(cached.value.headers);
@@ -214,35 +247,70 @@ export class ImageClient {
         ...cached.value,
         headers,
         etag: headers.get("ETag"),
-        ...cachePolicy(headers),
+        ...policy(headers),
       };
-      if (value.storable) this.responses.set(key, value, cached.weight);
-      else this.responses.delete(key);
-      if (persist)
-        await this.persistent.put(path, version, accept, value, signal);
+      if (value.storable) memory.set(key, value, cached.weight);
+      else memory.delete(key);
+      if (persist) await storage?.put(path, version, accept, value, signal);
       signal?.throwIfAborted();
       return value;
     }
-    if (!response.ok) {
-      this.responses.delete(key);
+    if (!response.ok || (original && response.status !== 200)) {
+      memory.delete(key);
       await response.body?.cancel();
-      await this.persistent.delete(path, version, accept);
+      await storage?.delete(path, version, accept);
       throw new ImageServiceError(response.status);
+    }
+    const type = response.headers.get("Content-Type") || "";
+    if (original && type && !type.toLowerCase().startsWith("image/")) {
+      memory.delete(key);
+      await response.body?.cancel();
+      await storage?.delete(path, version, accept);
+      throw new Error(t("library.imageResponseInvalid"));
+    }
+    const responsePolicy = policy(response.headers);
+    // A no-store response invalidates the old copy even if reading the new
+    // body is interrupted. Originals can be large enough for that to matter.
+    if (original && !responsePolicy.storable) {
+      memory.delete(key);
+      await storage?.delete(path, version, accept);
     }
     const bytes = await limitedBytes(response, limit, signal);
     const value = {
       bytes,
-      type: response.headers.get("Content-Type") || "",
+      type,
       etag: response.headers.get("ETag"),
       headers: new Headers(response.headers),
-      ...cachePolicy(response.headers),
+      ...responsePolicy,
     };
-    if (value.storable) this.responses.set(key, value, bytes.byteLength);
-    else this.responses.delete(key);
-    if (persist)
-      await this.persistent.put(path, version, accept, value, signal);
+    if (value.storable) memory.set(key, value, bytes.byteLength);
+    else memory.delete(key);
+    if (persist && (!original || value.storable))
+      await storage?.put(path, version, accept, value, signal);
     signal?.throwIfAborted();
     return value;
+  }
+  original(item, signal, request) {
+    return this.run(async (signal) => {
+      // Only the advertised anonymous DAV namespace is eligible for disk.
+      await this.service();
+      const version = item.etag || `${item.modified}:${item.size}`;
+      const { bytes, type } = await this.read(
+        item.path,
+        version,
+        signal,
+        originalImageLimit,
+        originalImageAccept,
+        {
+          memory: this.originalResponses,
+          storage: this.publicFiles ? this.persistentOriginal : null,
+          request,
+        },
+      );
+      return new Blob([bytes], {
+        type: type.split(";")[0] || originalImageAccept,
+      });
+    }, signal);
   }
   async image(item, side, signal) {
     signal?.throwIfAborted();
@@ -289,7 +357,7 @@ export class ImageClient {
           signal,
           8 * 1024 * 1024,
           "image/jpeg",
-          metadata.storable,
+          { persist: metadata.storable },
         );
         if (response.type.split(";")[0] !== "image/jpeg")
           throw new ImageServiceError(415);

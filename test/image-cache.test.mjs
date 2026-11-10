@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   PersistentImageCache,
   clearPersistentImages,
+  originalImageAccept,
 } from "../src/lib/image-cache.js";
 import { ImageClient, imageIdentifier } from "../src/lib/images.js";
 
@@ -16,19 +17,35 @@ const backend = {
 const path = "/api/iiif/3/cGhvdG8uanBn/full/384,256/0/default.jpg";
 const jpeg = "image/jpeg";
 function storageFixture(options = {}) {
-  const records = new Map();
-  const cache = {
-    async match(key) {
-      return records.get(typeof key === "string" ? key : key.url)?.clone();
-    },
-    async put(key, response) {
-      records.set(typeof key === "string" ? key : key.url, response.clone());
-    },
-    async delete(key) {
-      return records.delete(typeof key === "string" ? key : key.url);
-    },
-    async keys() {
-      return [...records.keys()].map((key) => new Request(key));
+  const buckets = new Map();
+  const cacheFor = (name) => {
+    if (!buckets.has(name)) {
+      const records = new Map();
+      buckets.set(name, {
+        records,
+        async match(key) {
+          return records.get(typeof key === "string" ? key : key.url)?.clone();
+        },
+        async put(key, response) {
+          records.set(
+            typeof key === "string" ? key : key.url,
+            response.clone(),
+          );
+        },
+        async delete(key) {
+          return records.delete(typeof key === "string" ? key : key.url);
+        },
+        async keys() {
+          return [...records.keys()].map((key) => new Request(key));
+        },
+      });
+    }
+    return buckets.get(name);
+  };
+  const cache = cacheFor("lantern-dock-public-images-v1");
+  const storage = {
+    async open(name) {
+      return cacheFor(name);
     },
   };
   let queue = Promise.resolve();
@@ -39,19 +56,16 @@ function storageFixture(options = {}) {
       return result;
     },
   };
-  const storage = {
-    async open() {
-      return cache;
-    },
-  };
   const settings = { storage, locks, origin, secure: true, ...options };
   const transport = { config: { ...backend }, credentials: { mode: "none" } };
   return {
-    records,
+    records: cache.records,
     cache,
     transport,
     settings,
     make: (other = transport) => new PersistentImageCache(other, settings),
+    makeOriginal: (other = transport) =>
+      new PersistentImageCache(other, { ...settings, original: true }),
   };
 }
 const payload = (size = 4, headers = {}) => ({
@@ -317,4 +331,123 @@ test("a blocked Cache Storage property does not prevent client construction or l
     if (descriptor) Object.defineProperty(globalThis, "caches", descriptor);
     else delete globalThis.caches;
   }
+});
+
+test("zoom originals have a separate disk budget and the same logout fence", async () => {
+  const fullSize = storageFixture();
+  const large = 9 * 1024 * 1024;
+  await fullSize
+    .makeOriginal()
+    .put("/dav/large.jpg", "v1", originalImageAccept, payload(large));
+  const restored = await fullSize
+    .makeOriginal()
+    .get("/dav/large.jpg", "v1", originalImageAccept, large);
+  assert.equal(restored.bytes.length, large);
+
+  const f = storageFixture({ maxBytes: 8, maxEntries: 2 });
+  const preview = f.make();
+  const original = f.makeOriginal();
+  await preview.put(path, "v1", jpeg, payload(8));
+  for (const photo of ["one.jpg", "two.jpg", "three.jpg"])
+    await original.put("/dav/" + photo, "v1", originalImageAccept, payload(4));
+  assert.equal((await preview.get(path, "v1", jpeg, 8)).bytes.length, 8);
+  assert.equal(
+    await original.get("/dav/one.jpg", "v1", originalImageAccept, 8),
+    null,
+  );
+  assert.ok(
+    await f.makeOriginal().get("/dav/three.jpg", "v1", originalImageAccept, 8),
+  );
+  for (const target of [
+    "/api/admin/inbox/file",
+    "/dav/../secret.jpg",
+    "/dav/%2e%2e/secret.jpg",
+    "/dav/elsewhere%2ffile.jpg",
+    path,
+  ]) {
+    await original.put(target, "v1", originalImageAccept, payload());
+    assert.equal(
+      await original.get(target, "v1", originalImageAccept, 8),
+      null,
+    );
+  }
+  await clearPersistentImages(f.settings);
+  await original.put("/dav/late.jpg", "v1", originalImageAccept, payload());
+  assert.equal(
+    await f.makeOriginal().get("/dav/late.jpg", "v1", originalImageAccept, 8),
+    null,
+  );
+  assert.equal(
+    await f.makeOriginal().get("/dav/three.jpg", "v1", originalImageAccept, 8),
+    null,
+  );
+});
+
+test("public zoom originals revalidate after reload, respect freshness and evict on no-store or denial", async (t) => {
+  const f = storageFixture();
+  const item = { path: "/dav/photo.jpg", etag: '"source"', size: 4 };
+  let now = 1000;
+  t.mock.method(Date, "now", () => now);
+  let control = "private, no-cache",
+    denial;
+  const log = [];
+  f.transport.request = async (target, options) => {
+    if (target === "/api/capabilities")
+      return Response.json({
+        version: 1,
+        services: {
+          files: {
+            enabled: true,
+            readOnly: true,
+            protocol: "webdav",
+            version: 1,
+            href: "/dav/",
+          },
+        },
+      });
+    const validator = options.headers["If-None-Match"];
+    const status = denial || (validator ? 304 : 200);
+    log.push({ status, validator });
+    return new Response(status === 200 ? payload().bytes : null, {
+      status,
+      headers: payload(4, { "Cache-Control": control, Age: "1" }).headers,
+    });
+  };
+  const make = () =>
+    new ImageClient(f.transport, {
+      root: "/dav/",
+      originalCache: f.makeOriginal(),
+    });
+  const get = (client) => client.original(item);
+  const first = make();
+  assert.equal((await get(first)).size, 4);
+  assert.equal((await get(first)).size, 4);
+  first.dispose();
+  const reloaded = make();
+  control = "max-age=2";
+  assert.equal((await get(reloaded)).size, 4);
+  await get(reloaded);
+  assert.deepEqual(
+    log.map(({ status }) => status),
+    [200, 304, 304],
+  );
+  assert.equal(log.at(-1).validator, '"v1"');
+  now += 1000;
+  control = "no-store";
+  await get(reloaded);
+  reloaded.dispose();
+  assert.equal(log.at(-1).status, 304);
+  assert.equal(
+    await f.makeOriginal().get(item.path, item.etag, originalImageAccept, 10),
+    null,
+  );
+  control = "private, no-cache";
+  await get(make());
+  assert.equal(log.at(-1).status, 200);
+  denial = 403;
+  await assert.rejects(get(make()), (error) => error.status === 403);
+  assert.equal(
+    await f.makeOriginal().get(item.path, item.etag, originalImageAccept, 10),
+    null,
+  );
 });

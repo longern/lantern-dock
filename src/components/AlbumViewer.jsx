@@ -103,20 +103,23 @@ export function AlbumViewer({
     () =>
       gallery.items.map((entry, position) => {
         const size = sizes.get(entry.path) || {};
+        const fitted = fitAlbumMedia(
+          size.width,
+          size.height,
+          viewport.width,
+          viewport.height,
+        );
         return {
           key: entry.path,
-          ...fitAlbumMedia(
-            size.width,
-            size.height,
-            viewport.width,
-            viewport.height,
-          ),
+          ...fitted,
           originRef: reducedMotion
             ? undefined
             : gallery.origins.get(entry.path),
-          render: ({ attrs }) => (
+          render: ({ attrs, scale }) => (
             <AlbumMedia
               attrs={attrs}
+              scale={scale}
+              fitted={fitted}
               item={entry}
               client={client}
               thumbnail={snapshots.get(entry.path)?.thumbnail}

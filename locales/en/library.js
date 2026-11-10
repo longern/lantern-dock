@@ -133,6 +133,8 @@ export default {
   unfavoriteFile: "Remove file from favorites",
   favoriteFile: "Add file to favorites",
   loadingPreview: "Loading preview…",
+  originalPreviewFailed:
+    "Couldn’t load the original. The preview is still available.",
   imagePreviewFailed: "This image cannot be previewed. Download it to view it.",
   closePreview: "Close preview",
   type: "Type",

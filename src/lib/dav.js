@@ -237,4 +237,11 @@ export class DAVClient {
   async get(path, signal) {
     return checkResponse(await this.read(path, signal));
   }
+  readOriginal(item, signal) {
+    // Ordinary HTTPS already has the browser's native HTTP cache.
+    if (this.transport.config.transport !== "webtransport") return null;
+    return this.images.original(item, signal, (headers, signal) =>
+      this.read(item.path, signal, headers),
+    );
+  }
 }

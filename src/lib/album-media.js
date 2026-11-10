@@ -1,12 +1,19 @@
 import { t } from "../../shared/i18n.js";
 import { limitedBytes } from "./dav.js";
+import { originalImageLimit } from "./image-cache.js";
+export const canViewOriginal = (item) =>
+  item.kind === "image" && !(item.size > originalImageLimit);
 
 // The viewer never hands a NAS URL or credentials to the gallery library.
 export async function albumImage(client, item, signal) {
   const image = await client.images?.image(item, 1600, signal);
-  if (image) return image;
-  const limit = 25 * 1024 * 1024;
-  if (item.size > limit) throw new Error(t("library.previewTooLarge"));
+  return image || originalImage(client, item, signal);
+}
+
+export async function originalImage(client, item, signal) {
+  if (!canViewOriginal(item)) throw new Error(t("library.previewTooLarge"));
+  const cached = await client.readOriginal?.(item, signal);
+  if (cached) return { original: true, blob: cached };
   const response = await client.get(item.path, signal);
   const mime = response.headers.get("Content-Type")?.split(";")[0];
   if (mime && !mime.startsWith("image/")) {
@@ -14,7 +21,8 @@ export async function albumImage(client, item, signal) {
     throw new Error(t("library.imageResponseInvalid"));
   }
   return {
-    blob: new Blob([await limitedBytes(response, limit, signal)], {
+    original: true,
+    blob: new Blob([await limitedBytes(response, originalImageLimit, signal)], {
       type: mime || "image/*",
     }),
   };

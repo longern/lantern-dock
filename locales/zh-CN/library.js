@@ -128,6 +128,7 @@ export default {
   unfavoriteFile: "取消收藏文件",
   favoriteFile: "收藏文件",
   loadingPreview: "正在加载预览…",
+  originalPreviewFailed: "原图加载失败，仍可查看预览。",
   imagePreviewFailed: "无法预览此图片，请下载查看。",
   closePreview: "关闭预览",
   type: "类型",

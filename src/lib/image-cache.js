@@ -1,9 +1,24 @@
 import { cachePolicy } from "./cache.js";
 import { limitedBytes } from "./content.js";
+import { backendPaths } from "../../shared/backend-paths.js";
 
-const name = "lantern-dock-public-images-v1";
-const prefix = "/.lantern-dock-cache/images/v1/";
-const maxBody = 8 * 1024 * 1024;
+const MiB = 1024 * 1024;
+export const originalImageLimit = 25 * MiB;
+export const originalImageAccept = "image/*";
+const preview = {
+  name: "lantern-dock-public-images-v1",
+  prefix: "/.lantern-dock-cache/images/v1/",
+  maxBody: 8 * MiB,
+  maxBytes: 64 * MiB,
+  maxEntries: 512,
+};
+const originals = {
+  name: "lantern-dock-public-originals-v1",
+  prefix: "/.lantern-dock-cache/originals/v1/",
+  maxBody: originalImageLimit,
+  maxBytes: 128 * MiB,
+  maxEntries: 32,
+};
 const headerNames = ["Content-Type", "Cache-Control", "ETag", "Age", "Vary"];
 function cacheStorage() {
   try {
@@ -30,6 +45,7 @@ function anonymous(transport) {
       !endpoint.username &&
       !endpoint.password &&
       config.auth === "none" &&
+      !config.gatewayAuth &&
       (transport.credentials?.mode || "none") === "none" &&
       !transport.credentials?.gatewayToken
     );
@@ -38,6 +54,13 @@ function anonymous(transport) {
   }
 }
 
+export const supportedImageVary = (headers) =>
+  (headers.get("Vary") || "")
+    .split(",")
+    .every((value) =>
+      ["", "accept", "origin"].includes(value.trim().toLowerCase()),
+    );
+
 function allowed(headers, accept) {
   const type = headers.get("Content-Type")?.split(";")[0].trim();
   const etag = headers.get("ETag");
@@ -45,15 +68,13 @@ function allowed(headers, accept) {
     etag &&
     etag.length <= 1024 &&
     cachePolicy(headers).storable &&
-    (accept === "image/jpeg"
-      ? type === "image/jpeg"
-      : accept === "application/ld+json" &&
-        ["application/json", "application/ld+json"].includes(type)) &&
-    (headers.get("Vary") || "")
-      .split(",")
-      .every((value) =>
-        ["", "accept", "origin"].includes(value.trim().toLowerCase()),
-      )
+    (accept === originalImageAccept
+      ? type?.startsWith("image/")
+      : accept === "image/jpeg"
+        ? type === "image/jpeg"
+        : accept === "application/ld+json" &&
+          ["application/json", "application/ld+json"].includes(type)) &&
+    supportedImageVary(headers)
   );
 }
 
@@ -68,15 +89,18 @@ export class PersistentImageCache {
       locks = globalThis.navigator?.locks,
       origin = globalThis.location?.origin,
       secure = globalThis.isSecureContext,
-      maxBytes = 64 * 1024 * 1024,
-      maxEntries = 512,
+      original = false,
+      maxBytes,
+      maxEntries,
     } = {},
   ) {
     this.storage = storage;
     this.locks = locks;
     this.origin = origin;
-    this.maxBytes = maxBytes;
-    this.maxEntries = maxEntries;
+    this.policy = original ? originals : preview;
+    this.maxBytes = maxBytes ?? this.policy.maxBytes;
+    this.maxEntries = maxEntries ?? this.policy.maxEntries;
+    this.root = typeof root === "string" ? root.replace(/\/?$/, "/") : "";
     this.transport = transport;
     const config = transport.config;
     this.disabled =
@@ -85,6 +109,7 @@ export class PersistentImageCache {
       !locks?.request ||
       !origin ||
       !anonymous(transport) ||
+      (original && config.transport !== "webtransport") ||
       typeof root !== "string";
     if (!this.disabled) {
       this.scope = digest(
@@ -102,17 +127,29 @@ export class PersistentImageCache {
   }
 
   async key(path, version, accept) {
-    // Only IIIF information and advertised JPEG renditions may reach disk.
-    if (
-      !/^\/api\/[a-zA-Z0-9_/-]+\/[^/]+\/(?:info\.json|full\/\d+,\d+\/0\/default\.jpg)$/.test(
-        path,
-      )
-    )
-      return null;
     try {
+      if (this.policy === originals) {
+        const url = new URL(path, this.origin);
+        if (
+          accept !== originalImageAccept ||
+          !path.startsWith(backendPaths.files) ||
+          !path.startsWith(this.root) ||
+          path.endsWith("/") ||
+          url.pathname !== path ||
+          /%2f|%5c/i.test(path)
+        )
+          return null;
+      } else if (
+        accept === originalImageAccept ||
+        !/^\/api\/[a-zA-Z0-9_/-]+\/[^/]+\/(?:info\.json|full\/\d+,\d+\/0\/default\.jpg)$/.test(
+          path,
+        )
+      ) {
+        return null;
+      }
       return (
         this.origin +
-        prefix +
+        this.policy.prefix +
         (await this.scope) +
         "/" +
         (await digest(JSON.stringify([path, version, accept])))
@@ -124,6 +161,7 @@ export class PersistentImageCache {
   }
 
   async index(cache) {
+    const { prefix, maxBody } = this.policy;
     const key = this.origin + prefix + "index";
     const response = await cache.match(key);
     let index;
@@ -165,9 +203,9 @@ export class PersistentImageCache {
   async run(work) {
     if (this.disabled || !anonymous(this.transport)) return null;
     try {
-      return await this.locks.request(name, async () => {
+      return await this.locks.request(this.policy.name, async () => {
         if (this.disabled || !anonymous(this.transport)) return null;
-        const cache = await this.storage.open(name);
+        const cache = await this.storage.open(this.policy.name);
         const index = await this.index(cache);
         // A logout/credential change invalidates queued writes from old clients,
         // including other tabs, without clearing unrelated site storage.
@@ -198,7 +236,7 @@ export class PersistentImageCache {
       if (!response || !allowed(response.headers, accept)) return null;
       const bytes = await limitedBytes(
         response,
-        Math.min(limit, maxBody),
+        Math.min(limit, this.policy.maxBody),
         signal,
       );
       if (bytes.byteLength !== entry.size) return null;
@@ -215,6 +253,7 @@ export class PersistentImageCache {
   }
 
   async put(path, version, accept, value, signal) {
+    const { prefix, maxBody } = this.policy;
     if (this.disabled) return;
     if (!allowed(value.headers, accept))
       return this.delete(path, version, accept);
@@ -266,7 +305,10 @@ export class PersistentImageCache {
     await this.run(async (cache, index) => {
       await cache.delete(key);
       index.entries = index.entries.filter((entry) => entry.key !== key);
-      await cache.put(this.origin + prefix + "index", Response.json(index));
+      await cache.put(
+        this.origin + this.policy.prefix + "index",
+        Response.json(index),
+      );
     });
   }
 }
@@ -277,20 +319,20 @@ export async function clearPersistentImages({
   origin = globalThis.location?.origin,
 } = {}) {
   if (!storage || !locks?.request || !origin) return;
-  try {
-    await locks.request(name, async () => {
-      const cache = await storage.open(name);
-      for (const request of await cache.keys()) await cache.delete(request);
-      await cache.put(
-        origin + prefix + "index",
-        Response.json({
-          version: 1,
-          epoch: crypto.randomUUID(),
-          entries: [],
-        }),
-      );
-    });
-  } catch {
-    /* Best effort: storage can be unavailable in private browsing. */
-  }
+  await Promise.allSettled(
+    [preview, originals].map(async ({ name, prefix }) =>
+      locks.request(name, async () => {
+        const cache = await storage.open(name);
+        for (const request of await cache.keys()) await cache.delete(request);
+        await cache.put(
+          origin + prefix + "index",
+          Response.json({
+            version: 1,
+            epoch: crypto.randomUUID(),
+            entries: [],
+          }),
+        );
+      }),
+    ),
+  );
 }

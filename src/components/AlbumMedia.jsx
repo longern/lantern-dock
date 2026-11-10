@@ -1,15 +1,22 @@
 import { mediaQueries } from "../lib/breakpoints.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { t } from "../../shared/i18n.js";
-import { albumImage, decodeAlbumImage } from "../lib/album-media.js";
+import {
+  albumImage,
+  canViewOriginal,
+  decodeAlbumImage,
+  originalImage,
+} from "../lib/album-media.js";
 import { Icon } from "./Icon.jsx";
 import { VideoPreview } from "./VideoPreview.jsx";
 import { LivePhoto } from "./LivePhoto.jsx";
 
-// PhotoSlider owns the transform/crop and gestures. These two image layers share
+// PhotoSlider owns the transform/crop and gestures. The image layers share
 // its exact geometry, so sharpening cannot move or stretch the photograph.
 export function AlbumMedia({
   attrs,
+  scale,
+  fitted,
   item,
   thumbnail,
   client,
@@ -28,6 +35,55 @@ export function AlbumMedia({
   const [shown, setShown] = useState(false);
   const [settled, setSettled] = useState(false);
   const [error, setError] = useState("");
+  const [upgrading, setUpgrading] = useState(false);
+  const [originalResult, setOriginalResult] = useState(null);
+  const canUpgrade =
+    active &&
+    canViewOriginal(item) &&
+    high &&
+    !high.original &&
+    high.sourceSide > high.previewSide;
+  const needsOriginal =
+    canUpgrade &&
+    open &&
+    entered &&
+    scale > 1.05 &&
+    Math.max(fitted.width, fitted.height) * scale * devicePixelRatio >
+      high.previewSide;
+
+  useEffect(() => {
+    if (!active || (!needsOriginal && originalResult?.error))
+      setUpgrading(false);
+    else if (needsOriginal) setUpgrading(true);
+  }, [active, needsOriginal, originalResult?.error]);
+
+  // Keep the decoded original after zooming back out, and release it on paging.
+  const useOriginal = !!canUpgrade && upgrading;
+  const original = useOriginal ? originalResult : null;
+  useEffect(() => {
+    setOriginalResult(null);
+    if (!useOriginal) return;
+    const controller = new AbortController();
+    const combined = AbortSignal.any([controller.signal, signal]);
+    let url;
+    (async () => {
+      const { blob } = await originalImage(client, item, combined);
+      combined.throwIfAborted();
+      url = URL.createObjectURL(blob);
+      const size = await decodeAlbumImage(url, combined);
+      combined.throwIfAborted();
+      onSize(item.path, size.width, size.height);
+      setOriginalResult({ url });
+    })().catch(() => {
+      if (url) URL.revokeObjectURL(url);
+      url = undefined;
+      if (!combined.aborted) setOriginalResult({ error: true });
+    });
+    return () => {
+      controller.abort();
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [client, item, useOriginal, signal, onSize]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -77,7 +133,16 @@ export function AlbumMedia({
       const size = await decodeAlbumImage(url, combined);
       combined.throwIfAborted();
       onSize(item.path, image.width || size.width, image.height || size.height);
-      setHigh({ url, cached: !!cached });
+      setHigh({
+        url,
+        cached: !!cached,
+        original: image.original === true,
+        sourceSide: Math.max(
+          image.width || size.width,
+          image.height || size.height,
+        ),
+        previewSide: Math.max(size.width, size.height),
+      });
     })().catch(() => {
       if (!combined.aborted) setError(t("library.imagePreviewFailed"));
     });
@@ -144,27 +209,47 @@ export function AlbumMedia({
           key="high"
           class={`album-image-high${shown ? " is-sharp" : ""}${high.cached ? " is-cached" : ""}`}
           src={high.url}
-          alt={active && settled ? item.name : ""}
+          alt={active && settled && !original?.url ? item.name : ""}
           draggable={false}
           onTransitionEnd={(event) => {
             if (event.propertyName === "opacity" && shown) setSettled(true);
           }}
         />
       )}
-      {!low && !high && (item.kind === "image" || !active) && (
-        <div
-          class="album-media-placeholder"
-          role={active ? "status" : undefined}
-        >
-          <Icon name={item.kind} />
-          {active && <p>{error || t("library.loadingPreview")}</p>}
-        </div>
+      {original?.url && (
+        <img
+          class="album-image-original"
+          src={original.url}
+          alt={item.name}
+          draggable={false}
+        />
       )}
-      {error && low && item.kind === "image" && (
+      {original?.error && (
         <p class="album-image-error" role="status">
-          {error}
+          {t("library.originalPreviewFailed")}
         </p>
       )}
+      {!low &&
+        !high &&
+        !original?.url &&
+        (item.kind === "image" || !active) && (
+          <div
+            class="album-media-placeholder"
+            role={active ? "status" : undefined}
+          >
+            <Icon name={item.kind} />
+            {active && <p>{error || t("library.loadingPreview")}</p>}
+          </div>
+        )}
+      {error &&
+        low &&
+        !original?.url &&
+        !original?.error &&
+        item.kind === "image" && (
+          <p class="album-image-error" role="status">
+            {error}
+          </p>
+        )}
       {item.kind === "video" && active && (
         <div
           class="album-video-player"
