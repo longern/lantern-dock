@@ -23,6 +23,7 @@ export function Album({
   onPreview,
   selection,
   onItemsChange,
+  pagination,
 }) {
   const live = useLiveMedia(client, entries);
   const media = useMemo(() => albumLiveItems(entries, live), [entries, live]);
@@ -92,6 +93,7 @@ export function Album({
             }
             {...selection.props(item, () =>
               onPreview(item, {
+                ...pagination,
                 items: orderedItems,
                 origins: new Map(
                   orderedItems.map((entry) => [

@@ -2,6 +2,7 @@ package nas
 
 import (
 	"context"
+	"encoding/xml"
 	"net/http"
 	"os"
 	"strings"
@@ -18,7 +19,7 @@ func publicPathAllowed(name string) bool {
 		return false
 	}
 	for _, part := range strings.Split(name, "/") {
-		if strings.EqualFold(part, "#recycle") || strings.EqualFold(part, "@Recycle") {
+		if strings.HasPrefix(part, ".") || strings.EqualFold(part, "#recycle") || strings.EqualFold(part, "@Recycle") {
 			return false
 		}
 	}
@@ -90,6 +91,18 @@ func openPublicChild(directory *os.File, name string, flags int) (*os.File, erro
 
 type publicFile struct{ *os.File }
 
+// x/net/webdav exposes these protected discovery properties through its
+// optional property interface. Writes remain denied by serveDAV.
+func (f *publicFile) DeadProps() (map[xml.Name]webdav.Property, error) {
+	return map[xml.Name]webdav.Property{
+		{Space: "DAV:", Local: "supported-query-grammar-set"}: {XMLName: xml.Name{Space: "DAV:", Local: "supported-query-grammar-set"}, InnerXML: []byte(`<d:supported-query-grammar xmlns:d="DAV:"><d:grammar><d:basicsearch/></d:grammar></d:supported-query-grammar>`)},
+		{Space: "DAV:", Local: "supported-method-set"}:        {XMLName: xml.Name{Space: "DAV:", Local: "supported-method-set"}, InnerXML: []byte(`<d:supported-method xmlns:d="DAV:" name="GET"/><d:supported-method xmlns:d="DAV:" name="HEAD"/><d:supported-method xmlns:d="DAV:" name="OPTIONS"/><d:supported-method xmlns:d="DAV:" name="PROPFIND"/><d:supported-method xmlns:d="DAV:" name="SEARCH"/>`)},
+	}, nil
+}
+func (f *publicFile) Patch([]webdav.Proppatch) ([]webdav.Propstat, error) {
+	return nil, os.ErrPermission
+}
+
 func (f *publicFile) Readdir(count int) ([]os.FileInfo, error) {
 	var visible []os.FileInfo
 	for {
@@ -151,9 +164,14 @@ func (s *Server) serveDAV(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, fault(404, "NOT_FOUND", "errors.notFound"))
 		return
 	}
-	const allow = "GET, HEAD, OPTIONS, PROPFIND"
+	const allow = "GET, HEAD, OPTIONS, PROPFIND, SEARCH"
 	w.Header().Set("Allow", allow)
-	w.Header().Set("DAV", "1")
+	w.Header().Set("DAV", "1, <"+searchNamespace+">")
+	w.Header().Set("DASL", "<DAV:basicsearch>")
+	if r.Method == "SEARCH" {
+		s.serveSearch(w, r)
+		return
+	}
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(204)
 		return

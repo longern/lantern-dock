@@ -538,9 +538,7 @@ export async function startFixture({ nas = false, identity = false } = {}) {
         `--backend=${backendEndpoint}`,
         `--origins=${origin}`,
         nas ? "--paths=/dav,/api" : "--paths=/public",
-        nas
-          ? "--methods=GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS"
-          : "--methods=GET,HEAD,PROPFIND",
+        nas ? "--methods=*" : "--methods=GET,HEAD,PROPFIND",
         ...(nas ? ["--public"] : []),
         `--cert=${resolve(certDirectory, "cert.pem")}`,
         `--key=${resolve(certDirectory, "key.pem")}`,

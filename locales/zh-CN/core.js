@@ -1,4 +1,6 @@
 export default {
+  "error.SEARCH_INVALID": "服务器返回的相册分页无效。",
+  "error.SEARCH_CURSOR_EXPIRED": "图库已更新，请刷新后继续浏览。",
   "error.RECORDS_UNAVAILABLE": "无法读取本机记录，请检查浏览器权限或稍后重试。",
   "error.WEBTRANSPORT_UNSUPPORTED":
     "此浏览器不支持 WebTransport，请使用支持该功能的浏览器，或将后端配置为 HTTPS。",

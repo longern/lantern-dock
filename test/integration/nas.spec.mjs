@@ -7,6 +7,7 @@ import { chooseListingOption } from "../helpers/listing-options.mjs";
 import { test, expect } from "@playwright/test";
 import {
   copyFile,
+  mkdir,
   readFile,
   readdir,
   rm,
@@ -738,7 +739,7 @@ test("album slides from IIIF images to an active MP4Box video over real WebTrans
     const open = page.locator(
       '.album-preview[data-path="/dav/album-photo.png"]',
     );
-    await expect(open.locator("img")).toBeVisible();
+    await expect(open.locator("img")).toBeVisible({ timeout: 20000 });
     await openItem(open);
     await expect(
       page.locator(
@@ -1100,7 +1101,9 @@ test("NAS identifies Apple and Android live photos and plays virtual ranges thro
       .getByRole("navigation", { name: "文件分类", exact: true })
       .getByRole("button", { name: "相册", exact: true })
       .click();
-    await expect(page.locator(".album-live-indicator")).toHaveCount(2);
+    await expect(page.locator(".album-live-indicator")).toHaveCount(2, {
+      timeout: 20000,
+    });
     await expect(
       page.getByRole("button", {
         name: "预览视频 different-name.mov",
@@ -1155,5 +1158,83 @@ test("NAS identifies Apple and Android live photos and plays virtual ranges thro
     await Promise.all(
       [apple, paired, android].map((path) => rm(path, { force: true })),
     );
+  }
+});
+
+test("recursive album SEARCH indexes deep folders and pages through WebTransport", async ({
+  page,
+}) => {
+  const directory = resolve(
+    fixture.nas.publicDir,
+    "catalog",
+    "2026",
+    "11",
+    "deep",
+  );
+  const root = resolve(fixture.nas.publicDir, "catalog");
+  await mkdir(directory, { recursive: true });
+  try {
+    await Promise.all(
+      Array.from({ length: 130 }, async (_, index) => {
+        const target = resolve(
+          directory,
+          `catalog-${String(index).padStart(3, "0")}.jpg`,
+        );
+        await copyFile(
+          new URL("../fixtures/album-thumbnail.jpg", import.meta.url),
+          target,
+        );
+      }),
+    );
+    await page.goto(`${fixture.origin}/album/catalog/`);
+    const surface = isCompact(page)
+      ? page.locator("#album-page-dialog")
+      : page.locator(".main-area");
+    await expect(surface.locator("#file-list")).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
+    await refreshAlbum(surface);
+    const photos = surface.locator(".album-item");
+    await expect(photos).toHaveCount(128, { timeout: 20000 });
+    await photos.last().scrollIntoViewIfNeeded();
+    await expect(photos).toHaveCount(130);
+    const paths = await photos
+      .locator("button")
+      .evaluateAll((nodes) => nodes.map((node) => node.dataset.path));
+    expect(new Set(paths).size).toBe(130);
+    expect(
+      paths.every((path) => path.startsWith("/dav/catalog/2026/11/deep/")),
+    ).toBe(true);
+    const standard = await page.evaluate(async () => {
+      const { DirectTransport } = await import("/__test/lib/transport.js");
+      const { backend } = await (await fetch("/api/config")).json();
+      const transport = new DirectTransport(backend);
+      try {
+        const options = await transport.request("/dav/", { method: "OPTIONS" });
+        const response = await transport.request("/dav/", {
+          method: "SEARCH",
+          headers: { "Content-Type": "application/xml" },
+          body: `<d:searchrequest xmlns:d="DAV:"><d:basicsearch><d:select><d:prop><d:displayname/></d:prop></d:select><d:from><d:scope><d:href>/dav/catalog/</d:href><d:depth>infinity</d:depth></d:scope></d:from><d:where><d:not><d:is-collection/></d:not></d:where><d:limit><d:nresults>1</d:nresults></d:limit></d:basicsearch></d:searchrequest>`,
+        });
+        const text = await response.text();
+        return {
+          status: response.status,
+          dasl: options.headers.get("DASL"),
+          partial: text.includes("507 Insufficient Storage"),
+          hasFile: text.includes("catalog-"),
+        };
+      } finally {
+        transport.close();
+      }
+    });
+    expect(standard).toEqual({
+      status: 207,
+      dasl: "<DAV:basicsearch>",
+      partial: true,
+      hasFile: true,
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });

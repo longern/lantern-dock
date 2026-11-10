@@ -160,6 +160,7 @@ export class DirectTransport {
           "Proxy-Authorization",
           "Bearer " + this.credentials.gatewayToken,
         );
+      let requestWritten = false;
       const sending = (async () => {
         try {
           await writer.write(requestBytes(method, path, outgoing, length));
@@ -187,6 +188,7 @@ export class DirectTransport {
             await writer.write(bytes);
             onUploadProgress?.(bytes.length, length);
           }
+          requestWritten = true;
           await writer.close();
         } finally {
           writer.releaseLock();
@@ -204,7 +206,15 @@ export class DirectTransport {
         finish: () => signal?.removeEventListener("abort", abort),
       });
       const sendError = await sent;
-      if (sendError && response.ok) {
+      signal?.throwIfAborted();
+      // The bridge stops reading with code 0 after processing the complete request.
+      // That stop can race our FIN acknowledgement; actual write failures still fail.
+      const finishedByPeer =
+        requestWritten &&
+        sendError?.name === "WebTransportError" &&
+        sendError.source === "stream" &&
+        sendError.streamErrorCode === 0;
+      if (sendError && response.ok && !finishedByPeer) {
         await response.body?.cancel(sendError);
         throw sendError;
       }

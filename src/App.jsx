@@ -86,6 +86,13 @@ function LibraryApp() {
     route === "me" || (mobile && (route === "favorites" || favoritesMounted));
   const library = {
     ...source,
+    ...(route === "album" && !mobile ? source.album : {}),
+    ...(route === "album" && !mobile
+      ? {
+          error:
+            source.album.error || (!source.connection ? source.error : null),
+        }
+      : {}),
     mode:
       route === "favorites"
         ? "favorites"
@@ -99,7 +106,9 @@ function LibraryApp() {
     kind:
       route === "album"
         ? mobile
-          ? source.kind
+          ? source.kind === "album"
+            ? ""
+            : source.kind
           : "album"
         : route
           ? ""
@@ -175,7 +184,48 @@ function LibraryApp() {
   }, []);
   const [selected, setSelected] = useState(null);
   const [gallery, setGallery] = useState(null);
+  const galleryItems = useRef(null);
+  const selectedRef = useRef(null);
+  selectedRef.current = selected;
+  const onGalleryItems = useCallback((value) => {
+    galleryItems.current = value;
+    setGallery((current) => {
+      if (
+        !current ||
+        current.scope !== value.scope ||
+        (selectedRef.current &&
+          !value.items.some((item) => item.path === selectedRef.current.path))
+      )
+        return current;
+      if (
+        current.items === value.items &&
+        current.hasMore === value.hasMore &&
+        current.loadingMore === value.loadingMore &&
+        current.pageError === value.pageError
+      )
+        return current;
+      return { ...current, ...value };
+    });
+  }, []);
   const [previewOpen, setPreviewOpen] = useState(false);
+  useEffect(() => {
+    if (
+      !previewOpen ||
+      !gallery?.hasMore ||
+      gallery.loadingMore ||
+      gallery.pageError
+    )
+      return;
+    const index = gallery.items.findIndex(
+      (item) => item.path === selected?.path,
+    );
+    if (index >= 0 && index >= gallery.items.length - 4)
+      void gallery.loadMore?.();
+  }, [previewOpen, selected?.path, gallery]);
+  useEffect(() => {
+    if (previewOpen && gallery?.pageError)
+      toast(gallery.pageError.message, true);
+  }, [previewOpen, gallery?.pageError, toast]);
   const [previewEpoch, setPreviewEpoch] = useState(0);
   const [recentSnapshot, setRecentSnapshot] = useState(null);
   const [albumBackground, setAlbumBackground] = useState(null);
@@ -310,13 +360,21 @@ function LibraryApp() {
     setSelected(item);
     setPreviewOpen(true);
     if (router.route.album && ["image", "video"].includes(item.kind)) {
+      const indexedGallery =
+        galleryItems.current?.scope === source.album.scope &&
+        galleryItems.current.items.some((entry) => entry.path === path)
+          ? galleryItems.current
+          : null;
       setGallery((existing) =>
         existing?.items.some((entry) => entry.path === path)
           ? existing
           : {
-              items: groupMediaByDate(source.entries, new Date()).flatMap(
-                (group) => group.items,
-              ),
+              ...indexedGallery,
+              items:
+                indexedGallery?.items ||
+                groupMediaByDate(source.entries, new Date()).flatMap(
+                  (group) => group.items,
+                ),
               origins: new Map(),
             },
       );
@@ -479,7 +537,14 @@ function LibraryApp() {
     sort: favoritesSort,
     setSort: setFavoritesSort,
   };
-  const albumLibrary = { ...library, mode: "all", kind: "album", query: "" };
+  const albumLibrary = {
+    ...library,
+    ...source.album,
+    error: source.album.error || (!source.connection ? source.error : null),
+    mode: "all",
+    kind: "album",
+    query: "",
+  };
   const topbarActions =
     route === "favorites"
       ? null
@@ -594,6 +659,7 @@ function LibraryApp() {
                 )}
               >
                 <FileBrowser
+                  onGalleryItems={onGalleryItems}
                   library={favoritesLibrary}
                   records={records}
                   selected={selected}
@@ -605,6 +671,7 @@ function LibraryApp() {
               </Favorites>
             ) : (
               <FileBrowser
+                onGalleryItems={onGalleryItems}
                 library={library}
                 records={visibleRecords}
                 selected={selected}
@@ -637,6 +704,7 @@ function LibraryApp() {
           )}
         >
           <FileBrowser
+            onGalleryItems={onGalleryItems}
             library={albumLibrary}
             records={records}
             selected={selected}
@@ -669,6 +737,7 @@ function LibraryApp() {
           }}
         >
           <FileBrowser
+            onGalleryItems={onGalleryItems}
             library={favoritesLibrary}
             onTouchSelection={onTouchSelection}
             onDesktopSelection={onDesktopSelection}

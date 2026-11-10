@@ -31,7 +31,7 @@ services:
       - --origins=${SITE_ORIGIN:?Set the frontend HTTPS origin without a trailing slash}
       - --public
       - --paths=/dav,/api
-      - --methods=GET,HEAD,PROPFIND,POST,PUT,DELETE,OPTIONS
+      - --methods=*
       - --auto-cert
       - --cert-dir=/certs
     volumes:

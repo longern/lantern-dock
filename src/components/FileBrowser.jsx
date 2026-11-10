@@ -17,6 +17,7 @@ import { useFileSelection } from "../hooks/useFileSelection.js";
 import { SelectionActions } from "./SelectionActions.jsx";
 import { FileItemMenu } from "./FileItemMenu.jsx";
 import { FileDetails } from "./FileDetails.jsx";
+import { AlbumPaging, AlbumIndexStatus } from "./AlbumPaging.jsx";
 
 const noEntries = [];
 
@@ -106,6 +107,7 @@ export function FileBrowser({
   onSettings,
   onTouchSelection,
   onDesktopSelection,
+  onGalleryItems,
   listId = "file-list",
   pageDialog = false,
 }) {
@@ -164,6 +166,27 @@ export function FileBrowser({
         ? albumOrder.items
         : noEntries
       : entries;
+  useLayoutEffect(() => {
+    if (!album || !library.scope || albumOrder?.source !== entries) return;
+    onGalleryItems?.({
+      scope: library.scope,
+      items: albumOrder.items,
+      hasMore: library.hasMore,
+      loadingMore: library.loadingMore,
+      pageError: library.pageError,
+      loadMore: library.loadMore,
+    });
+  }, [
+    album,
+    library.scope,
+    albumOrder,
+    entries,
+    library.hasMore,
+    library.loadingMore,
+    library.pageError,
+    library.loadMore,
+    onGalleryItems,
+  ]);
   const selection = useFileSelection(
     selectable,
     JSON.stringify([
@@ -280,6 +303,7 @@ export function FileBrowser({
         </span>
         <span>{t("library.size")}</span>
       </div>
+      {album && <AlbumIndexStatus library={library} />}
       <Collection
         ref={selection.list}
         tabIndex={-1}
@@ -302,6 +326,17 @@ export function FileBrowser({
       >
         {album ? (
           <Album
+            pagination={
+              library.scope
+                ? {
+                    scope: library.scope,
+                    hasMore: library.hasMore,
+                    loadingMore: library.loadingMore,
+                    pageError: library.pageError,
+                    loadMore: library.loadMore,
+                  }
+                : undefined
+            }
             view={library.albumView}
             entries={error ? noEntries : entries}
             loading={busy}
@@ -342,6 +377,7 @@ export function FileBrowser({
           ))
         )}
       </Collection>
+      {album && <AlbumPaging library={library} />}
       {selection.touch && (
         <SelectionActions
           selection={selection}
@@ -354,62 +390,67 @@ export function FileBrowser({
           onDetails={openDetails}
         />
       )}
-      {!busy && !entries.length && !error && (
-        <div class="empty-state">
-          <span class="empty-symbol">
-            <Icon
-              name={
-                library.query
-                  ? "search"
-                  : library.mode === "favorites"
-                    ? "star"
-                    : recent
-                      ? "clock"
-                      : "folder"
-              }
-            />
-          </span>
-          <h2>
-            {library.query
-              ? t("library.noMatchingFiles")
-              : library.mode === "favorites"
-                ? t("library.noFavorites")
-                : recent
-                  ? t("library.noRecentFiles")
-                  : t("library.noFiles")}
-          </h2>
-          <p>
-            {library.query
-              ? t("library.tryKeywords")
-              : library.mode === "favorites"
-                ? t("library.favoritesHint")
-                : recent
-                  ? t("library.recentFilesHint")
-                  : library.kind
-                    ? t("library.noFilesOfType")
-                    : t("library.emptyFolderHint")}
-          </p>
-          {library.query && (
-            <button
-              class="secondary-button"
-              onClick={() => library.setQuery("")}
-            >
-              {t("library.clearSearch")}
-            </button>
-          )}
-          {!library.query && library.kind && (
-            <button
-              class="secondary-button"
-              onClick={() => library.selectMode("all")}
-            >
-              {t("library.viewAllFiles")}
-            </button>
-          )}
-          {!library.query && !usesDirectory && (
-            <span class="empty-footnote">{t("library.localRecordsNote")}</span>
-          )}
-        </div>
-      )}
+      {!busy &&
+        !entries.length &&
+        !error &&
+        !(album && ["scanning", "error"].includes(library.indexState)) && (
+          <div class="empty-state">
+            <span class="empty-symbol">
+              <Icon
+                name={
+                  library.query
+                    ? "search"
+                    : library.mode === "favorites"
+                      ? "star"
+                      : recent
+                        ? "clock"
+                        : "folder"
+                }
+              />
+            </span>
+            <h2>
+              {library.query
+                ? t("library.noMatchingFiles")
+                : library.mode === "favorites"
+                  ? t("library.noFavorites")
+                  : recent
+                    ? t("library.noRecentFiles")
+                    : t("library.noFiles")}
+            </h2>
+            <p>
+              {library.query
+                ? t("library.tryKeywords")
+                : library.mode === "favorites"
+                  ? t("library.favoritesHint")
+                  : recent
+                    ? t("library.recentFilesHint")
+                    : library.kind
+                      ? t("library.noFilesOfType")
+                      : t("library.emptyFolderHint")}
+            </p>
+            {library.query && (
+              <button
+                class="secondary-button"
+                onClick={() => library.setQuery("")}
+              >
+                {t("library.clearSearch")}
+              </button>
+            )}
+            {!library.query && library.kind && (
+              <button
+                class="secondary-button"
+                onClick={() => library.selectMode("all")}
+              >
+                {t("library.viewAllFiles")}
+              </button>
+            )}
+            {!library.query && !usesDirectory && (
+              <span class="empty-footnote">
+                {t("library.localRecordsNote")}
+              </span>
+            )}
+          </div>
+        )}
       <FileItemMenu
         request={contextMenu}
         onDismiss={() => setContextMenu(null)}

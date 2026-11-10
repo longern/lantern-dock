@@ -168,6 +168,10 @@ test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".file-item")).toHaveCount(14);
   await album(page).click();
+  await expect(albumSurface(page).locator("#file-list")).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
   await expect(
     albumSurface(page).getByRole("searchbox", { includeHidden: true }),
   ).toHaveCount(0);

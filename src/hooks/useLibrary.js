@@ -4,9 +4,15 @@ import { DirectTransport } from "../lib/transport.js";
 import { DAVClient } from "../lib/dav.js";
 import { DemoClient } from "../lib/demo.js";
 import { useRouter } from "./useRouter.jsx";
-import { albumHref, filesHref, libraryLocation } from "../../shared/routes.js";
+import {
+  albumHref,
+  filesHref,
+  libraryLocation,
+  parseRoute,
+} from "../../shared/routes.js";
 import { normalizePath, withinRoot } from "../lib/dav.js";
 import { clearPersistentImages } from "../lib/image-cache.js";
+import { useAlbum } from "./useAlbum.js";
 
 export function useLibrary() {
   const router = useRouter();
@@ -26,6 +32,20 @@ export function useLibrary() {
   const { mode, kind, query } = current;
   const root = (connection?.client.root || "/").replace(/\/?$/, "/");
   const path = normalizePath(root + current.directory);
+  const albumOrigin = parseRoute(router.state.previewFrom || "");
+  const albumPath = normalizePath(
+    root +
+      (albumOrigin.surface === "album"
+        ? albumOrigin.directory
+        : router.route.directory || ""),
+  );
+  const albumEnabled =
+    router.route.surface === "album" ||
+    (router.route.album === true &&
+      (!router.state.previewFrom || albumOrigin.surface === "album"));
+  const directoryRequired =
+    !albumEnabled || !!router.route.file || current.mode === "home";
+  const album = useAlbum(connection, albumPath, albumEnabled);
   const [sort, setSort] = useState("name");
   const [homeSort, setHomeSort] = useState("name");
   const [view, setView] = useState("list");
@@ -102,6 +122,12 @@ export function useLibrary() {
     listingPath.current = path;
     const controller = new AbortController();
     const cached = connection.client.cached?.(path);
+    if (!directoryRequired) {
+      setLoading(false);
+      setListingError(null);
+      setEntries(cached || []);
+      return;
+    }
     const force = forceListing.current;
     setLoading(!cached || force);
     setListingError(null);
@@ -124,7 +150,7 @@ export function useLibrary() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [connection, path, directoryRevision]);
+  }, [connection, path, directoryRevision, directoryRequired]);
 
   const navigate = (next, nextMode = "all") => {
     next = normalizePath(next);
@@ -177,6 +203,7 @@ export function useLibrary() {
   );
   return {
     connection,
+    album,
     backend,
     credentials,
     setCredentials,
@@ -200,7 +227,10 @@ export function useLibrary() {
     navigate,
     selectMode,
     loading:
-      connecting || (!!connection && (loading || listingPath.current !== path)),
+      connecting ||
+      (!!connection &&
+        directoryRequired &&
+        (loading || listingPath.current !== path)),
     error: configError || listingError,
     removeMissing: (path) =>
       setEntries((current) =>

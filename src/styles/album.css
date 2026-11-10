@@ -15,6 +15,23 @@
   display: grid;
   gap: 28px;
 }
+.album-paging {
+  padding: 16px var(--album-padding);
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+.album-index-status {
+  padding: 0 var(--album-padding) 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.album-index-status p {
+  margin: 0;
+}
+.album-paging p {
+  margin: 0 0 8px;
+}
 .album-group {
   min-width: 0;
 }

@@ -173,6 +173,14 @@ export default {
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",
   mediaDetails: "File details",
+  albumIndexing: "Organizing photos…",
+  albumIndexError: "Some folders could not be indexed. Try refreshing.",
+  albumPartialResults:
+    "Only part of the library is available from this server.",
+  albumCurrentFolderOnly:
+    "This server only supports photos in the current folder.",
+  loadMore: "Load more",
+  loadingMore: "Loading…",
   fileActions: "File actions",
   openFile: "Open",
   closeDetails: "Close file details",

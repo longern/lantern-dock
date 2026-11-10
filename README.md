@@ -78,6 +78,8 @@ For a bridge, use `WEBTRANSPORT_URL` instead of `WEBDAV_URL`. They are mutually 
 
 The optional [`server/`](server/) backend combines public read-only WebDAV with private file drops. The NAS issues upload permissions and enforces quotas in SQLite; uploaded files stay in its private inbox until you choose to publish them. Visitors need only their collection link, with no account registration.
 
+Albums include photos and videos throughout the selected folder's subtree. The included NAS maintains a persistent metadata index and serves paged [WebDAV SEARCH results](docs/backend-protocol.md#recursive-albums-webdav-search); thumbnails load as they enter the viewport. Ordinary file lists stay within one folder. Third-party SEARCH servers can provide partial results, and plain WebDAV servers retain a current-folder album.
+
 Use [`compose.nas.yaml`](compose.nas.yaml) for the NAS backend plus WebTransport bridge. It pulls `ghcr.io/longern/lantern-dock:latest` for amd64 or arm64; no NAS-side build is needed. See the [NAS deployment guide](docs/nas-server.md) for folder mounts, image updates, frontend configuration, browser management, and optional CLI commands to create and revoke collection links.
 
 NAS containers support optional `PUID/PGID` (default `1000:1000`) to match a local NAS account. Startup prepares private database/inbox permissions, then runs the service and CLI as that non-root user. Public-folder ownership and permissions stay under NAS administration; give the selected account read access and keep the mount read-only. Docker's native non-root `user:` takes precedence over the environment defaults.

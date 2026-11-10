@@ -1,4 +1,7 @@
 export default {
+  "error.SEARCH_INVALID": "The server returned an invalid album page.",
+  "error.SEARCH_CURSOR_EXPIRED":
+    "The library has changed. Refresh to continue browsing.",
   "error.RECORDS_UNAVAILABLE":
     "Unable to read local records. Check browser permissions or try again later.",
   "error.WEBTRANSPORT_UNSUPPORTED":

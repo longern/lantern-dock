@@ -66,6 +66,58 @@ test("send failure is still surfaced when a peer incorrectly returns success", a
   );
 });
 
+test("a completed request tolerates only the bridge's normal stream stop during close", async (t) => {
+  for (const scenario of [
+    { source: "stream", code: 0, accept: true },
+    { source: "stream", code: 1 },
+    { source: "session", code: 0 },
+    { source: "stream", code: 0, duringWrite: true },
+    { ordinary: true },
+  ]) {
+    await t.test(JSON.stringify(scenario), async () => {
+      const stopped = Object.assign(new Error("STOP_SENDING"), {
+        name: scenario.ordinary ? "Error" : "WebTransportError",
+        source: scenario.source,
+        streamErrorCode: scenario.code,
+      });
+      const transport = new DirectTransport({ transport: "webtransport" });
+      transport.connect = async () => ({
+        createBidirectionalStream: async () => ({
+          readable: new ReadableStream({
+            start(controller) {
+              controller.enqueue(
+                new TextEncoder().encode(
+                  "HTTP/1.1 207 Multi-Status\r\nContent-Length: 5\r\n\r\n<D/> ",
+                ),
+              );
+              controller.close();
+            },
+          }),
+          writable: new WritableStream({
+            write() {
+              if (scenario.duringWrite) throw stopped;
+            },
+            close() {
+              throw stopped;
+            },
+          }),
+        }),
+      });
+      const pending = transport.request("/dav/", {
+        method: "SEARCH",
+        body: "<searchrequest/>",
+      });
+      if (scenario.accept) {
+        const response = await pending;
+        assert.equal(response.status, 207);
+        assert.equal(await response.text(), "<D/> ");
+      } else {
+        await assert.rejects(pending, (error) => error === stopped);
+      }
+    });
+  }
+});
+
 test("closing during a handshake cannot resurrect an old session or clobber a new connection", async (t) => {
   const sessions = [];
   class Session {

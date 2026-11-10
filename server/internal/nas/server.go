@@ -38,6 +38,12 @@ type Server struct {
 	active          map[string]func()
 	slots           chan struct{}
 	jobs            sync.WaitGroup
+	catalogWake     chan struct{}
+	catalogMu       sync.RWMutex
+	catalogScanning bool
+	catalogError    bool
+	catalogKey      []byte
+	searchRequests  chan struct{}
 }
 
 func New(publicDir, dataDir string, origins []string) (*Server, error) {
@@ -116,7 +122,11 @@ func New(publicDir, dataDir string, origins []string) (*Server, error) {
 		return nil, err
 	}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
+	if err = s.initCatalog(); err != nil {
+		return nil, err
+	}
 	s.jobs.Go(s.sweep)
+	s.jobs.Go(s.runCatalog)
 	ok = true
 	return s, nil
 }
@@ -199,9 +209,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PROPFIND, POST, PUT, DELETE")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PROPFIND, SEARCH, POST, PUT, DELETE")
 		w.Header().Set("Access-Control-Allow-Headers", "Accept-Language, Authorization, Content-Type, Depth, DPoP, If-None-Match, Range, If-Range")
-		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Content-Disposition, Accept-Ranges, ETag, Link, WWW-Authenticate, DPoP-Nonce")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Content-Disposition, Accept-Ranges, ETag, Link, WWW-Authenticate, DPoP-Nonce, DAV, DASL, Allow")
 	}
 	switch {
 	case r.URL.Path == mediaPath || strings.HasPrefix(r.URL.Path, mediaPath+"/"):

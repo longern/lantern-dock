@@ -73,7 +73,12 @@ const localChildren = (node, name) =>
   );
 const child = (node, name) => localChildren(node, name)[0];
 const text = (node, name) => child(node, name)?.textContent?.trim() || "";
-export function parseDAV(xml, currentPath, rootPath, { onUnavailable } = {}) {
+export function parseDAV(
+  xml,
+  currentPath,
+  rootPath,
+  { onUnavailable, recursive = false } = {},
+) {
   if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw coreError("UNSAFE_XML");
   const doc = new DOMParser().parseFromString(xml, "application/xml");
   if (
@@ -103,7 +108,10 @@ export function parseDAV(xml, currentPath, rootPath, { onUnavailable } = {}) {
     )
       continue;
     const relative = path.slice(current.length);
-    if (!path.startsWith(current) || relative.replace(/\/$/, "").includes("/"))
+    if (
+      !path.startsWith(current) ||
+      (!recursive && relative.replace(/\/$/, "").includes("/"))
+    )
       continue;
     const propstat = localChildren(response, "propstat").find((node) =>
       /^HTTP\/\d\.\d 2\d\d/.test(text(node, "status")),
