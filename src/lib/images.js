@@ -171,6 +171,12 @@ export class ImageClient {
           const service = value.version === 1 && value.services?.images;
           const media = value.version === 1 && value.services?.media;
           const files = value.version === 1 && value.services?.files;
+          const inbox = value.version === 1 && value.services?.inbox;
+          this.inboxEnabled =
+            inbox?.enabled === true &&
+            inbox.protocol === "lantern-dock-inbox" &&
+            inbox.version === 1 &&
+            inbox.href === backendPaths.inbox;
           this.publicFiles =
             files?.enabled === true &&
             files.readOnly === true &&

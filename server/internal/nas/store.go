@@ -54,6 +54,7 @@ type Upload struct {
 	Size      int64     `json:"size"`
 	Status    string    `json:"status"`
 	ExpiresAt time.Time `json:"expiresAt"`
+	resumable bool
 }
 
 func randomID() string {
@@ -101,6 +102,11 @@ func OpenStore(directory string) (*Store, error) {
  size INTEGER NOT NULL CHECK(size>=0), status TEXT NOT NULL CHECK(status IN ('pending','receiving','complete','failed')),
  expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
  CREATE INDEX IF NOT EXISTS uploads_link ON uploads(link_id,status,expires_at);
+ CREATE TABLE IF NOT EXISTS resumable_uploads (
+ upload_id TEXT PRIMARY KEY REFERENCES uploads(id) ON DELETE CASCADE,
+ batch_hash BLOB NOT NULL, metadata TEXT NOT NULL,
+ offset INTEGER NOT NULL DEFAULT 0 CHECK(offset>=0));
+ CREATE INDEX IF NOT EXISTS resumable_uploads_batch ON resumable_uploads(batch_hash);
  CREATE TABLE IF NOT EXISTS personal_inboxes (
  owner TEXT PRIMARY KEY, link_id TEXT NOT NULL UNIQUE REFERENCES links(id));
  CREATE TABLE IF NOT EXISTS nas_members (
@@ -256,6 +262,9 @@ func validName(name string) bool {
 	return len(name) > 0 && len(name) <= 180 && name != "." && name != ".." && !strings.ContainsAny(name, "/\\") && strings.IndexFunc(name, unicode.IsControl) < 0 && strings.TrimSpace(name) != ""
 }
 func (s *Store) Reserve(ctx context.Context, linkID, name string, size int64) (Upload, error) {
+	return s.reserve(ctx, linkID, name, size, nil, "")
+}
+func (s *Store) reserve(ctx context.Context, linkID, name string, size int64, batch []byte, metadata string) (Upload, error) {
 	if !validName(name) || size < 0 {
 		return Upload{}, fault(400, "INVALID_FILE", "errors.invalidFile")
 	}
@@ -283,6 +292,9 @@ func (s *Store) Reserve(ctx context.Context, linkID, name string, size int64) (U
 		return Upload{}, fault(409, "QUOTA_EXCEEDED", "errors.quotaExceeded")
 	}
 	expiry := time.Now().Add(15 * time.Minute)
+	if batch != nil {
+		expiry = time.Now().Add(resumeLifetime)
+	}
 	if l.ExpiresAt.Before(expiry) {
 		expiry = l.ExpiresAt
 	}
@@ -291,12 +303,19 @@ func (s *Store) Reserve(ctx context.Context, linkID, name string, size int64) (U
 	if err != nil {
 		return Upload{}, err
 	}
+	if batch != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO resumable_uploads(upload_id,batch_hash,metadata) VALUES(?,?,?)`, u.ID, batch, metadata); err != nil {
+			return Upload{}, err
+		}
+	}
 	return u, tx.Commit()
 }
 func (s *Store) GetUpload(ctx context.Context, id, linkID string) (Upload, error) {
 	var u Upload
 	var expiry int64
-	err := s.DB.QueryRowContext(ctx, `SELECT id,link_id,name,size,status,expires_at FROM uploads WHERE id=? AND link_id=?`, id, linkID).Scan(&u.ID, &u.LinkID, &u.Name, &u.Size, &u.Status, &expiry)
+	err := s.DB.QueryRowContext(ctx, `SELECT id,link_id,name,size,status,expires_at,
+ EXISTS(SELECT 1 FROM resumable_uploads WHERE upload_id=uploads.id)
+ FROM uploads WHERE id=? AND link_id=?`, id, linkID).Scan(&u.ID, &u.LinkID, &u.Name, &u.Size, &u.Status, &expiry, &u.resumable)
 	u.ExpiresAt = time.Unix(expiry, 0).UTC()
 	if errors.Is(err, sql.ErrNoRows) {
 		return u, fault(404, "UPLOAD_NOT_FOUND", "errors.uploadNotFound")

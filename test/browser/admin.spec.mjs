@@ -657,6 +657,23 @@ async function installIntake(page, options) {
       body: '<d:multistatus xmlns:d="DAV:"><d:response><d:href>/dav/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
     }),
   );
+  await page.route("**/api/capabilities", (route) =>
+    route.fulfill({
+      json: {
+        version: 1,
+        services: state.webDAVOnly
+          ? {}
+          : {
+              inbox: {
+                enabled: true,
+                protocol: "lantern-dock-inbox",
+                version: 1,
+                href: "/api/uploads",
+              },
+            },
+      },
+    }),
+  );
   return state;
 }
 
@@ -797,11 +814,77 @@ test("file intake offers a local QR and a separate authenticated personal upload
   ).toHaveLength(2);
 });
 
-test("a signed-in member has no file intake actions", async ({ page }) => {
-  await installIntake(page, { role: "member" });
-  const checked = page.waitForResponse("**/fixture/account");
+for (const slow of [false, true]) {
+  test(`file intake reveals upload actions after a ${slow ? "slow" : "fast"} permission check`, async ({
+    page,
+  }) => {
+    await installIntake(page);
+    const account = Promise.withResolvers();
+    await page.route("**/fixture/account", async (route) => {
+      await account.promise;
+      await route.fallback();
+    });
+    await page.goto("/files/");
+    const trigger = page.locator("#file-intake-trigger");
+    await expect(trigger).toBeVisible();
+    await page.clock.install();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    await trigger.click();
+    const dialog = page.locator("dialog:has(.intake-entry-body)");
+    const spinner = dialog.locator(".intake-spinner");
+    await expect(dialog).toHaveAccessibleName("上传文件");
+    await expect(dialog.getByRole("heading")).toHaveCount(0);
+    await expect(dialog.getByRole("status")).toHaveText("正在检查上传权限…");
+    await expect(dialog.getByRole("button", { name: "关闭" })).toBeEnabled();
+
+    await page.clock.runFor(100);
+    await expect(spinner).toHaveCSS("opacity", "0");
+    if (slow) {
+      await page.clock.runFor(200);
+      await expect(spinner).toHaveCSS("opacity", "1");
+    }
+    account.resolve();
+    await expect(dialog.getByRole("heading")).toHaveText("新建");
+    await expect(
+      dialog.getByRole("button", { name: "上传文件", exact: true }),
+    ).toBeEnabled();
+    await expect(spinner).toHaveCSS("opacity", "0");
+  });
+}
+
+test("file intake explains upload permission to members", async ({ page }) => {
+  const state = await installIntake(page, { role: "member" });
   await page.goto("/files/");
-  await checked;
+  await page.locator("#file-intake-trigger").click();
+  const guide = page.getByRole("dialog", { name: "如何获得上传权限" });
+  await expect(guide.getByRole("status")).toHaveText("需要上传权限");
+  await expect(guide).toContainText("为你的账户开通直接上传权限");
+  expect(state.scopes).toHaveLength(0);
+});
+
+test("file intake guides guests to invitations", async ({ page }) => {
+  await installIntake(page, { signedOut: true });
+  await page.goto("/files/");
+  const trigger = page.locator("#file-intake-trigger");
+  await trigger.click();
+  const guide = page.getByRole("dialog", { name: "如何获得上传权限" });
+  await expect(guide.getByRole("status")).toHaveText("需要上传邀请");
+  await expect(guide).toContainText("扫描对方提供的上传二维码");
+  await expect(guide.locator(".intake-sheet-handle")).toHaveCount(
+    isCompact(page) ? 1 : 0,
+  );
+  await guide.getByRole("button", { name: "关闭" }).click();
+  await expect(guide).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test("file intake stays hidden for guests on plain WebDAV", async ({
+  page,
+}) => {
+  await installIntake(page, { signedOut: true, webDAVOnly: true });
+  const capabilities = page.waitForResponse("**/api/capabilities");
+  await page.goto("/files/");
+  await (await capabilities).finished();
   await expect(page.locator("#file-intake-trigger")).toHaveCount(0);
 });
 

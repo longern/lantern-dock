@@ -165,6 +165,8 @@ test("mobile page and backdrop stay mounted through both slide directions", asyn
     node.getAnimations().forEach((animation) => animation.finish()),
   );
   await page.clock.runFor(250);
+  const photos = dialog.locator(".album-item");
+  await expect(photos).toHaveCount(3);
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveAttribute("data-state", "closed");
   await expect(dialog).toHaveAttribute("open", "");
@@ -181,6 +183,7 @@ test("mobile page and backdrop stay mounted through both slide directions", asyn
     };
   });
   expect(leaving.animation).toBe("page-dialog-out");
+  await expect(photos).toHaveCount(3);
   expect(leaving.opacity).toBeGreaterThan(0);
   expect(leaving.opacity).toBeLessThan(1);
   await page.clock.runFor(250);

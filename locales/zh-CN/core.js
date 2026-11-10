@@ -21,6 +21,7 @@ export default {
   "error.UPLOAD_HTTPS_REQUIRED":
     "HTTPS 网页需要通过 HTTPS 或 WebTransport 上传文件。",
   "error.UPLOAD_CONNECTION_INTERRUPTED": "上传连接中断，请检查网络后重试。",
+  "error.UPLOAD_FILE_MISMATCH": "选中的文件与原文件不一致，请重新选择。",
   "error.VIDEO_UNSUPPORTED": "浏览器不支持此视频的格式或编码，请下载后播放。",
   "error.OUTSIDE_ROOT": "不能离开配置的根目录",
   "error.VIDEO_HTTPS_REQUIRED": "视频直连需要 HTTPS 地址。",

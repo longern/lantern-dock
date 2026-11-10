@@ -163,6 +163,10 @@ export class DAVClient {
     this.images.dispose();
     this.directories.clear();
   }
+  async supportsIntake() {
+    await this.images.service();
+    return this.images.inboxEnabled === true;
+  }
   cached(path) {
     return this.directories.get(normalizePath(path).replace(/\/?$/, "/"))?.value
       .entries;

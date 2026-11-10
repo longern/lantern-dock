@@ -103,14 +103,40 @@ function PersonalUploadDialog({ createClient, files, direct, onExit }) {
   );
 }
 
-export function FileIntakeActions({ mobile, suspended }) {
+function UploadPermissionIndicator({ checking }) {
+  const [delayed, setDelayed] = useState(false);
+  useEffect(() => {
+    if (!checking) {
+      setDelayed(false);
+      return;
+    }
+    const timer = setTimeout(() => setDelayed(true), 200);
+    return () => clearTimeout(timer);
+  }, [checking]);
+  return (
+    <>
+      <span class="intake-check-status" role={checking ? "status" : undefined}>
+        {checking && t("admin.checkingUploadPermission")}
+      </span>
+      <span
+        class="intake-spinner"
+        data-visible={checking && delayed ? "" : undefined}
+        aria-hidden="true"
+      />
+    </>
+  );
+}
+
+export function FileIntakeActions({ client, mobile, suspended }) {
   const { identity, nas, ensureNAS, refreshIdentity, refreshNAS } =
     useSession();
   const [mode, setMode] = useState(null);
-  const afterSheet = useRef(null);
+  const [intakeClient, setIntakeClient] = useState(null);
+  const afterEntry = useRef(null);
   const picker = useRef(null);
   const files = useRef(null);
-  const allowed = adminAccess(identity, nas) === "ready";
+  const access = adminAccess(identity, nas);
+  const allowed = access === "ready";
   const direct =
     identity.status === "authenticated" &&
     nas.status === "ready" &&
@@ -121,11 +147,23 @@ export function FileIntakeActions({ mobile, suspended }) {
   const upload =
     direct || (allowed && account?.capabilities.personalUploads === true);
   useEffect(() => {
+    let active = true;
+    void client.supportsIntake().then((supported) => {
+      if (active) setIntakeClient(supported ? client : null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [client]);
+  useEffect(() => {
     if (identity.status === "authenticated") void ensureNAS();
   }, [identity.status, ensureNAS]);
   useEffect(() => {
-    if (!account) setMode(null);
-  }, [account]);
+    if ((mode === "upload" && !upload) || (mode === "invite" && !invite)) {
+      files.current = null;
+      setMode(null);
+    }
+  }, [mode, upload, invite]);
   useEffect(() => {
     const clear = () => setMode(null);
     window.addEventListener("pagehide", clear);
@@ -144,11 +182,14 @@ export function FileIntakeActions({ mobile, suspended }) {
     files.current = null;
     setMode(null);
   };
-  const closeSheet = (next = null) => {
-    afterSheet.current = next;
-    setMode("sheet-closing");
+  const closeEntry = (next = null) => {
+    afterEntry.current = next;
+    setMode("entry-closing");
   };
-  if (!upload && !invite) return null;
+  const canAct = upload || invite;
+  if (!canAct && intakeClient !== client) return null;
+  const entryOpen = mode === "entry";
+  const entryPresent = entryOpen || mode === "entry-closing";
   const filePicker = upload && (
     <input
       ref={picker}
@@ -161,14 +202,14 @@ export function FileIntakeActions({ mobile, suspended }) {
         input.value = "";
         if (!selected.length) return;
         files.current = selected;
-        if (mode === "sheet") closeSheet("upload");
+        if (entryOpen) closeEntry("upload");
         else setMode("upload");
       }}
     />
   );
   const select = (action) => {
     if (action === "upload") picker.current?.click();
-    else if (mode === "sheet") closeSheet(action);
+    else if (entryOpen) closeEntry(action);
     else setMode(action);
   };
   const choices = [
@@ -180,19 +221,24 @@ export function FileIntakeActions({ mobile, suspended }) {
       : []),
   ];
   const label = t("admin.newAction");
+  const entryLabel = canAct ? label : t("admin.uploadFiles");
+  const guideTitle = t("admin.uploadAccessTitle");
+  const checking = access === "checking";
+  const verificationFailed =
+    !checking && identity.status !== "signed-out" && nas.status !== "ready";
   return (
     <>
-      {mode !== "sheet" && mode !== "sheet-closing" && filePicker}
+      {!entryPresent && filePicker}
       {!suspended &&
         (mobile ? (
           <button
             id="file-intake-trigger"
             class="intake-fab"
             type="button"
-            aria-label={label}
+            aria-label={entryLabel}
             aria-haspopup="dialog"
             aria-expanded={!!mode}
-            onClick={() => setMode("sheet")}
+            onClick={() => setMode("entry")}
           >
             <Icon name="plus" />
           </button>
@@ -213,47 +259,92 @@ export function FileIntakeActions({ mobile, suspended }) {
             class="primary-button"
             type="button"
             aria-haspopup="dialog"
-            onClick={() => select(choices[0].key)}
+            aria-expanded={canAct ? undefined : entryPresent}
+            onClick={() => (canAct ? select(choices[0].key) : setMode("entry"))}
           >
-            <Icon name={choices[0].icon} />
-            {choices[0].label}
+            <Icon name={choices[0]?.icon || "upload"} />
+            {choices[0]?.label || entryLabel}
           </button>
         ))}
-      {(mode === "sheet" || mode === "sheet-closing") && (
+      {entryPresent && (
         <Dialog
-          class="settings-dialog intake-sheet"
-          open={mode === "sheet"}
-          onClose={() => closeSheet()}
-          onExited={() => setMode(afterSheet.current)}
+          class={mobile ? "settings-dialog intake-sheet" : "settings-dialog"}
+          open={entryOpen}
+          onClose={() => closeEntry()}
+          onExited={() => setMode(afterEntry.current)}
           fallbackFocus="#file-intake-trigger"
-          aria-labelledby="intake-sheet-title"
+          aria-labelledby={checking ? undefined : "intake-entry-title"}
+          aria-label={checking ? t("admin.uploadFiles") : undefined}
         >
-          <SheetHandle onDismiss={() => closeSheet()} />
+          {mobile && <SheetHandle onDismiss={() => closeEntry()} />}
           {filePicker}
-          <div class="dialog-heading">
-            <h2 id="intake-sheet-title">{label}</h2>
+          <div class="dialog-heading intake-entry-heading">
+            {!checking && (
+              <h2 id="intake-entry-title">{canAct ? label : guideTitle}</h2>
+            )}
             <button
               class="icon-button"
               aria-label={t("admin.close")}
-              onClick={() => closeSheet()}
+              onClick={() => closeEntry()}
             >
               <Icon name="x" />
             </button>
           </div>
-          <ul class="intake-actions">
-            {choices.map(({ key, label, icon }) => (
-              <li key={key}>
-                <button
-                  type="button"
-                  disabled={mode !== "sheet"}
-                  onClick={() => select(key)}
-                >
-                  <Icon name={icon} />
-                  <span>{label}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <div
+            class="intake-entry-body"
+            data-checking={checking ? "" : undefined}
+          >
+            <UploadPermissionIndicator checking={checking} />
+            {!checking &&
+              (canAct ? (
+                <ul class="intake-actions">
+                  {choices.map(({ key, label, icon }) => (
+                    <li key={key}>
+                      <button
+                        type="button"
+                        disabled={!entryOpen}
+                        onClick={() => select(key)}
+                      >
+                        <Icon name={icon} />
+                        <span>{label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div class="intake-guide">
+                  <p role="status">
+                    {t(
+                      verificationFailed
+                        ? "account.verificationUnavailable"
+                        : identity.status === "signed-out"
+                          ? "admin.uploadInvitationRequired"
+                          : "admin.uploadPermissionRequired",
+                    )}
+                  </p>
+                  <p>
+                    {t(
+                      identity.status === "authenticated" && !verificationFailed
+                        ? "admin.uploadMemberHelp"
+                        : "admin.uploadGuestHelp",
+                    )}
+                  </p>
+                  {verificationFailed && (
+                    <button
+                      type="button"
+                      class="secondary-button"
+                      onClick={() =>
+                        identity.status === "authenticated"
+                          ? void refreshNAS()
+                          : void refreshIdentity()
+                      }
+                    >
+                      {t("account.checkAgain")}
+                    </button>
+                  )}
+                </div>
+              ))}
+          </div>
         </Dialog>
       )}
       {inviteClient && (

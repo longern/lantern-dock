@@ -209,9 +209,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PROPFIND, SEARCH, POST, PUT, DELETE")
-		w.Header().Set("Access-Control-Allow-Headers", "Accept-Language, Authorization, Content-Type, Depth, DPoP, If-None-Match, Range, If-Range")
-		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Content-Disposition, Accept-Ranges, ETag, Link, WWW-Authenticate, DPoP-Nonce, DAV, DASL, Allow")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PROPFIND, SEARCH, POST, PUT, PATCH, DELETE")
+		w.Header().Set("Access-Control-Allow-Headers", "Accept-Language, Authorization, Content-Type, Depth, DPoP, If-None-Match, Range, If-Range, Tus-Resumable, Upload-Length, Upload-Metadata, Upload-Offset, X-Upload-Batch")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Content-Disposition, Accept-Ranges, ETag, Link, WWW-Authenticate, DPoP-Nonce, DAV, DASL, Allow, Location, Tus-Resumable, Tus-Version, Tus-Extension, Upload-Length, Upload-Offset, Upload-Expires, Upload-Metadata")
 	}
 	switch {
 	case r.URL.Path == mediaPath || strings.HasPrefix(r.URL.Path, mediaPath+"/"):
@@ -237,7 +237,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
+	resumable := r.URL.Path == resumePath || strings.HasPrefix(r.URL.Path, resumePath+"/")
+	if resumable {
+		w.Header().Set("Tus-Resumable", tusVersion)
+	}
 	if r.Method == "OPTIONS" {
+		if resumable {
+			w.Header().Set("Tus-Version", tusVersion)
+			w.Header().Set("Tus-Extension", "creation,expiration")
+		}
 		w.WriteHeader(204)
 		return
 	}
@@ -253,6 +261,13 @@ func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeError(w, r, err)
 		return
+	}
+	if resumable {
+		s.serveResumable(w, r, l)
+		return
+	}
+	if r.Method == "GET" && r.URL.Path == inboxPath {
+		w.Header().Set("Tus-Version", tusVersion)
 	}
 	id := strings.TrimPrefix(strings.TrimPrefix(r.URL.Path, inboxPath), "/")
 	s.serveUploadTask(w, r, l, id)
@@ -302,6 +317,10 @@ func (s *Server) serveUploadTask(w http.ResponseWriter, r *http.Request, l Link,
 	u, err := s.Store.GetUpload(r.Context(), id, l.ID)
 	if err != nil {
 		writeError(w, r, err)
+		return
+	}
+	if u.resumable {
+		writeError(w, r, fault(404, "UPLOAD_NOT_FOUND", "errors.uploadNotFound"))
 		return
 	}
 	switch r.Method {
@@ -425,10 +444,6 @@ func (s *Server) receive(w http.ResponseWriter, r *http.Request, u Upload, l Lin
 		writeError(w, r, closeErr)
 		return
 	}
-	if err = s.private.MkdirAll(path.Join("inbox", u.LinkID), 0700); err != nil {
-		writeError(w, r, err)
-		return
-	}
 	tx, err := s.Store.DB.BeginTx(ctx, nil)
 	if err != nil {
 		writeError(w, r, err)
@@ -445,23 +460,9 @@ func (s *Server) receive(w http.ResponseWriter, r *http.Request, u Upload, l Lin
 		writeError(w, r, fault(410, "UPLOAD_CANCELLED", "errors.uploadCancelled"))
 		return
 	}
-	if err = s.private.Rename(staging(u), destination(u)); err != nil {
+	if err = s.publishUpload(u); err != nil {
 		writeError(w, r, err)
 		return
-	}
-	// Persist the new directory entry before committing the SQLite completion.
-	for _, name := range []string{path.Dir(destination(u)), "inbox/.staging", "inbox", "."} {
-		dir, err := s.private.Open(name)
-		if err != nil {
-			writeError(w, r, err)
-			return
-		}
-		err = dir.Sync()
-		_ = dir.Close()
-		if err != nil {
-			writeError(w, r, err)
-			return
-		}
 	}
 	if err = tx.Commit(); err != nil {
 		current, checkErr := s.Store.GetUpload(context.Background(), u.ID, l.ID)
@@ -478,11 +479,37 @@ func (s *Server) receive(w http.ResponseWriter, r *http.Request, u Upload, l Lin
 	u.ExpiresAt = l.ExpiresAt
 	writeJSON(w, 201, u)
 }
+func (s *Server) publishUpload(u Upload) error {
+	if err := s.private.MkdirAll(path.Dir(destination(u)), 0700); err != nil {
+		return err
+	}
+	if err := s.private.Rename(staging(u), destination(u)); err != nil {
+		return err
+	}
+	// Persist the new directory entry before committing the SQLite completion.
+	for _, name := range []string{path.Dir(destination(u)), "inbox/.staging", "inbox", "."} {
+		if err := s.syncUploadDir(name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (s *Server) syncUploadDir(name string) error {
+	dir, err := s.private.Open(name)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+	return dir.Sync()
+}
 func (s *Server) recover() error {
 	if _, err := s.Store.DB.Exec(`UPDATE uploads SET status='failed' WHERE status='receiving'`); err != nil {
 		return err
 	}
-	rows, err := s.Store.DB.Query(`SELECT id,link_id,name FROM uploads WHERE status!='complete'`)
+	now := time.Now().Unix()
+	rows, err := s.Store.DB.Query(`SELECT id,link_id,name FROM uploads WHERE status!='complete' AND NOT
+ (status='pending' AND expires_at>? AND id IN (SELECT upload_id FROM resumable_uploads)
+ AND link_id IN (SELECT id FROM links WHERE revoked=0 AND expires_at>?))`, now, now)
 	if err != nil {
 		return err
 	}
@@ -523,13 +550,16 @@ func (s *Server) sweep() {
 		}
 		rows.Close()
 		for _, id := range ids {
-			s.mu.Lock()
-			cancel := s.active[id]
-			s.mu.Unlock()
-			if cancel != nil {
-				cancel()
+			now := time.Now().Unix()
+			result, err := s.Store.DB.ExecContext(s.ctx, `UPDATE uploads SET status='failed'
+ WHERE id=? AND status IN ('pending','receiving') AND (expires_at<=? OR
+ EXISTS(SELECT 1 FROM links WHERE links.id=uploads.link_id AND (revoked=1 OR links.expires_at<=?)))`,
+				id, now, now)
+			if err == nil {
+				if count, _ := result.RowsAffected(); count != 0 {
+					s.cleanupInterrupted(id)
+				}
 			}
-			_ = s.Store.Fail(s.ctx, id)
 		}
 	}
 }

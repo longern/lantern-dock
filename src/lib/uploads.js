@@ -3,6 +3,55 @@ import { coreError } from "./errors.js";
 import { DirectTransport } from "./transport.js";
 import { backendPaths } from "../../shared/backend-paths.js";
 
+const tusVersion = "1.0.0";
+const chunkSize = 4 * 1024 * 1024;
+const taskID = /^[a-f0-9]{32}$/;
+const tusHeaders = (batch) => ({
+  "Tus-Resumable": tusVersion,
+  "X-Upload-Batch": batch,
+});
+const hex = (bytes) =>
+  Array.from(new Uint8Array(bytes), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+
+export async function uploadBatchKey(token) {
+  return (
+    "lantern-dock:upload-batch:" +
+    hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token)))
+  );
+}
+
+async function fingerprint(file, signal) {
+  // Hash every byte with bounded memory. The manifest digest is independent
+  // of retries and detects a changed file even when metadata still matches.
+  const hashes = new Uint8Array(Math.ceil(file.size / chunkSize) * 32);
+  for (let i = 0; i < hashes.length / 32; i++) {
+    signal?.throwIfAborted();
+    const chunk = file.slice(i * chunkSize, (i + 1) * chunkSize);
+    const hash = await crypto.subtle.digest(
+      "SHA-256",
+      await chunk.arrayBuffer(),
+    );
+    hashes.set(new Uint8Array(hash), i * 32);
+  }
+  signal?.throwIfAborted();
+  return hex(await crypto.subtle.digest("SHA-256", hashes));
+}
+
+function confirmedOffset(response, size) {
+  const header = response.headers.get("Upload-Offset");
+  const offset = Number(header);
+  if (
+    !header ||
+    !/^\d+$/.test(header) ||
+    !Number.isSafeInteger(offset) ||
+    offset > size
+  )
+    throw coreError("UPLOAD_CONNECTION_INTERRUPTED");
+  return offset;
+}
+
 export async function uploadResponse(response) {
   const value = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -32,7 +81,13 @@ export class UploadClient {
     this.transport.close();
   }
   async info(signal) {
-    return this.request(this.path, { signal });
+    const response = await this.send(this.path, { signal });
+    const value = await uploadResponse(response);
+    return {
+      ...value,
+      resumable:
+        !this.authorize && response.headers.get("Tus-Version") === tusVersion,
+    };
   }
   async headers(method, path, signal) {
     if (this.closed)
@@ -57,7 +112,11 @@ export class UploadClient {
   async request(path, options) {
     return uploadResponse(await this.send(path, options));
   }
-  async sendHTTP(path, file, signal, onProgress) {
+  async sendHTTP(
+    path,
+    file,
+    { method = "PUT", signal, onProgress, headers = {} } = {},
+  ) {
     signal?.throwIfAborted();
     const endpoint = new URL(path, this.transport.config.endpoint);
     if (
@@ -66,22 +125,36 @@ export class UploadClient {
       !["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname)
     )
       throw coreError("UPLOAD_HTTPS_REQUIRED");
-    const headers = await this.headers("PUT", path, signal);
+    const authorization = await this.headers(method, path, signal);
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const abort = () => xhr.abort();
       const finish = () => signal?.removeEventListener("abort", abort);
-      xhr.open("PUT", endpoint);
-      for (const [name, value] of Object.entries(headers))
+      xhr.open(method, endpoint);
+      for (const [name, value] of Object.entries({
+        "Content-Type": "application/octet-stream",
+        ...headers,
+        ...authorization,
+      }))
         xhr.setRequestHeader(name, value);
       xhr.setRequestHeader("Accept-Language", locale);
-      xhr.setRequestHeader("Content-Type", "application/octet-stream");
       xhr.upload.onprogress = (event) => {
         if (event.lengthComputable) onProgress?.(event.loaded, event.total);
       };
       xhr.onload = () => {
         finish();
-        resolve(new Response(xhr.responseText, { status: xhr.status }));
+        if (!xhr.status) {
+          reject(coreError("UPLOAD_CONNECTION_INTERRUPTED"));
+          return;
+        }
+        const offset =
+          method === "PATCH" ? xhr.getResponseHeader("Upload-Offset") : null;
+        resolve(
+          new Response(xhr.status === 204 ? null : xhr.responseText, {
+            status: xhr.status,
+            headers: offset === null ? {} : { "Upload-Offset": offset },
+          }),
+        );
       };
       xhr.onerror = () => {
         finish();
@@ -96,6 +169,130 @@ export class UploadClient {
       if (signal?.aborted) abort();
     });
   }
+  sendFile(path, file, { method, headers, signal, onProgress }) {
+    return this.transport.config.transport === "http"
+      ? this.sendHTTP(path, file, { method, headers, signal, onProgress })
+      : this.send(path, {
+          method,
+          headers,
+          body: file,
+          signal,
+          onUploadProgress: onProgress,
+        });
+  }
+  resumableTasks(batch, signal) {
+    return this.request(this.path + "/resumable", {
+      headers: tusHeaders(batch),
+      signal,
+    });
+  }
+  async cancelResumable(batch, id) {
+    const response = await this.send(this.path + "/resumable/" + id, {
+      method: "DELETE",
+      headers: tusHeaders(batch),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (response.status === 410) {
+      await response.body?.cancel();
+      return "cancelled";
+    }
+    try {
+      await uploadResponse(response);
+      return "cancelled";
+    } catch (error) {
+      if (error.code === "UPLOAD_COMPLETE") return "complete";
+      throw error;
+    }
+  }
+  async uploadResumable(file, { batch, task, signal, onTask, onProgress }) {
+    const root = this.path + "/resumable";
+    const headers = tusHeaders(batch);
+    const hash = await fingerprint(file, signal);
+    if (
+      task &&
+      (task.name !== file.name ||
+        task.size !== file.size ||
+        task.fingerprint !== hash)
+    )
+      throw coreError("UPLOAD_FILE_MISMATCH");
+    let recoverOffset = !!task;
+    if (!task) {
+      const encode = (value) =>
+        btoa(String.fromCharCode(...new TextEncoder().encode(value)));
+      const response = await this.send(root, {
+        method: "POST",
+        signal,
+        headers: {
+          ...headers,
+          "Upload-Length": String(file.size),
+          "Upload-Metadata": `filename ${encode(file.name)},fingerprint ${encode(hash)}`,
+        },
+      });
+      if (!response.ok) await uploadResponse(response);
+      const location = response.headers.get("Location");
+      const id = location?.slice(root.length + 1);
+      if (
+        response.status !== 201 ||
+        !location?.startsWith(root + "/") ||
+        !taskID.test(id || "")
+      ) {
+        await response.body?.cancel();
+        throw coreError("UPLOAD_CONNECTION_INTERRUPTED");
+      }
+      await response.body?.cancel();
+      task = { id, name: file.name, size: file.size, fingerprint: hash };
+    }
+    onTask?.(task);
+    const path = root + "/" + task.id;
+    let offset = 0;
+    let attempts = 0;
+    while (offset < file.size || recoverOffset) {
+      signal?.throwIfAborted();
+      try {
+        if (recoverOffset) {
+          const response = await this.send(path, {
+            method: "HEAD",
+            headers,
+            signal,
+          });
+          if (!response.ok) await uploadResponse(response);
+          offset = confirmedOffset(response, file.size);
+          onProgress?.(offset, true);
+          recoverOffset = false;
+          if (offset === file.size) break;
+        }
+        const end = Math.min(file.size, offset + chunkSize);
+        const response = await this.sendFile(path, file.slice(offset, end), {
+          method: "PATCH",
+          headers: {
+            ...headers,
+            "Upload-Offset": String(offset),
+            "Content-Type": "application/offset+octet-stream",
+          },
+          signal,
+          onProgress: (loaded) => onProgress?.(offset + loaded),
+        });
+        if (!response.ok) await uploadResponse(response);
+        if (
+          response.status !== 204 ||
+          confirmedOffset(response, file.size) !== end
+        )
+          throw coreError("UPLOAD_CONNECTION_INTERRUPTED");
+        offset = end;
+        attempts = 0;
+        onProgress?.(offset, true);
+      } catch (error) {
+        if (
+          signal?.aborted ||
+          (error.status && error.status !== 409 && error.status < 500) ||
+          ++attempts > 2
+        )
+          throw error;
+        recoverOffset = true;
+        await new Promise((resolve) => setTimeout(resolve, 250 * attempts));
+      }
+    }
+  }
   async upload(file, { signal, onProgress } = {}) {
     const task = await this.request(this.path, {
       method: "POST",
@@ -103,20 +300,16 @@ export class UploadClient {
       body: JSON.stringify({ name: file.name, size: file.size }),
       signal,
     });
-    if (!/^[a-f0-9]{32}$/.test(task?.id ?? ""))
+    if (!taskID.test(task?.id ?? ""))
       throw coreError("UPLOAD_CONNECTION_INTERRUPTED");
     const path = `${this.path}/${task.id}`;
     try {
-      const response =
-        this.transport.config.transport === "http"
-          ? await this.sendHTTP(path, file, signal, onProgress)
-          : await this.send(path, {
-              method: "PUT",
-              headers: { "Content-Type": "application/octet-stream" },
-              body: file,
-              signal,
-              onUploadProgress: onProgress,
-            });
+      const response = await this.sendFile(path, file, {
+        method: "PUT",
+        headers: { "Content-Type": "application/octet-stream" },
+        signal,
+        onProgress,
+      });
       return await uploadResponse(response);
     } catch (error) {
       if (this.closed) throw error;

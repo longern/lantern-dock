@@ -35,6 +35,13 @@ export default {
   receivedCount: "已收到 {{count}} 个文件",
   newAction: "新建",
   uploadFiles: "上传文件",
+  checkingUploadPermission: "正在检查上传权限…",
+  uploadAccessTitle: "如何获得上传权限",
+  uploadInvitationRequired: "需要上传邀请",
+  uploadPermissionRequired: "需要上传权限",
+  uploadGuestHelp: "请向收件人索取上传链接，或当面扫描对方提供的上传二维码。",
+  uploadMemberHelp:
+    "请向管理员索取上传链接，或请管理员为你的账户开通直接上传权限。",
   inviteUpload: "邀请上传",
   personalInbox: "我的收件",
   personalUploadDescription: "文件将保存到你的私有收件箱。",

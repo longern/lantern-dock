@@ -96,7 +96,7 @@ After configuring `ADMIN_SUBJECTS` and rechecking the account, open **Administra
 - Review collection status and quota usage, or revoke a link to stop further uploads. Revoking or expiring a link does not delete completed files.
 - Open **Private inbox** to list completed uploads, optionally filter by collection, and download them. Files remain private and are not published into WebDAV.
 
-Recipients need only the upload link, not an account. Treat the full link as a password: anyone holding it can upload within its limits. This phase does not assign personal spaces, grant permissions to named users, or add resumable uploads. The NAS CLI remains available for local administration.
+Recipients need only the upload link, not an account. Treat the full link as a password: anyone holding it can upload within its limits. Guest uploads can resume after a connection drop or after reselecting the original file in the same tab. The NAS CLI remains available for local administration.
 
 The included NAS uses `/dav/` for files and `/api` for inbox, account, management and capability metadata. Configure one backend address; individual feature paths need no environment variables. See the [service path contract](docs/backend-protocol.md).
 
@@ -130,7 +130,7 @@ The deploy command builds the Preact frontend into `dist/` and uploads it with t
 
 ## Project status
 
-LanternDock is in early development. Public browsing is **read-only WebDAV**. The optional NAS backend adds **private uploads through scoped collection links** and **OIDC identity/administrator recognition**, with **web-based collection and private-inbox management** for verified administrators. The CLI remains available. Personal spaces and named-user grants, general file editing, public share management, resumable uploads, and task execution remain future work.
+LanternDock is in early development. Public browsing is **read-only WebDAV**. The optional NAS backend adds **private uploads through scoped collection links** and **OIDC identity/administrator recognition**, with **web-based collection and private-inbox management** for verified administrators. The CLI remains available. Personal spaces and named-user grants, general file editing, public share management, resumable authenticated uploads, and task execution remain future work.
 
 | Area           | Current behavior                                                                                                                                                                                                                          |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -150,7 +150,7 @@ LanternDock is in early development. Public browsing is **read-only WebDAV**. Th
 - [x] Add expiring, revocable guest upload grants with explicit scopes and quotas.
 - [x] Support scoped guest uploads and upload-only entry points.
 - [x] Add a web interface for collection links and private inbox downloads.
-- [ ] Support resumable uploads.
+- [ ] Extend resumable uploads to authenticated personal and member uploads.
 - [ ] Add named-user permissions and isolated personal spaces.
 - [ ] Expose predefined, authorized tasks such as media conversion.
 - [x] Add IIIF image thumbnails, resized previews and bounded caches.

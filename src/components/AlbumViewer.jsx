@@ -330,7 +330,7 @@ function AlbumControls({
           aria-pressed={favorite}
           onClick={() => onFavorite(item)}
         >
-          <Icon name="star" />
+          <Icon name={favorite ? "star-filled" : "star"} />
         </button>
         {item.kind === "image" && showZoomControls && (
           <>

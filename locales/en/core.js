@@ -29,6 +29,8 @@ export default {
     "An HTTPS page must upload files over HTTPS or WebTransport.",
   "error.UPLOAD_CONNECTION_INTERRUPTED":
     "The upload connection was interrupted. Check your network and try again.",
+  "error.UPLOAD_FILE_MISMATCH":
+    "The selected file differs from the original. Select the original file to continue.",
   "error.VIDEO_UNSUPPORTED":
     "This browser does not support the video format or codec. Download the video to play it.",
   "error.OUTSIDE_ROOT": "Cannot leave the configured root directory.",

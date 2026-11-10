@@ -129,7 +129,7 @@ Uploaded files are **not automatically published**. Administrators can download 
 
 On the files page, administrators can open **New → Upload files** to save files in their own private inbox. The NAS allocates one private folder under `/data/inbox/` per site identity. Files appear as **My inbox** in the management inbox and can be listed or downloaded there only by the owning administrator. Personal uploads use DPoP with the `inbox:write` scope and a 1 GiB per-file limit. Update both the Worker and NAS to enable this flow.
 
-The NAS reserves the declared size and one file slot before transfer, using an SQLite transaction. Reservations count against the shared link quota, including parallel uploads. An unstarted reservation expires after 15 minutes or at link expiry, whichever comes first. Interrupted/cancelled transfers release reservations and remove partial files. The server fsyncs and renames a completed file before committing success, and rechecks the link before finalization. Startup recovers interrupted transfers and removes their partial/orphaned files. There are at most 32 active file bodies per server, with a one-minute read-idle deadline.
+The NAS reserves the declared size and one file slot before transfer, using an SQLite transaction. Reservations count against the shared link quota, including parallel uploads. Single-request uploads expire if unstarted after 15 minutes or at link expiry, whichever comes first. Interrupting a single-request upload releases its reservation and removes the partial file. Guest resumable uploads preserve committed checkpoints through interruption and NAS restart. The server fsyncs and renames a completed file before committing success, and rechecks the link before finalization. There are at most 32 active file bodies per server, with a one-minute read-idle deadline.
 
 Stop the NAS service before making a simple filesystem copy of the data volume, or use SQLite's online backup facilities. Copying only the main `.sqlite` file while it is live can omit committed WAL data. Preserve the whole private volume when updating containers.
 
@@ -157,7 +157,7 @@ Set `WEBDAV_URL="https://files.example.com/dav/"` on the Worker and clear `WEBTR
 
 ## HTTP interface
 
-All upload endpoints require the file-drop bearer token. A token cannot read file contents or enumerate other uploads. It can inspect a known task belonging to the same drop and cancel an incomplete task. Public WebDAV remains anonymous and read-only.
+Guest upload requests require the file-drop bearer token. It allows inspecting or cancelling a known single-request task from that drop. Resumable uploads additionally require the guest's batch identifier for listing or task access. The bearer token cannot read file contents. Public WebDAV is anonymous and read-only.
 
 | Request                         | Result                                                                                    |
 | ------------------------------- | ----------------------------------------------------------------------------------------- |
@@ -174,7 +174,21 @@ All upload endpoints require the file-drop bearer token. A token cannot read fil
 
 Errors are JSON with `error` and `code`: `401` for an invalid/missing link token, `410` for an expired/revoked link, `413` for a file above its size limit, `409` for insufficient quota or a conflicting task state, and `503` for storage/service failures. Public WebDAV writes return `405`.
 
-This first version transfers each file in one request. Cancelling or losing an incomplete transfer requires uploading that file again; there is no resumable-upload protocol yet. The guest upload page displays results for the current visit and never exposes an inbox listing. Only authenticated NAS administrators can use the private inbox below.
+### Guest resumable uploads
+
+The NAS advertises resumable uploads through `Tus-Version: 1.0.0` on the authenticated `GET /api/uploads` response and on `OPTIONS /api/uploads/resumable`. The frontend uses the single-request interface on older NAS versions. Authenticated personal and member uploads use the single-request interface.
+
+| Route                                | Operation                                                                                                                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `POST /api/uploads/resumable`        | [tus 1.0](https://tus.io/protocols/resumable-upload) Creation. Supply `Upload-Length` and a Base64-encoded `filename` in `Upload-Metadata`. Returns `201` and a relative `Location`. |
+| `HEAD /api/uploads/resumable/<id>`   | Query the confirmed `Upload-Offset` and `Upload-Length`.                                                                                                                             |
+| `PATCH /api/uploads/resumable/<id>`  | Append at the confirmed offset using `application/offset+octet-stream`. Returns `204` and the new offset. The NAS accepts up to 8 MiB per request.                                   |
+| `DELETE /api/uploads/resumable/<id>` | Cancel an unfinished upload and release its reservation.                                                                                                                             |
+| `GET /api/uploads/resumable`         | LanternDock extension returning up to 100 recent tasks from the current batch.                                                                                                       |
+
+All batch requests include the invitation's bearer token, `Tus-Resumable: 1.0.0`, and an unpredictable 32-character hexadecimal `X-Upload-Batch` value. The NAS scopes task access to the invitation and the hash of the batch value. The browser saves only the batch ID in `sessionStorage`, under a key derived from the invitation. After refreshing the same tab, users can reselect their original file and continue. The LanternDock client checks a fingerprint derived from every 4 MiB block of the file before appending. Completed tasks can be recovered without selecting a file again.
+
+Unfinished tasks expire 24 hours after creation or the last successful chunk, capped by the invitation's expiry. Cancellation, expiry, and revocation release reserved capacity and remove partial files. The guest batch exposes only its own upload status. Administrators use the private inbox to view or download received files.
 
 ## Image previews and caching
 

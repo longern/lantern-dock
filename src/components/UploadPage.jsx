@@ -1,9 +1,43 @@
 import { t, locale } from "../../shared/i18n.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
-import { UploadClient } from "../lib/uploads.js";
+import { UploadClient, uploadBatchKey } from "../lib/uploads.js";
 import { bytes, date } from "../lib/format.js";
 import { siteTitle } from "../lib/site-title.js";
+
+function savedBatch(key) {
+  try {
+    const id = sessionStorage.getItem(key);
+    return /^[a-f0-9]{32}$/.test(id || "") ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveBatch(key, id) {
+  try {
+    if (id) sessionStorage.setItem(key, id);
+    else sessionStorage.removeItem(key);
+  } catch {
+    // The active page can still upload if browser storage is unavailable.
+  }
+}
+
+function restoredRow(task) {
+  return {
+    id: task.id,
+    task,
+    file: { name: task.name, size: task.size },
+    loaded: task.offset,
+    status:
+      task.status === "complete"
+        ? "complete"
+        : task.status === "pending"
+          ? "paused"
+          : "failed",
+    error: task.status === "failed" ? t("account.uploadTaskExpired") : "",
+  };
+}
 
 export function UploadPage({ token }) {
   return (
@@ -41,6 +75,8 @@ export function UploadPanel({
   const running = useRef(false);
   const mounted = useRef(false);
   const selection = useRef(initialFiles);
+  const batchKey = useRef(null);
+  const batchID = useRef(null);
   useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
@@ -48,9 +84,14 @@ export function UploadPanel({
       active.current?.abort();
       client.current?.close();
     };
+    const reopen = (event) => {
+      if (event.persisted) setRevision((value) => value + 1);
+    };
     window.addEventListener("pagehide", stop);
+    window.addEventListener("pageshow", reopen);
     setLink(null);
     setError("");
+    let key;
     (async () => {
       try {
         if (personalClient) {
@@ -62,6 +103,7 @@ export function UploadPanel({
         }
         if (!/^[A-Za-z0-9_-]{43}$/.test(token))
           throw new Error(t("account.invalidUploadLink"));
+        if (crypto.subtle) key = await uploadBatchKey(token);
         const response = await fetch("/api/config", {
           cache: "no-store",
           headers: { "Accept-Language": locale },
@@ -79,14 +121,34 @@ export function UploadPanel({
         const connection = new UploadClient(config.backend, token);
         client.current = connection;
         const info = await connection.info(controller.signal);
-        if (!controller.signal.aborted) setLink(info);
+        if (controller.signal.aborted) return;
+        batchKey.current = info.resumable ? key : null;
+        if (batchKey.current) {
+          batchID.current ||= savedBatch(key);
+          if (batchID.current) {
+            const tasks = await connection.resumableTasks(
+              batchID.current,
+              controller.signal,
+            );
+            if (controller.signal.aborted) return;
+            setRows(tasks.map(restoredRow));
+          }
+        }
+        setLink(info);
       } catch (err) {
-        if (!controller.signal.aborted) setError(err.message);
+        if (!controller.signal.aborted) {
+          if (key && [401, 410].includes(err.status)) {
+            saveBatch(key, null);
+            batchID.current = null;
+          }
+          setError(err.message);
+        }
       }
     })();
     return () => {
       mounted.current = false;
       window.removeEventListener("pagehide", stop);
+      window.removeEventListener("pageshow", reopen);
       controller.abort();
       active.current?.abort();
       client.current?.close();
@@ -99,16 +161,23 @@ export function UploadPanel({
         current.map((row) => (row.id === id ? { ...row, ...patch } : row)),
       );
   };
-  const receive = async (files) => {
+  const receive = async (files, resumed) => {
     if (running.current || !client.current || !link || !files.length) return;
     const connection = client.current;
-    const batch = Array.from(files, (file) => ({
-      id: crypto.randomUUID(),
-      file,
-      status: "queued",
-      loaded: 0,
-    }));
-    setRows((current) => [...current, ...batch]);
+    const resumable = !!batchKey.current;
+    if (resumable && !batchID.current) {
+      batchID.current = crypto.randomUUID().replaceAll("-", "");
+      saveBatch(batchKey.current, batchID.current);
+    }
+    const batch = resumed
+      ? [{ ...resumed, file: files[0] }]
+      : Array.from(files, (file) => ({
+          id: crypto.randomUUID(),
+          file,
+          status: "queued",
+          loaded: 0,
+        }));
+    if (!resumed) setRows((current) => [...current, ...batch]);
     setWorking(true);
     onWorking?.(true);
     running.current = true;
@@ -117,17 +186,54 @@ export function UploadPanel({
         if (!mounted.current || client.current !== connection) break;
         const controller = new AbortController();
         active.current = controller;
-        update(row.id, { status: "uploading" });
+        update(row.id, { status: "uploading", error: "" });
+        let task = row.task;
+        let confirmed = row.loaded;
         try {
-          await connection.upload(row.file, {
+          const options = {
             signal: controller.signal,
-            onProgress: (loaded) => update(row.id, { loaded }),
-          });
+            onProgress: (loaded, checkpoint) => {
+              if (checkpoint) confirmed = loaded;
+              update(row.id, { loaded });
+            },
+          };
+          if (resumable && row.file.size > link.maxFileBytes)
+            throw new Error(t("account.uploadFileTooLarge"));
+          if (resumable)
+            await connection.uploadResumable(row.file, {
+              ...options,
+              batch: batchID.current,
+              task,
+              onTask: (value) => {
+                task = value;
+                update(row.id, { task });
+              },
+            });
+          else await connection.upload(row.file, options);
           update(row.id, { status: "complete", loaded: row.file.size });
         } catch (err) {
+          const aborted = controller.signal.aborted;
+          let status = aborted
+            ? "cancelled"
+            : task && ![401, 403, 404, 410].includes(err.status)
+              ? "paused"
+              : "failed";
+          let message = err.message;
+          if (aborted && task && !connection.closed) {
+            try {
+              status = await connection.cancelResumable(
+                batchID.current,
+                task.id,
+              );
+            } catch (error) {
+              status = "paused";
+              message = error.message;
+            }
+          }
           update(row.id, {
-            status: controller.signal.aborted ? "cancelled" : "failed",
-            error: err.message,
+            status,
+            loaded: status === "complete" ? row.file.size : confirmed,
+            error: message,
           });
         }
         active.current = null;
@@ -150,6 +256,27 @@ export function UploadPanel({
         setWorking(false);
         onWorking?.(false);
       }
+    }
+  };
+  const cancelPaused = async (row) => {
+    const connection = client.current;
+    if (running.current || !connection) return;
+    running.current = true;
+    setWorking(true);
+    try {
+      const status = await connection.cancelResumable(
+        batchID.current,
+        row.task.id,
+      );
+      update(row.id, { status, error: "" });
+      const info = await connection.info(AbortSignal.timeout(5000));
+      if (mounted.current && client.current === connection) setLink(info);
+    } catch (err) {
+      if (mounted.current && client.current === connection)
+        setError(err.message);
+    } finally {
+      running.current = false;
+      if (mounted.current) setWorking(false);
     }
   };
   const remaining = link ? Math.max(0, link.maxTotalBytes - link.usedBytes) : 0;
@@ -293,6 +420,36 @@ export function UploadPanel({
                   </div>
                 </>
               )}
+              {row.status === "paused" && (
+                <div class="upload-file-status upload-resume-actions">
+                  <span>
+                    {t("account.uploadBytes", {
+                      loaded: bytes(row.loaded),
+                      total: bytes(row.file.size),
+                    })}
+                  </span>
+                  <label class="text-button upload-resume-picker">
+                    {t("account.resumeUpload")}
+                    <input
+                      type="file"
+                      disabled={working || !!error}
+                      aria-label={t("account.resumeUpload")}
+                      onChange={(event) => {
+                        const file = event.currentTarget.files?.[0];
+                        if (file) void receive([file], row);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                  <button
+                    class="text-button"
+                    disabled={working}
+                    onClick={() => void cancelPaused(row)}
+                  >
+                    {t("account.cancelUpload")}
+                  </button>
+                </div>
+              )}
               <span class={`upload-result ${row.status}`} role="status">
                 {row.status === "complete"
                   ? t("account.received")
@@ -302,7 +459,9 @@ export function UploadPanel({
                       ? t("account.cancelledUpload")
                       : row.status === "failed"
                         ? row.error
-                        : t("account.uploading")}
+                        : row.status === "paused"
+                          ? row.error || t("account.uploadPaused")
+                          : t("account.uploading")}
               </span>
             </li>
           ))}

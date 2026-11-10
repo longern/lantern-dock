@@ -102,6 +102,29 @@
 .upload-result.failed {
   color: #a54747;
 }
+.upload-resume-actions {
+  flex-wrap: wrap;
+}
+.upload-resume-picker {
+  position: relative;
+}
+.upload-resume-picker:focus-within {
+  outline: 2px solid var(--accent);
+}
+.upload-resume-picker input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+.upload-resume-picker:has(:disabled) {
+  opacity: 0.55;
+}
+.upload-resume-picker input:disabled {
+  cursor: default;
+}
 .upload-message {
   margin: 24px 0;
   color: var(--muted);

@@ -535,7 +535,7 @@
   width: 56px;
   height: 56px;
   border: 0;
-  border-radius: 16px;
+  border-radius: 50%;
   background: var(--accent);
   color: white;
   box-shadow: 0 4px 12px #25204f3b;
@@ -564,6 +564,41 @@
 }
 .intake-sheet .dialog-heading {
   margin-bottom: 4px;
+}
+.intake-entry-heading .icon-button {
+  margin-inline-start: auto;
+}
+.intake-entry-body {
+  position: relative;
+}
+.intake-entry-body[data-checking] {
+  min-block-size: 80px;
+}
+.intake-check-status {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.intake-spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  inline-size: 24px;
+  block-size: 24px;
+  border: 2px solid var(--line);
+  border-block-start-color: var(--accent);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+  animation: spin 900ms linear infinite paused;
+}
+.intake-spinner[data-visible] {
+  opacity: 1;
+  animation-play-state: running;
 }
 .settings-dialog.intake-sheet[open] {
   animation-name: intake-sheet-in;
@@ -620,6 +655,21 @@
 }
 .intake-actions svg {
   color: var(--accent);
+}
+.intake-guide {
+  display: grid;
+  gap: 8px;
+  padding-block: 8px;
+}
+.intake-guide p {
+  margin: 0;
+  line-height: 1.6;
+}
+.intake-guide p + p {
+  color: var(--muted);
+}
+.intake-guide button {
+  justify-self: start;
 }
 .invite-choices {
   display: flex;

@@ -194,6 +194,11 @@ export default {
   received: "Received",
   queuedUpload: "Queued",
   cancelledUpload: "Cancelled",
+  resumeUpload: "Select the original file to continue",
+  uploadPaused: "Upload paused",
+  uploadTaskExpired:
+    "This upload was cancelled or expired. Select the file to upload it again.",
+  uploadFileTooLarge: "The file exceeds the per-file size limit.",
   uploading: "Uploading",
   backToPrevious: "Back",
 };

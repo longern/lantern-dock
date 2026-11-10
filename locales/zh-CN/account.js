@@ -171,6 +171,10 @@ export default {
   received: "已接收",
   queuedUpload: "等待上传",
   cancelledUpload: "已取消",
+  resumeUpload: "重选原文件继续",
+  uploadPaused: "上传已暂停",
+  uploadTaskExpired: "此任务已取消或过期，请重新上传。",
+  uploadFileTooLarge: "文件超过单文件大小限制。",
   uploading: "上传中",
   backToPrevious: "返回",
 };

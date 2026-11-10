@@ -145,7 +145,16 @@ test("favorites and recent entries survive reload without storing credentials", 
   await expect(page.locator(".preview-content pre")).toContainText(
     "欢迎使用 LanternDock",
   );
-  await page.getByRole("button", { name: "收藏文件", exact: true }).click();
+  const addFavorite = page.getByRole("button", {
+    name: "收藏文件",
+    exact: true,
+  });
+  await expect(addFavorite.locator("svg")).toHaveCSS("fill", "none");
+  await addFavorite.click();
+  const filledStar = page
+    .getByRole("button", { name: "取消收藏文件", exact: true })
+    .locator("svg");
+  await expect(filledStar).toHaveCSS("fill", /^rgb/);
   await page.getByRole("button", { name: "关闭预览" }).click();
   await openFavorites(page);
   await expect(page.locator(".file-item")).toHaveCount(1);

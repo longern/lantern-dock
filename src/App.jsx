@@ -559,6 +559,15 @@ function LibraryApp() {
     kind: "album",
     query: "",
   };
+  const openAlbumLibrary = useRef(null);
+  useLayoutEffect(() => {
+    if (albumOpen) openAlbumLibrary.current = albumLibrary;
+    else if (!albumPresent) openAlbumLibrary.current = null;
+  }, [albumOpen, albumPresent, albumLibrary]);
+  // The route stops the album query before the mobile page finishes sliding out.
+  const dialogAlbumLibrary = albumOpen
+    ? albumLibrary
+    : (openAlbumLibrary.current ?? albumLibrary);
   const topbarActions =
     route === "favorites"
       ? null
@@ -572,7 +581,11 @@ function LibraryApp() {
     library.connection &&
     !library.demoPreview &&
     library.backend?.transport !== "demo" && (
-      <FileIntakeActions mobile={mobile} suspended={!!touchSelections.size} />
+      <FileIntakeActions
+        client={library.connection.client}
+        mobile={mobile}
+        suspended={!!touchSelections.size}
+      />
     );
   const feedback = (
     <>
@@ -725,12 +738,12 @@ function LibraryApp() {
           fallbackFocus=".category-album"
           actions={headerActions(
             "file-list",
-            <AlbumOptionsMenu library={albumLibrary} />,
+            <AlbumOptionsMenu library={dialogAlbumLibrary} />,
           )}
         >
           <FileBrowser
             onGalleryItems={onGalleryItems}
-            library={albumLibrary}
+            library={dialogAlbumLibrary}
             records={records}
             selected={selected}
             onTouchSelection={onTouchSelection}

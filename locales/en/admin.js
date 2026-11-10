@@ -37,6 +37,14 @@ export default {
   receivedCount: "{{count}} files received",
   newAction: "New",
   uploadFiles: "Upload files",
+  checkingUploadPermission: "Checking upload permission…",
+  uploadAccessTitle: "How to get upload access",
+  uploadInvitationRequired: "Upload invitation required",
+  uploadPermissionRequired: "Upload permission required",
+  uploadGuestHelp:
+    "Ask the recipient for an upload link, or scan their upload QR code in person.",
+  uploadMemberHelp:
+    "Ask an administrator for an upload link or permission to upload directly from your account.",
   inviteUpload: "Invite uploads",
   personalInbox: "My inbox",
   personalUploadDescription: "Files will be saved to your private inbox.",

@@ -127,7 +127,7 @@ export function FilePreview({
           style={{ color: favorite ? "#a58b41" : undefined }}
           onClick={() => onFavorite(item)}
         >
-          <Icon name="star" />
+          <Icon name={favorite ? "star-filled" : "star"} />
         </button>
       </div>
       <div class="preview-scroll">

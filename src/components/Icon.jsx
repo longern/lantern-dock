@@ -105,6 +105,11 @@ const icons = {
 };
 
 export function Icon({ name, ...props }) {
+  if (name === "star-filled")
+    return (
+      <Star aria-hidden="true" style={{ fill: "currentColor" }} {...props} />
+    );
+
   if (name === "portal")
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>

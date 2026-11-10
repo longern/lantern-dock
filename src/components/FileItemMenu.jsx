@@ -47,7 +47,7 @@ export function FileItemMenu({
         },
         {
           key: "favorite",
-          icon: "star",
+          icon: favorite ? "star-filled" : "star",
           label: t(
             favorite ? "library.removeFavorites" : "library.addFavorites",
           ),

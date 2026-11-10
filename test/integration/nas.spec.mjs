@@ -448,24 +448,112 @@ test("direct HTTPS upload uses the same NAS permissions and supports zero-byte f
     await expect(
       page.getByRole("heading", { name: "临时收照片", exact: true }),
     ).toBeVisible();
-    await page.getByLabel("选择上传文件").setInputFiles({
-      name: "empty.txt",
-      mimeType: "text/plain",
-      buffer: Buffer.alloc(0),
-    });
-    await expect(page.getByRole("status")).toHaveText("已接收");
+    await page.getByLabel("选择上传文件").setInputFiles([
+      {
+        name: "empty.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.alloc(0),
+      },
+      {
+        name: "direct.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from("HTTPS PATCH"),
+      },
+    ]);
+    await expect(page.getByRole("status")).toHaveText(["已接收", "已接收"]);
     const files = await readdir(
       resolve(fixture.nas.dataDir, "inbox", created.link.id),
     );
-    expect(
-      await readFile(
-        resolve(fixture.nas.dataDir, "inbox", created.link.id, files[0]),
-        "utf8",
-      ),
-    ).toBe("");
+    expect(files).toHaveLength(2);
+    for (const [name, content] of [
+      ["empty.txt", ""],
+      ["direct.txt", "HTTPS PATCH"],
+    ]) {
+      const file = files.find((path) => path.endsWith("-" + name));
+      expect(
+        await readFile(
+          resolve(fixture.nas.dataDir, "inbox", created.link.id, file),
+          "utf8",
+        ),
+      ).toBe(content);
+    }
   } finally {
     Object.assign(fixture.env, previous);
   }
+});
+
+test("a guest can resume after reload without exposing their batch to another tab", async ({
+  page,
+}) => {
+  const created = await fixture.nas.createLink({
+    maxFile: "5MiB",
+    maxTotal: "5MiB",
+    maxFiles: 1,
+  });
+  await page.addInitScript(() => {
+    const stream = Blob.prototype.stream;
+    Blob.prototype.stream = function () {
+      if (window.pauseLastUploadChunk && this.size === 19) {
+        window.lastUploadChunkStarted = true;
+        return new ReadableStream();
+      }
+      return stream.call(this);
+    };
+  });
+  await page.goto(created.url);
+  const source = Buffer.concat([
+    Buffer.alloc(4 * 1024 * 1024, 12),
+    Buffer.alloc(19, 34),
+  ]);
+  const file = {
+    name: "resumable.bin",
+    mimeType: "application/octet-stream",
+    buffer: source,
+  };
+  await page.evaluate(() => (window.pauseLastUploadChunk = true));
+  await page.getByLabel("选择上传文件").setInputFiles(file);
+  await expect
+    .poll(() => page.evaluate(() => window.lastUploadChunkStarted))
+    .toBe(true);
+  const saved = await page.evaluate(() =>
+    Object.entries(sessionStorage).filter(([key]) =>
+      key.startsWith("lantern-dock:upload-batch:"),
+    ),
+  );
+  expect(saved).toEqual([
+    [
+      expect.stringMatching(/:[a-f0-9]{64}$/),
+      expect.stringMatching(/^[a-f0-9]{32}$/),
+    ],
+  ]);
+  const other = await page.context().newPage();
+  try {
+    await other.goto(created.url);
+    await expect(
+      other.getByRole("heading", { name: "临时收照片" }),
+    ).toBeVisible();
+    await expect(other.getByText(file.name, { exact: true })).toHaveCount(0);
+  } finally {
+    await other.close();
+  }
+  await page.reload();
+  const resume = page.getByLabel("重选原文件继续", { exact: true });
+  await expect(resume).toBeEnabled();
+  await expect(page.getByLabel("选择上传文件")).toBeDisabled();
+  await resume.setInputFiles({
+    ...file,
+    buffer: Buffer.alloc(source.length, 9),
+  });
+  await expect(page.getByRole("status")).toContainText("与原文件不一致");
+  await resume.setInputFiles(file);
+  await expect(page.getByRole("status")).toHaveText("已接收");
+  const destination = resolve(fixture.nas.dataDir, "inbox", created.link.id);
+  const files = await readdir(destination);
+  expect(files).toHaveLength(1);
+  expect(await readFile(resolve(destination, files[0]))).toEqual(source);
+  await page.reload();
+  await expect(page.getByRole("status")).toHaveText("已接收");
+  await expect(page.getByLabel("重选原文件继续")).toHaveCount(0);
 });
 
 test("cancelling a streaming upload through the bridge cleans partial files and restores quota", async ({
