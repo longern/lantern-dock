@@ -41,7 +41,7 @@ test("home and files are separate destinations, with breadcrumbs only in files",
   await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(
     0,
   );
-  await expect(page.locator(".file-section-title")).toHaveText("文件");
+  await expect(page.locator(".file-section-title")).toHaveCount(0);
   await files(page).click();
   await expect(
     page.getByRole("searchbox", { includeHidden: true }),
@@ -500,4 +500,90 @@ test("mobile home card is edge-to-edge, fills the screen and grows with its cont
   const long = await inspect();
   expect(long.height).toBeGreaterThan(short.height);
   expect(long.overflow).toEqual([]);
+});
+
+test("file sections omit the toolbar and counts, with balanced recent title and full-width selection", async ({
+  page,
+}, testInfo) => {
+  await expect(
+    page.locator(
+      ".file-toolbar,.file-stats,#item-count,.nav-count,.file-section-title",
+    ),
+  ).toHaveCount(0);
+  await page.evaluate(() =>
+    localStorage.setItem(
+      "lantern-dock:demo::/:recent",
+      JSON.stringify([
+        {
+          name: "项目笔记.md",
+          path: "/项目笔记.md",
+          kind: "text",
+          isDirectory: false,
+          size: 1248,
+          visitedAt: Date.now(),
+        },
+      ]),
+    ),
+  );
+  await page.reload();
+  const title = page.getByRole("heading", { name: "最近文件", exact: true });
+  await expect(title).toBeVisible();
+  const metrics = await title.evaluate((node) => {
+    const card = node.closest(".collection-card").getBoundingClientRect();
+    const rect = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    return {
+      top: rect.top - card.top,
+      left: rect.left - card.left + parseFloat(style.paddingLeft),
+      right: card.right - rect.right + parseFloat(style.paddingRight),
+      height: rect.height,
+      line: parseFloat(style.lineHeight),
+      size: style.fontSize,
+      weight: style.fontWeight,
+    };
+  });
+  expect(metrics).toEqual({
+    top: 16,
+    left: 16,
+    right: 16,
+    height: 24,
+    line: 24,
+    size: "16px",
+    weight: "600",
+  });
+  await page.locator("#file-list .file-open").first().focus();
+  await page.keyboard.press("Space");
+  const toolbar = page.getByRole("toolbar", {
+    name: "所选项目操作",
+    exact: true,
+  });
+  await expect(toolbar).toBeVisible();
+  expect(
+    await toolbar.evaluate((node) => !!node.closest(".browser-header")),
+  ).toBe(true);
+  const edges = await page
+    .locator("#file-list .file-item[data-selected=true]")
+    .evaluate((node) => {
+      const row = node.getBoundingClientRect(),
+        card = node.closest(".collection-card").getBoundingClientRect();
+      return {
+        left: row.left - card.left,
+        right: card.right - row.right,
+        padding: getComputedStyle(node.querySelector("button")).paddingLeft,
+      };
+    });
+  expect(edges).toEqual({ left: 0, right: 0, padding: "16px" });
+  expect(
+    await page
+      .locator(".browser-header")
+      .evaluate((node) => node.scrollWidth <= node.clientWidth),
+  ).toBe(true);
+  await expect(
+    page.locator(
+      ".file-toolbar,.file-stats,#item-count,.nav-count,.selection-panel",
+    ),
+  ).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath("recent-section.png") });
+  await toolbar.getByRole("button", { name: "取消选择", exact: true }).click();
+  await expect(toolbar).toHaveCount(0);
 });

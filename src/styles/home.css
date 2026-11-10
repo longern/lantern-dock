@@ -11,11 +11,11 @@
 .collection-page .mobile-home-search {
   border-bottom: 0;
 }
-.collection-card {
+.content.collection-card {
   flex: 1;
   min-width: 0;
   margin: 20px 28px 24px;
-  padding: 0 20px 24px;
+  padding: 16px 0 24px;
   border-radius: var(--radius-panel);
   background: var(--surface);
 }
@@ -23,17 +23,18 @@
   margin-top: 12px;
 }
 .file-section-title {
-  margin: 0;
+  margin: 0 0 8px;
+  padding-inline: 16px;
   color: #252938;
   font-size: 16px;
   font-weight: 600;
 }
-.home-content .file-stats {
-  flex-wrap: wrap;
-  gap: 8px 12px;
+.collection-card > .file-grid:not(.list-layout) {
+  padding-inline: 16px;
 }
+
 @media (--between-md-lg) {
-  .collection-card {
+  .content.collection-card {
     margin-left: 18px;
     margin-right: 18px;
   }
@@ -44,7 +45,7 @@
   }
   .content.collection-card {
     margin: 20px 0 0;
-    padding: 0 0 calc(88px + env(safe-area-inset-bottom));
+    padding-bottom: calc(88px + env(safe-area-inset-bottom));
     border-radius: 20px 20px 0 0;
   }
   .collection-card:not(.home-content) {

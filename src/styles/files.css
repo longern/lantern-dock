@@ -1,13 +1,13 @@
 .list-head {
   position: sticky;
-  top: 72px;
+  top: calc(var(--topbar-height) + var(--browser-tools-height, 0px));
   z-index: 2;
   background: var(--surface);
   display: grid;
   grid-template-columns: minmax(0, 1fr) 120px 90px;
   gap: 12px;
   align-items: center;
-  padding: 12px 8px;
+  padding: 12px 16px;
   font-size: 12px;
   color: var(--muted);
   border-top: 1px solid var(--line);
@@ -127,6 +127,9 @@ ul.file-grid {
   border: 0;
   border-radius: 0;
 }
+.file-divider {
+  padding-inline: 16px;
+}
 .file-divider hr {
   margin: 0;
   border: 0;
@@ -134,7 +137,7 @@ ul.file-grid {
 }
 .list-layout .file-open {
   height: 64px;
-  padding: 0 8px;
+  padding: 0 16px;
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr) 120px 90px;
   gap: 12px;
@@ -237,12 +240,4 @@ ul.file-grid {
 .file-open:focus-visible {
   outline-offset: -3px;
   border-radius: 8px;
-}
-.mobile-refresh {
-  display: none;
-}
-@media (--down-md) {
-  .mobile-refresh {
-    display: inline-flex;
-  }
 }

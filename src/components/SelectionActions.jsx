@@ -27,6 +27,7 @@ export function SelectionActions({
       ref={panel}
       popover={floating ? "manual" : undefined}
       class={`selection-actions${floating ? " selection-panel" : ""}`}
+      onKeyDown={selection.keyDown}
       role="toolbar"
       aria-label={t("library.selectionActions")}
     >
@@ -39,9 +40,6 @@ export function SelectionActions({
           >
             <Icon name="x" />
           </button>
-          <strong role="status">
-            {t("library.selectedCount", { count: selection.items.length })}
-          </strong>
           <button
             class="text-button"
             onClick={all ? selection.deselectAll : selection.selectAll}

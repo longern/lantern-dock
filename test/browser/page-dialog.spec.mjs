@@ -54,7 +54,7 @@ test("desktop album keeps the existing page while mobile uses the shared full-sc
       await expect(button.locator("svg")).toHaveCSS("width", "24px");
     }
     await expect(dialog.locator(".album-heading,.filter-chip")).toHaveCount(0);
-    await expect(page.locator("#file-list,#item-count")).toHaveCount(2);
+    await expect(page.locator("#file-list")).toHaveCount(1);
     await page
       .locator(".mobile-tabs button")
       .first()

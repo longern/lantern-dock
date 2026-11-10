@@ -46,8 +46,12 @@
   }
   .main-area,
   .preview-open .main-area {
+    --browser-tools-height: 40px;
     margin: 0;
     padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+  .main-area.home-page {
+    --browser-tools-height: 50px;
   }
   .topbar {
     padding: 0 16px;
@@ -63,11 +67,9 @@
   .mobile-home-search {
     display: flex;
     align-items: center;
+    height: var(--browser-tools-height);
     padding: 2px 16px;
     border-bottom: 1px solid var(--line);
-  }
-  .mobile-file-tools {
-    height: 40px;
   }
   .mobile-home-search {
     padding-bottom: 12px;
@@ -84,6 +86,11 @@
   .topbar-right {
     display: none;
   }
+  .topbar:has(.selection-actions) .mobile-brand,
+  .topbar:has(.selection-actions) .mobile-search-toggle,
+  .topbar:has(.selection-actions) #transfers-button {
+    display: none;
+  }
   .search-box {
     width: 100%;
     background: #f2f2f6;
@@ -96,28 +103,14 @@
   .content {
     padding: 0 0 20px;
   }
-  .content > .file-toolbar {
+
+  .content > .file-grid:not(.list-layout) {
     padding-inline: 16px;
   }
-  .content > .file-grid:not(.list-layout) {
-    margin-inline: 16px;
-  }
-  .file-divider hr,
   .list-layout .skeleton {
     margin-inline: 16px;
   }
-  .file-stats {
-    gap: 8px;
-    flex: 1;
-    min-width: 0;
-    flex-wrap: wrap;
-  }
-  .status-pill {
-    display: none;
-  }
-  .view-tools {
-    gap: 5px;
-  }
+
   .file-grid:not(.list-layout) {
     gap: 10px;
   }
@@ -255,7 +248,6 @@ body:has(dialog:modal) {
   }
   .list-layout .file-open {
     height: 70px;
-    padding: 0 16px 0 19px;
     grid-template-columns: 40px minmax(0, 1fr);
   }
   .list-layout .file-art {

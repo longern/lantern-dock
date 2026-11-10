@@ -24,6 +24,7 @@ import { PageDialog } from "./components/PageDialog.jsx";
 import { Icon } from "./components/Icon.jsx";
 import { ListingOptionsMenu } from "./components/ListingOptionsMenu.jsx";
 import { AlbumOptionsMenu } from "./components/AlbumOptionsMenu.jsx";
+import { SelectionActions } from "./components/SelectionActions.jsx";
 import { listingPreferences } from "./lib/file-listing.js";
 import { useCompactLayout } from "./hooks/useMediaQuery.js";
 import { useLibraryRoute } from "./hooks/useLibraryRoute.js";
@@ -37,7 +38,7 @@ import { groupMediaByDate } from "./lib/album.js";
 
 // The route owner composes header actions from the same preferences as the
 // listing. Headers only render their slot; children never mutate a shared header.
-function listingActions(library, records) {
+function listingActions(library, records, compact) {
   const { recent, album, sort, view } = listingPreferences(library, records);
   return album ? (
     <AlbumOptionsMenu library={library} />
@@ -49,6 +50,22 @@ function listingActions(library, records) {
       edge="end"
       onSortChange={library.setSort}
       onViewChange={library.setView}
+      actions={
+        compact || library.mode === "favorites"
+          ? [
+              {
+                key: "refresh",
+                label: t("library.refresh"),
+                icon: "refresh",
+                disabled: library.mode !== "favorites" && library.loading,
+                onSelect:
+                  library.mode === "favorites"
+                    ? records.retry
+                    : library.refresh,
+              },
+            ]
+          : []
+      }
     />
   ) : null;
 }
@@ -124,6 +141,29 @@ function LibraryApp() {
   const transfer = useDownload(library.connection, records.rememberMany, toast);
   const transferPanel = useTransferPanel(transfer, mobile);
   const [touchSelections, setTouchSelections] = useState(() => new Set());
+  const [desktopSelections, setDesktopSelections] = useState(() => new Map());
+  const onDesktopSelection = useCallback((owner, value) => {
+    setDesktopSelections((current) => {
+      if (!value && !current.has(owner)) return current;
+      const next = new Map(current);
+      if (value) next.set(owner, value);
+      else next.delete(owner);
+      return next;
+    });
+  }, []);
+  const headerActions = (listId, options) => {
+    const selected = [...desktopSelections.values()].find(
+      (value) => value.listId === listId,
+    );
+    return selected ? (
+      <>
+        <SelectionActions {...selected.props.current} />
+        {options}
+      </>
+    ) : (
+      options
+    );
+  };
   const onTouchSelection = useCallback((owner, active) => {
     setTouchSelections((current) => {
       if (current.has(owner) === active) return current;
@@ -422,7 +462,12 @@ function LibraryApp() {
   };
   const albumLibrary = { ...library, mode: "all", kind: "album", query: "" };
   const topbarActions =
-    route === "favorites" ? null : listingActions(library, visibleRecords);
+    route === "favorites"
+      ? null
+      : headerActions(
+          albumPresent ? "background-file-list" : "file-list",
+          listingActions(library, visibleRecords, mobile),
+        );
   const feedback = (
     <>
       <TransferCenter transfer={transfer} mobile={mobile} {...transferPanel} />
@@ -449,13 +494,7 @@ function LibraryApp() {
     <div
       class={`app-shell${previewOpen && !gallery ? " preview-open" : ""}${touchSelections.size ? " touch-selecting" : ""}`}
     >
-      {!mobile && (
-        <Sidebar
-          library={library}
-          records={records}
-          onSettings={showSettings}
-        />
-      )}
+      {!mobile && <Sidebar library={library} onSettings={showSettings} />}
       <main
         class={`main-area${collectionPage ? " collection-page" : ""}${basePage && library.mode === "home" ? " home-page" : ""}${myPage ? " my-main" : ""}`}
       >
@@ -530,13 +569,17 @@ function LibraryApp() {
               <Favorites
                 mobile={false}
                 onClose={() => navigation.closeFavorites(false)}
-                actions={listingActions(favoritesLibrary, records)}
+                actions={headerActions(
+                  "file-list",
+                  listingActions(favoritesLibrary, records, mobile),
+                )}
               >
                 <FileBrowser
                   library={favoritesLibrary}
                   records={records}
                   selected={selected}
                   onTouchSelection={onTouchSelection}
+                  onDesktopSelection={onDesktopSelection}
                   onPreview={preview}
                   onSettings={showSettings}
                 />
@@ -547,8 +590,8 @@ function LibraryApp() {
                 records={visibleRecords}
                 selected={selected}
                 onTouchSelection={onTouchSelection}
+                onDesktopSelection={onDesktopSelection}
                 listId={albumPresent ? "background-file-list" : "file-list"}
-                countId={albumPresent ? "background-item-count" : "item-count"}
                 onPreview={preview}
                 onSettings={showSettings}
               />
@@ -569,13 +612,17 @@ function LibraryApp() {
           onClose={navigation.closeAlbum}
           onExited={() => setAlbumMounted(false)}
           fallbackFocus=".category-album"
-          actions={<AlbumOptionsMenu library={albumLibrary} />}
+          actions={headerActions(
+            "file-list",
+            <AlbumOptionsMenu library={albumLibrary} />,
+          )}
         >
           <FileBrowser
             library={albumLibrary}
             records={records}
             selected={selected}
             onTouchSelection={onTouchSelection}
+            onDesktopSelection={onDesktopSelection}
             pageDialog
             onPreview={preview}
             onSettings={showSettings}
@@ -587,7 +634,10 @@ function LibraryApp() {
         <Favorites
           mobile
           open={favoritesOpen}
-          actions={listingActions(favoritesLibrary, records)}
+          actions={headerActions(
+            "file-list",
+            listingActions(favoritesLibrary, records, mobile),
+          )}
           onClose={() => navigation.closeFavorites(true)}
           onExited={() => {
             setFavoritesMounted(false);
@@ -602,6 +652,7 @@ function LibraryApp() {
           <FileBrowser
             library={favoritesLibrary}
             onTouchSelection={onTouchSelection}
+            onDesktopSelection={onDesktopSelection}
             records={records}
             selected={selected}
             onPreview={preview}

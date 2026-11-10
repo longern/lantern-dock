@@ -127,8 +127,8 @@ test("fallback files expose one menu with keyboard navigation and dismissal", as
   await page.keyboard.press("ArrowDown");
   const menu = listingOptionsMenu(page);
   await expect(menu).toBeVisible();
-  const items = menu.getByRole("menuitemradio");
-  await expect(items).toHaveCount(5);
+  const items = menu.locator('[role^="menuitem"]');
+  await expect(menu.getByRole("menuitemradio")).toHaveCount(5);
   await expect(items.first()).toBeFocused();
   await page.keyboard.press("End");
   await expect(items.last()).toBeFocused();
@@ -318,7 +318,7 @@ test("the first visit keeps the fallback directory visible until preview entranc
   await holdMotion(page);
   await activate(preview(page, names[1]));
   await expect(fileNames(page)).toHaveCount(12);
-  await expect(page.locator(".file-section-title")).toHaveText("文件");
+  await expect(page.locator(".file-section-title")).toHaveCount(0);
   await expect(page.locator("#file-list")).not.toHaveClass(/list-layout/);
   await finishMotion(page);
   await expect(fileNames(page)).toHaveText([names[1]]);

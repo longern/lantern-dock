@@ -114,7 +114,7 @@ test("category shortcuts open the file view and clear search", async ({
     await expect(
       mainNav(page).getByRole("button", { name: /^文件/ }),
     ).toHaveAttribute("aria-current", "page");
-    await expect(page.locator(".filter-chip")).toContainText(label);
+    await expect(page.locator(".filter-chip")).toHaveCount(0);
     await expect(page.locator(".file-item")).toHaveCount(count);
     if (!count) {
       await expect(page.locator(".empty-state")).toContainText(
@@ -122,7 +122,7 @@ test("category shortcuts open the file view and clear search", async ({
       );
       await page.getByRole("button", { name: "查看全部文件" }).click();
     } else {
-      await page.getByRole("button", { name: "清除类型筛选" }).click();
+      await mainNav(page).getByRole("button", { name: /^文件/ }).click();
     }
     await expect(page.locator(".file-item")).toHaveCount(12);
     await expect(
@@ -259,7 +259,7 @@ test("leaving and reentering album preserves the normal file view preference", a
     if (isCompact(page)) {
       await dismissAlbum(page);
       await mainNav(page).getByRole("button", { name: /^文件/ }).click();
-    } else await page.getByRole("button", { name: "清除类型筛选" }).click();
+    } else await mainNav(page).getByRole("button", { name: /^文件/ }).click();
     await expect(page.locator("#file-list")).not.toHaveClass(/album-timeline/);
     await expect(page.locator(".file-name")).toHaveCount(12);
     await expectListingOptions(page, [view, "大小"]);

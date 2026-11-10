@@ -472,7 +472,7 @@ test("separate sidebar image and video filters do not mix file types", async ({
       .getByRole("navigation", { name: "文件类型", exact: true })
       .getByRole("button", { name: label, exact: true })
       .click();
-    await expect(page.locator(".filter-chip")).toContainText(label);
+    await expect(page.locator(".filter-chip")).toHaveCount(0);
     await expect(page.locator(".file-item")).toHaveCount(count);
     await expect(page.locator(".album-video-indicator")).toHaveCount(0);
     if (label === "图片")
@@ -640,9 +640,11 @@ test("refresh is a menu action and keyboard navigation skips it while loading", 
   } finally {
     release();
   }
-  await expect(albumSurface(page).locator("#item-count")).toHaveText(
-    "14 个项目",
+  await expect(albumSurface(page).locator("#file-list")).toHaveAttribute(
+    "aria-busy",
+    "false",
   );
+  await expect(albumSurface(page).locator(".album-item")).toHaveCount(14);
 });
 
 test("changing the album view preserves the selected files", async ({

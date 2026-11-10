@@ -110,8 +110,6 @@ export default {
   cancelSelection: "Cancel selection",
   selectAll: "Select all",
   deselectAll: "Deselect all",
-  selectedCount_one: "{{count}} selected",
-  selectedCount_other: "{{count}} selected",
   favoriteSelected: "Add selected items to favorites",
   unfavoriteSelected: "Remove selected items from favorites",
   addFavorites: "Favorite",
@@ -126,8 +124,6 @@ export default {
   favoritesRemovedCount_other: "{{count}} items removed from favorites",
   viewAllFiles: "View all files",
   localRecordsNote: "Records are saved in this browser",
-  itemCount_one: "{{count}} item",
-  itemCount_other: "{{count}} items",
   downloadToView: "Download this file to view it",
   previewTooLarge:
     "This file exceeds the preview size limit. Download the original to view it.",

@@ -66,6 +66,12 @@
   align-items: center;
   gap: 4px;
 }
+.header-actions
+  > .selection-actions:last-child
+  .selection-commands
+  > .icon-button:last-child {
+  margin-inline-end: var(--icon-button-edge-margin);
+}
 .selection-panel {
   position: fixed;
   inset: auto auto max(16px, env(safe-area-inset-bottom)) 50%;
@@ -86,10 +92,7 @@
 .selection-panel::backdrop {
   display: none;
 }
-.selection-panel-heading strong {
-  font-size: 14px;
-  font-weight: 500;
-}
+
 .selection-panel-heading .text-button {
   margin-left: auto;
   min-height: 44px;

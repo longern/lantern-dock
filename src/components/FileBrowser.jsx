@@ -1,11 +1,16 @@
 import { t } from "../../shared/i18n.js";
 import { Fragment } from "preact";
-import { useCallback, useMemo, useState } from "preact/hooks";
+import {
+  useCallback,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { artwork } from "../lib/demo.js";
 import { bytes, date } from "../lib/format.js";
 import { Thumbnail } from "./Thumbnail.jsx";
-import { categoryLabel } from "../lib/categories.js";
 import { fileListing } from "../lib/file-listing.js";
 import { Album } from "./Album.jsx";
 import { useFileSelection } from "../hooks/useFileSelection.js";
@@ -98,8 +103,8 @@ export function FileBrowser({
   onPreview,
   onSettings,
   onTouchSelection,
+  onDesktopSelection,
   listId = "file-list",
-  countId = "item-count",
   pageDialog = false,
 }) {
   const {
@@ -162,15 +167,34 @@ export function FileBrowser({
     onTouchSelection,
     library.copyLinks,
   );
-  const status = recordsError
-    ? t("library.recordsError")
-    : library.error
-      ? t("library.connectionError")
-      : library.loading
-        ? t("library.connecting")
-        : library.backend?.transport === "demo"
-          ? t("library.demoSpace")
-          : t("library.connected");
+  const actionsOwner = useRef(Symbol("desktop-selection"));
+  // Publish meaningful selection changes, while the header reads fresh callbacks
+  // from this ref without creating a parent/list render feedback loop.
+  const actions = useRef(null);
+  actions.current = {
+    selection,
+    entries: selectable,
+    records,
+    onCopyLinks: library.copyLinks,
+    onDownload: library.downloadMany,
+    downloading: library.downloading,
+    favoritesPage: library.mode === "favorites",
+  };
+  useLayoutEffect(() => {
+    onDesktopSelection?.(
+      actionsOwner.current,
+      selection.mode === "desktop" ? { listId, props: actions } : null,
+    );
+    return () => onDesktopSelection?.(actionsOwner.current, null);
+  }, [
+    onDesktopSelection,
+    listId,
+    selection.mode,
+    selection.items,
+    records.favorites,
+    library.downloading,
+    library.mode,
+  ]);
   return (
     <section
       class={`content${card ? " collection-card" : ""}${home ? " home-content" : ""}${album ? " album-content" : ""}${selection.touch ? " touch-selecting" : ""}`}
@@ -189,72 +213,9 @@ export function FileBrowser({
           <h1>{t("library.photos")}</h1>
         </div>
       )}
-      <div class="file-toolbar">
-        <div class="file-stats">
-          {home && (
-            <h2 class="file-section-title">
-              {recent ? t("library.recentFiles") : t("library.files")}
-            </h2>
-          )}
-          <strong id={countId}>
-            {selection.mode === "desktop"
-              ? t("library.selectedCount", { count: selection.items.length })
-              : busy
-                ? t("library.loading")
-                : error
-                  ? t("library.readFailed")
-                  : t("library.itemCount", { count: entries.length })}
-          </strong>
-          {(recordsError ||
-            library.error ||
-            library.loading ||
-            library.backend?.transport === "demo") && (
-            <span
-              class={`status-pill${recordsError || library.error ? " error" : library.loading ? " loading" : ""}`}
-              role="status"
-            >
-              <i />
-              <span>{status}</span>
-            </span>
-          )}
-          {library.kind && !pageDialog && (
-            <button
-              class="filter-chip"
-              onClick={() => library.selectMode("all")}
-              aria-label={t("library.clearTypeFilter")}
-            >
-              {categoryLabel(library.kind)}
-              <Icon name="x" />
-            </button>
-          )}
-        </div>
-        {selection.mode === "desktop" ? (
-          <SelectionActions
-            selection={selection}
-            entries={selectable}
-            records={records}
-            onCopyLinks={library.copyLinks}
-            onDownload={library.downloadMany}
-            downloading={library.downloading}
-            favoritesPage={library.mode === "favorites"}
-          />
-        ) : (
-          !recent &&
-          !album && (
-            <div class="view-tools">
-              <button
-                class="icon-button mobile-refresh"
-                aria-label={t("library.refreshDirectory")}
-                disabled={library.loading}
-                aria-busy={library.loading}
-                onClick={library.refresh}
-              >
-                <Icon name="refresh" />
-              </button>
-            </div>
-          )
-        )}
-      </div>
+      {home && recent && (
+        <h2 class="file-section-title">{t("library.recentFiles")}</h2>
+      )}
       {error && (
         <div class="empty-state">
           <span class="empty-symbol">

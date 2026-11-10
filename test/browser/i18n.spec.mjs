@@ -153,7 +153,7 @@ for (const { locale, expected } of [
       const nav = mainNavigation(page, copy);
       const home = nav.getByRole("button", { name: copy.home, exact: true });
       await expect(home).toHaveAttribute("aria-current", "page");
-      await expect(page.locator("#item-count")).toHaveText(copy.count);
+      await expect(page.locator("#item-count")).toHaveCount(0);
       const categories = page.getByRole("navigation", {
         name: copy.categories,
         exact: true,
@@ -171,7 +171,7 @@ for (const { locale, expected } of [
       await page.keyboard.press("/");
       await expect(search).toBeFocused();
       await search.fill("no-matching-i18n-file");
-      await expect(page.locator("#item-count")).toHaveText(copy.emptyCount);
+      await expect(page.locator("#item-count")).toHaveCount(0);
       await page
         .getByRole("button", { name: copy.clearSearch, exact: true })
         .first()
@@ -568,7 +568,7 @@ test("English filename interpolation preserves markup, braces and non-English us
       );
       await page.goto("/");
       await expect(page.locator(".file-item")).toHaveCount(1);
-      await expect(page.locator("#item-count")).toHaveText("1 item");
+      await expect(page.locator("#item-count")).toHaveCount(0);
       await expect(page.locator(".file-name")).toHaveText(name);
       await expect(page.locator(".file-open")).toHaveAttribute(
         "aria-label",

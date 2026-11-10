@@ -43,7 +43,7 @@ async function prepareFavorite(page) {
 
 async function expectSingleListing(page) {
   await expect(page.locator("#file-list")).toHaveCount(1);
-  await expect(page.locator("#item-count")).toHaveCount(1);
+  await expect(page.locator("#item-count")).toHaveCount(0);
 }
 
 test("mobile favorites have a 60px header with a centered regular title and a 48px Back target", async ({

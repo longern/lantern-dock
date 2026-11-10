@@ -59,8 +59,8 @@ test("independent translators interpolate literal values and use English plurals
   const name = '<img src=x onerror="alert(1)"> {{count}} $&';
   assert.equal(en("demo.markdown", { name }).split("\n")[0], `# ${name}`);
   assert.equal(zh("demo.markdown", { name }).split("\n")[0], `# ${name}`);
-  assert.match(en("library.itemCount", { count: 1 }), /1 item\b/);
-  assert.match(en("library.itemCount", { count: 2 }), /2 items\b/);
+  assert.match(en("library.favoritesAddedCount", { count: 1 }), /1 item\b/);
+  assert.match(en("library.favoritesAddedCount", { count: 2 }), /2 items\b/);
   const values = await Promise.all(
     [en, zh, en, zh].map(async (translate, index) => {
       await new Promise((resolve) => setTimeout(resolve, 4 - index));

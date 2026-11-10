@@ -50,11 +50,11 @@ test("desktop single click selects, modifiers toggle and Shift ranges follow the
   await expect(selected(page)).toHaveCount(4);
   await items.nth(10).click({ modifiers: ["ControlOrMeta", "Shift"] });
   await expect(selected(page)).toHaveCount(6);
-  await expect(page.locator("#item-count")).toHaveText("已选 6 项");
+  await expect(page.locator("#item-count")).toHaveCount(0);
   await expect(panel(page)).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(selected(page)).toHaveCount(0);
-  await expect(page.locator("#item-count")).toHaveText("12 个项目");
+  await expect(page.locator("#item-count")).toHaveCount(0);
   await items.first().dblclick();
   await expect(page).not.toHaveURL(/\/files\/$/);
   await expect(panel(page)).toHaveCount(0);

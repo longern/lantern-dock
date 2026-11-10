@@ -18,7 +18,7 @@ const kinds = [
   ["audio", "library.music"],
 ];
 
-export function Sidebar({ library, records, onSettings }) {
+export function Sidebar({ library, onSettings }) {
   const content = (
     <>
       <div class="sidebar-heading">
@@ -46,14 +46,6 @@ export function Sidebar({ library, records, onSettings }) {
           >
             <Icon name={icon} />
             {t(label)}
-            {((mode === "all" && library.entries.length > 0) ||
-              (mode === "favorites" && records.favorites.length > 0)) && (
-              <span class="nav-count">
-                {mode === "all"
-                  ? library.entries.length
-                  : records.favorites.length}
-              </span>
-            )}
           </button>
         ))}
       </nav>
@@ -119,8 +111,10 @@ export function Topbar({
   const searchToggle = useRef(null);
   const filesSearchVisible = mobileFiles && (searchExpanded || !!library.query);
   const closeSearch = () => {
-    setSearchExpanded(false);
-    library.setQuery("");
+    flushSync(() => {
+      setSearchExpanded(false);
+      library.setQuery("");
+    });
     searchToggle.current?.focus({ preventScroll: true });
   };
   useLayoutEffect(() => {
@@ -248,7 +242,7 @@ export function Topbar({
             <button
               ref={searchToggle}
               type="button"
-              class="icon-button"
+              class="icon-button mobile-search-toggle"
               aria-label={t(
                 filesSearchVisible
                   ? "library.closeSearch"

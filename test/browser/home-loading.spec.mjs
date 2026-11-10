@@ -65,12 +65,12 @@ for (const history of [[], [visit]]) {
       release();
     }
     await expect(page.locator(".file-item")).toHaveCount(history.length || 12);
-    await expect(page.locator(".file-section-title")).toHaveText(
-      history.length ? "最近文件" : "文件",
-    );
+    if (history.length)
+      await expect(page.locator(".file-section-title")).toHaveText("最近文件");
+    else await expect(page.locator(".file-section-title")).toHaveCount(0);
     await expect
       .poll(() => page.evaluate(() => window.homeTitles))
-      .toEqual(history.length ? ["最近文件"] : ["最近文件", "文件"]);
+      .toEqual(["最近文件"]);
   });
 }
 
@@ -161,7 +161,7 @@ test("corrupt history is not overwritten by previewing a file and can be retried
   ).toBeVisible();
   await page.evaluate((key) => localStorage.setItem(key, "[]"), recentKey);
   await page.getByRole("button", { name: "重试", exact: true }).click();
-  await expect(page.locator(".file-section-title")).toHaveText("文件");
+  await expect(page.locator(".file-section-title")).toHaveCount(0);
   await expect(page.locator(".file-item")).toHaveCount(12);
 });
 
@@ -180,7 +180,7 @@ for (const switchBackend of [false, true]) {
     await expect(page.locator(".file-item")).toHaveCount(
       switchBackend ? 1 : 12,
     );
-    await expect(page.locator(".status-pill")).toContainText("演示空间");
+    await expect(page.locator(".status-pill")).toHaveCount(0);
     await page.evaluate(() => {
       window.sawEmptyDirectory = false;
       new MutationObserver(() => {
@@ -232,7 +232,7 @@ for (const switchBackend of [false, true]) {
       release();
     }
     await expect(page.locator(".file-item")).toHaveCount(12);
-    await expect(page.locator(".file-section-title")).toHaveText("文件");
+    await expect(page.locator(".file-section-title")).toHaveCount(0);
     expect(await page.evaluate(() => window.sawEmptyDirectory)).toBe(false);
   });
 }
@@ -269,7 +269,7 @@ test("confirmed recents remain visible when directory loading fails", async ({
       : route.fallback(),
   );
   await page.goto("/");
-  await expect(page.locator(".status-pill")).toContainText("连接异常");
+  await expect(page.locator(".status-pill")).toHaveCount(0);
   await expect(page.locator(".file-section-title")).toHaveText("最近文件");
   await expect(page.locator(".file-name")).toHaveText([visit.name]);
   await expect(page.locator(".empty-state,.skeleton")).toHaveCount(0);

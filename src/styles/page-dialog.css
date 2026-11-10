@@ -50,3 +50,10 @@
   font-size: 16px;
   font-weight: normal;
 }
+
+.page-dialog-header:has(.selection-actions) {
+  grid-template-columns: var(--topbar-button-size) minmax(0, 1fr);
+}
+.page-dialog-header:has(.selection-actions) > h1 {
+  display: none;
+}
