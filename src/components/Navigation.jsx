@@ -101,6 +101,7 @@ export function Topbar({
   library,
   actions,
   transferAction,
+  intakeAction,
   hideRefresh = false,
 }) {
   const mobile = useCompactLayout();
@@ -225,6 +226,7 @@ export function Topbar({
         {!mobile && !home && breadcrumbs}
         <div class="topbar-right">
           {!mobile && home && search}
+          {intakeAction}
           {!hideRefresh && (
             <button
               id="refresh-button"

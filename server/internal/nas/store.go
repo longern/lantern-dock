@@ -45,6 +45,7 @@ type Link struct {
 	Revoked       bool      `json:"revoked"`
 	UsedBytes     int64     `json:"usedBytes"`
 	UsedFiles     int64     `json:"usedFiles"`
+	ReceivedFiles *int64    `json:"receivedFiles,omitempty"`
 }
 type Upload struct {
 	ID        string    `json:"id"`
@@ -99,7 +100,15 @@ func OpenStore(directory string) (*Store, error) {
  id TEXT PRIMARY KEY, link_id TEXT NOT NULL REFERENCES links(id), name TEXT NOT NULL,
  size INTEGER NOT NULL CHECK(size>=0), status TEXT NOT NULL CHECK(status IN ('pending','receiving','complete','failed')),
  expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
- CREATE INDEX IF NOT EXISTS uploads_link ON uploads(link_id,status,expires_at);`)
+ CREATE INDEX IF NOT EXISTS uploads_link ON uploads(link_id,status,expires_at);
+ CREATE TABLE IF NOT EXISTS personal_inboxes (
+ owner TEXT PRIMARY KEY, link_id TEXT NOT NULL UNIQUE REFERENCES links(id));
+ CREATE TABLE IF NOT EXISTS nas_members (
+ issuer TEXT NOT NULL, sub TEXT NOT NULL, name TEXT NOT NULL, PRIMARY KEY(issuer,sub));
+ CREATE TABLE IF NOT EXISTS member_grants (
+ issuer TEXT NOT NULL, member TEXT NOT NULL, owner TEXT NOT NULL, grantor TEXT NOT NULL,
+ link_id TEXT NOT NULL UNIQUE REFERENCES links(id), PRIMARY KEY(issuer,member,owner),
+ FOREIGN KEY(issuer,member) REFERENCES nas_members(issuer,sub));`)
 	if err != nil {
 		db.Close()
 		return nil, err
@@ -130,6 +139,38 @@ func (s *Store) CreateLink(ctx context.Context, link Link) (Link, string, error)
 }
 
 const linkColumns = `id,title,expires_at,max_file_bytes,max_total_bytes,max_files,revoked`
+
+var privateInboxExpiry = time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// Reuse upload reservations and storage without issuing a bearer token.
+// Authenticate only looks up 32-byte SHA-256 hashes.
+func (s *Store) personalInbox(ctx context.Context, owner string) (Link, error) {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return Link{}, err
+	}
+	defer tx.Rollback()
+	link, err := scanLink(tx.QueryRowContext(ctx, `SELECT `+linkColumns+`
+ FROM links WHERE id=(SELECT link_id FROM personal_inboxes WHERE owner=?)`, owner))
+	if !errors.Is(err, sql.ErrNoRows) {
+		return link, err
+	}
+	link = Link{
+		ID: randomID(), Title: "Personal inbox",
+		ExpiresAt:    time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC),
+		MaxFileBytes: 1 << 30, MaxTotalBytes: maxJSONInteger, MaxFiles: maxJSONInteger,
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO links
+ (id,token_hash,title,expires_at,max_file_bytes,max_total_bytes,max_files,created_at)
+ VALUES(?,?,?,?,?,?,?,?)`, link.ID, []byte("personal:"+link.ID), link.Title, link.ExpiresAt.Unix(),
+		link.MaxFileBytes, link.MaxTotalBytes, link.MaxFiles, time.Now().Unix()); err != nil {
+		return Link{}, err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO personal_inboxes(owner,link_id) VALUES(?,?)`, owner, link.ID); err != nil {
+		return Link{}, err
+	}
+	return link, tx.Commit()
+}
 
 type scanner interface{ Scan(...any) error }
 
@@ -165,13 +206,16 @@ func (s *Store) Authenticate(ctx context.Context, token string) (Link, error) {
 	return l, live(l)
 }
 
+const dailyMemberUsage = ` AND (created_at>=unixepoch('now','start of day') OR status IN ('pending','receiving') OR NOT EXISTS (SELECT 1 FROM member_grants g WHERE g.link_id=uploads.link_id))`
+
 const usageWhere = `(status='complete' OR (status IN ('pending','receiving') AND expires_at>?))`
 
 func (s *Store) Usage(ctx context.Context, l *Link) error {
-	return s.DB.QueryRowContext(ctx, `SELECT COALESCE(SUM(size),0),COUNT(*) FROM uploads WHERE link_id=? AND `+usageWhere, l.ID, time.Now().Unix()).Scan(&l.UsedBytes, &l.UsedFiles)
+	return s.DB.QueryRowContext(ctx, `SELECT COALESCE(SUM(size),0),COUNT(*) FROM uploads WHERE link_id=? AND `+usageWhere+dailyMemberUsage, l.ID, time.Now().Unix()).Scan(&l.UsedBytes, &l.UsedFiles)
 }
 func (s *Store) ListLinks(ctx context.Context) ([]Link, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT `+linkColumns+` FROM links ORDER BY created_at DESC,id`)
+	rows, err := s.DB.QueryContext(ctx, `SELECT `+linkColumns+` FROM links
+ WHERE id NOT IN (SELECT link_id FROM personal_inboxes UNION ALL SELECT link_id FROM member_grants) ORDER BY created_at DESC,id`)
 	if err != nil {
 		return nil, err
 	}
@@ -197,7 +241,8 @@ func (s *Store) ListLinks(ctx context.Context) ([]Link, error) {
 	return result, nil
 }
 func (s *Store) Revoke(ctx context.Context, id string) error {
-	result, err := s.DB.ExecContext(ctx, `UPDATE links SET revoked=1 WHERE id=?`, id)
+	result, err := s.DB.ExecContext(ctx, `UPDATE links SET revoked=1 WHERE id=?
+ AND id NOT IN (SELECT link_id FROM personal_inboxes UNION ALL SELECT link_id FROM member_grants)`, id)
 	if err != nil {
 		return err
 	}
@@ -230,7 +275,7 @@ func (s *Store) Reserve(ctx context.Context, linkID, name string, size int64) (U
 		return Upload{}, fault(413, "FILE_TOO_LARGE", "errors.fileTooLarge")
 	}
 	var used, count int64
-	err = tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(size),0),COUNT(*) FROM uploads WHERE link_id=? AND `+usageWhere, l.ID, time.Now().Unix()).Scan(&used, &count)
+	err = tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(size),0),COUNT(*) FROM uploads WHERE link_id=? AND `+usageWhere+dailyMemberUsage, l.ID, time.Now().Unix()).Scan(&used, &count)
 	if err != nil {
 		return Upload{}, err
 	}

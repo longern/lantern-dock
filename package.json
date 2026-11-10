@@ -34,6 +34,7 @@
     "lucide-preact": "^1.69.0",
     "mp4box": "^2.5.0",
     "preact": "^11.1.1",
+    "qrcode": "^1.5.4",
     "react-photo-view": "^1.2.7"
   }
 }

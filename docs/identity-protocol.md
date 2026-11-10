@@ -26,7 +26,10 @@ Accept: application/json
     "account:read",
     "links:read",
     "links:write",
-    "inbox:read"
+    "inbox:read",
+    "inbox:write",
+    "users:read",
+    "users:write"
   ],
   "dpop_signing_alg_values_supported": ["ES256"],
   "lantern_dock": {
@@ -58,7 +61,7 @@ DPoP: <proof JWT>
 grant_type=urn%3Alantern-dock%3Aparams%3Aoauth%3Agrant-type%3Asession&client_id=https%3A%2F%2Fnas.example.com%2F&resource=https%3A%2F%2Fnas.example.com%2Fnas&scope=account%3Aread
 ```
 
-The grant type and client ID are required. `resource` defaults to `SITE_ORIGIN + "/nas"` and cannot select another resource. `scope` defaults to `account:read`. Clients may explicitly request a space-separated subset of `account:read`, `links:read`, `links:write` and `inbox:read`. Empty, repeated or unknown scopes are rejected. The response and token contain only the requested scopes, in Discovery order. A scope restricts the credential; it does not assign a NAS role or bypass the NAS administrator check. Recognized parameters may not occur twice. Bodies are limited to 8 KiB.
+The grant type and client ID are required. `resource` defaults to `SITE_ORIGIN + "/nas"` and cannot select another resource. `scope` defaults to `account:read`. Clients may explicitly request a space-separated subset of `account:read`, `links:read`, `links:write`, `inbox:read`, `inbox:write`, `users:read` and `users:write`. Empty, repeated or unknown scopes are rejected. The response and token contain only the requested scopes, in Discovery order. A scope restricts the credential; it does not assign a NAS role or bypass the NAS administrator check. Recognized parameters may not occur twice. Bodies are limited to 8 KiB.
 
 A valid session and proof without a current server nonce receive:
 
@@ -141,4 +144,8 @@ All endpoints below use the same 60-second access-token validation and persisten
 | `GET /api/admin/inbox`                       | `inbox:read`   | Current NAS administrator |
 | `GET`, `HEAD /api/admin/inbox/<id>/download` | `inbox:read`   | Current NAS administrator |
 
-`GET /api/account` adds `capabilities: { "adminLinks": true, "adminInbox": true }` for administrators and false values for other users. Clients must not infer authorization from public capability metadata or the Worker session alone. Older NAS versions omit these fields and do not support the administrative UI. See [NAS API details](nas-server.md#administrative-http-interface) for payloads and pagination.
+`GET /api/account` adds `capabilities: { "adminLinks": true, "adminInbox": true }` with `personalUploads: true` on NAS versions that support authenticated uploads. These capabilities are true for administrators and false for other users. Clients must not infer authorization from public capability metadata or the Worker session alone. Older NAS versions omit these fields and do not support the administrative UI. See [NAS API details](nas-server.md#administrative-http-interface) for payloads and pagination.
+
+Personal upload requests use `inbox:write` at `/api/admin/uploads` and its task paths. The NAS resolves the destination from the verified issuer and subject. The inbox read scope permits an administrator to see their own personal files alongside files received through shared guest links.
+
+The NAS records the display name and site subject after a successful `GET /api/account`. Administrators use `GET /api/admin/users` with `users:read` and `PUT /api/admin/users/<sub>` with `users:write` to manage direct deposits. A member with an active grant uses `/api/account/uploads` and its task paths with `inbox:write`. The NAS checks the current grant and its administrator on each request. Members receive upload permission only. The account capability `directUploads` controls whether the upload action is shown.

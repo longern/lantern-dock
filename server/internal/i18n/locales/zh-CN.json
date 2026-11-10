@@ -1,4 +1,7 @@
 {
+  "errors.memberIsAdmin": "管理员拥有自己的收件箱。",
+  "errors.memberAlreadyAssigned": "此用户已由另一位管理员授权。",
+  "errors.depositRequired": "此账号尚未获得直接投递权限。",
   "errors.notFound": "找不到这个地址。",
   "errors.readOnly": "公开文件仅支持浏览和下载。",
   "errors.finiteDepthRequired": "目录读取需要 Depth: 0 或 1。",

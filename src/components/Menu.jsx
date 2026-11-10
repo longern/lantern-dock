@@ -11,6 +11,9 @@ export function Menu({
   groups = [],
   actions = [],
   label,
+  triggerId,
+  triggerIcon = "ellipsis",
+  showLabel = false,
   edge = false,
   contextMenu,
   onDismiss,
@@ -260,8 +263,9 @@ export function Menu({
       {!contextual && (
         <button
           ref={trigger}
+          id={triggerId}
           type="button"
-          class={`icon-button listing-options-trigger${edge === "start" || edge === "end" ? ` edge-${edge}` : ""}`}
+          class={`${showLabel ? "primary-button" : "icon-button listing-options-trigger"}${edge === "start" || edge === "end" ? ` edge-${edge}` : ""}`}
           aria-label={label}
           aria-haspopup="menu"
           aria-expanded={open}
@@ -277,7 +281,8 @@ export function Menu({
             }
           }}
         >
-          <Icon name="ellipsis" />
+          <Icon name={triggerIcon} />
+          {showLabel && label}
         </button>
       )}
       {present && (

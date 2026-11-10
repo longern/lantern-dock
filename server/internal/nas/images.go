@@ -116,7 +116,7 @@ func (s *Server) currentImage(name, version string) bool {
 	info, err := file.Stat()
 	return err == nil && imageVersion(name, info) == version
 }
-func (s *Server) imageMetadata(ctx context.Context, file *os.File, name, version string) (imageMetadata, error) {
+func (s *Server) imageMetadata(ctx context.Context, file *os.File, name, version string, current func() bool) (imageMetadata, error) {
 	key := imageHash([]byte(version+":info")) + ".json"
 	var m imageMetadata
 	if data := s.images.get(key); len(data) < 8192 && json.Unmarshal(data, &m) == nil && m.valid() {
@@ -140,14 +140,14 @@ func (s *Server) imageMetadata(ctx context.Context, file *os.File, name, version
 	if err != nil {
 		return m, err
 	}
-	if !s.currentImage(name, version) {
+	if !current() {
 		return m, fault(409, "IMAGE_CHANGED", "errors.imageChanged")
 	}
 	data, _ := json.Marshal(m)
 	s.images.put(key, data)
 	return m, nil
 }
-func (s *Server) imageRendition(ctx context.Context, file *os.File, name, version string, m imageMetadata, size imageSize) ([]byte, error) {
+func (s *Server) imageRendition(ctx context.Context, file *os.File, version string, m imageMetadata, size imageSize, current func() bool) ([]byte, error) {
 	key := imageHash([]byte(fmt.Sprintf("%s:%d:%d:jpg82-white", version, size.Width, size.Height))) + ".jpg"
 	if data := s.images.get(key); data != nil {
 		return data, nil
@@ -169,7 +169,7 @@ func (s *Server) imageRendition(ctx context.Context, file *os.File, name, versio
 		if err != nil {
 			return nil, err
 		}
-		if !s.currentImage(name, version) {
+		if !current() {
 			return nil, fault(409, "IMAGE_CHANGED", "errors.imageChanged")
 		}
 		s.images.put(key, data)
@@ -210,7 +210,7 @@ func (s *Server) imageRendition(ctx context.Context, file *os.File, name, versio
 	if err = ctx.Err(); err != nil {
 		return nil, err
 	}
-	if !s.currentImage(name, version) {
+	if !current() {
 		return nil, fault(409, "IMAGE_CHANGED", "errors.imageChanged")
 	}
 	data := output.Bytes()
@@ -269,7 +269,8 @@ func (s *Server) serveImage(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
 	defer cancel()
 	version := imageVersion(name, info)
-	m, err := s.imageMetadata(ctx, file.File, name, version)
+	current := func() bool { return s.currentImage(name, version) }
+	m, err := s.imageMetadata(ctx, file.File, name, version, current)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			w.Header().Set("Retry-After", "1")
@@ -336,7 +337,7 @@ func (s *Server) serveImage(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		data, err = s.imageRendition(ctx, file.File, name, version, m, size)
+		data, err = s.imageRendition(ctx, file.File, version, m, size, current)
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				w.Header().Set("Retry-After", "1")

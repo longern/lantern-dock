@@ -25,6 +25,7 @@ import { Icon } from "./components/Icon.jsx";
 import { ListingOptionsMenu } from "./components/ListingOptionsMenu.jsx";
 import { AlbumOptionsMenu } from "./components/AlbumOptionsMenu.jsx";
 import { SelectionActions } from "./components/SelectionActions.jsx";
+import { FileIntakeActions } from "./components/FileIntakeActions.jsx";
 import { listingPreferences } from "./lib/file-listing.js";
 import { useCompactLayout } from "./hooks/useMediaQuery.js";
 import { useLibraryRoute } from "./hooks/useLibraryRoute.js";
@@ -637,6 +638,19 @@ function LibraryApp() {
                 )
               }
               actions={topbarActions}
+              intakeAction={
+                !route &&
+                library.mode === "all" &&
+                !["album", "image"].includes(library.kind) &&
+                library.connection &&
+                !library.demoPreview &&
+                library.backend?.transport !== "demo" && (
+                  <FileIntakeActions
+                    mobile={mobile}
+                    suspended={!!touchSelections.size}
+                  />
+                )
+              }
             />
             {library.mode === "home" && (
               <CategoryCards library={library} albumOpen={albumOpen} />

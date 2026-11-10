@@ -6,11 +6,15 @@ export const ACCOUNT_SCOPE = "account:read";
 export const LINKS_READ_SCOPE = "links:read";
 export const LINKS_WRITE_SCOPE = "links:write";
 export const INBOX_READ_SCOPE = "inbox:read";
+export const INBOX_WRITE_SCOPE = "inbox:write";
 export const NAS_SCOPES = Object.freeze([
   ACCOUNT_SCOPE,
   LINKS_READ_SCOPE,
   LINKS_WRITE_SCOPE,
   INBOX_READ_SCOPE,
+  INBOX_WRITE_SCOPE,
+  "users:read",
+  "users:write",
 ]);
 export const GRANT_SECONDS = 60;
 export const IDENTITY_PROTOCOL_VERSION = 2;

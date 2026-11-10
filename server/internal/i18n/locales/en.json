@@ -1,4 +1,7 @@
 {
+  "errors.memberIsAdmin": "Administrators have their own inbox.",
+  "errors.memberAlreadyAssigned": "Another administrator has already granted this user access.",
+  "errors.depositRequired": "This account does not have permission to deposit files.",
   "errors.notFound": "This address could not be found.",
   "errors.readOnly": "Public files can only be browsed and downloaded.",
   "errors.finiteDepthRequired": "Directory requests require Depth: 0 or 1.",

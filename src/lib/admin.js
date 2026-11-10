@@ -3,9 +3,13 @@ import { identityProof, requestNASGrant } from "./identity.js";
 import { DirectTransport } from "./transport.js";
 import { backendPaths } from "../../shared/backend-paths.js";
 import { uploadHref } from "../../shared/routes.js";
+import { INBOX_WRITE_SCOPE } from "../../shared/identity-protocol.js";
+import { limitedBytes } from "./content.js";
+import { UploadClient } from "./uploads.js";
 
 export const ADMIN_LINKS = `${backendPaths.admin}/links`;
 export const ADMIN_INBOX = `${backendPaths.admin}/inbox`;
+const ADMIN_USERS = `${backendPaths.admin}/users`;
 const MiB = 1024 * 1024;
 
 export function adminAccess(identity, nas) {
@@ -84,6 +88,9 @@ export function linkMetadata(value) {
     revoked,
     usedBytes,
     usedFiles,
+    ...(integer(value.receivedFiles)
+      ? { receivedFiles: value.receivedFiles }
+      : {}),
   };
 }
 function uploadMetadata(value) {
@@ -99,7 +106,17 @@ function uploadMetadata(value) {
   )
     throw invalidResponse();
   const { id, linkId, linkTitle, name, size, status, createdAt } = value;
-  return { id, linkId, linkTitle, name, size, status, createdAt };
+  return {
+    id,
+    linkId,
+    linkTitle,
+    name,
+    size,
+    status,
+    createdAt,
+    ...(value.personal === true ? { personal: true } : {}),
+    ...(value.direct === true ? { direct: true } : {}),
+  };
 }
 function pageResult(value, field, map) {
   if (
@@ -194,6 +211,43 @@ async function metadataJSON(response, signal) {
   }
 }
 
+async function nasAuthorization(
+  config,
+  method,
+  path,
+  scope,
+  signal,
+  grant,
+  proof,
+) {
+  const credential = await grant(signal, scope);
+  signal?.throwIfAborted();
+  const origin =
+    config.transport === "http"
+      ? new URL(config.endpoint).origin
+      : location.origin;
+  return {
+    Authorization: `DPoP ${credential.access_token}`,
+    DPoP: await proof(method, origin + path, credential.access_token),
+  };
+}
+
+export function personalUploadClient(account, direct = false) {
+  return new UploadClient(account.backend, null, {
+    path: `${direct ? backendPaths.account : backendPaths.admin}/uploads`,
+    authorize: (method, path, signal) =>
+      nasAuthorization(
+        account.backend,
+        method,
+        path,
+        INBOX_WRITE_SCOPE,
+        signal,
+        requestNASGrant,
+        identityProof,
+      ),
+  });
+}
+
 export class AdminClient {
   constructor(
     account,
@@ -258,21 +312,26 @@ export class AdminClient {
       this.lifetime.signal,
       ...(signal ? [signal] : []),
     ]);
-    const capability = scope.startsWith("links:") ? "adminLinks" : "adminInbox";
+    const capability = scope.startsWith("links:")
+      ? "adminLinks"
+      : scope.startsWith("users:")
+        ? "adminUsers"
+        : "adminInbox";
     if (
       this.account.user?.role !== "admin" ||
       this.account.capabilities?.[capability] !== true
     )
       throw new Error(t("admin.forbiddenDescription"));
     signal.throwIfAborted();
-    const grant = await this.grant(signal, scope);
-    signal.throwIfAborted();
-    const config = this.transport.config;
-    const origin =
-      config.transport === "http"
-        ? new URL(config.endpoint).origin
-        : location.origin;
-    const proof = await this.proof(method, origin + path, grant.access_token);
+    const authorization = await nasAuthorization(
+      this.transport.config,
+      method,
+      path,
+      scope,
+      signal,
+      this.grant,
+      this.proof,
+    );
     signal.throwIfAborted();
     if (this.closed)
       throw new DOMException(t("core.connectionClosed"), "AbortError");
@@ -280,8 +339,7 @@ export class AdminClient {
       method,
       signal,
       headers: {
-        Authorization: `DPoP ${grant.access_token}`,
-        DPoP: proof,
+        ...authorization,
         ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -343,7 +401,7 @@ export class AdminClient {
       await response.body?.cancel();
     }, signal);
   }
-  inbox({ linkId = "", offset = 0, signal } = {}) {
+  inbox({ linkId = "", source = "", offset = 0, signal } = {}) {
     return this.metadata(async (signal) => {
       const query = new URLSearchParams({
         limit: "100",
@@ -353,6 +411,7 @@ export class AdminClient {
         if (!identifier(linkId)) throw invalidResponse();
         query.set("linkId", linkId);
       }
+      if (source) query.set("source", source);
       const response = await this.response(
         `${ADMIN_INBOX}?${query}`,
         "inbox:read",
@@ -363,6 +422,66 @@ export class AdminClient {
         "uploads",
         uploadMetadata,
       );
+    }, signal);
+  }
+  users({ query = "", enabled = false, offset = 0, sub = "", signal } = {}) {
+    return this.metadata(async (signal) => {
+      const params = new URLSearchParams({ offset: String(offset) });
+      if (query) params.set("q", query);
+      if (enabled) params.set("enabled", "1");
+      if (sub) params.set("sub", sub);
+      const response = await this.response(
+        `${ADMIN_USERS}?${params}`,
+        "users:read",
+        { signal },
+      );
+      return pageResult(
+        await metadataJSON(response, signal),
+        "users",
+        (value) => {
+          if (
+            !identifier(value?.sub) ||
+            typeof value.name !== "string" ||
+            typeof value.admin !== "boolean" ||
+            typeof value.assignedElsewhere !== "boolean" ||
+            typeof value.permission?.enabled !== "boolean" ||
+            !integer(value.permission.maxFiles, 1) ||
+            !integer(value.permission.maxFileBytes, 1)
+          )
+            throw invalidResponse();
+          return value;
+        },
+      );
+    }, signal);
+  }
+  saveUser(sub, permission, signal) {
+    return this.metadata(async (signal) => {
+      const response = await this.response(
+        itemPath(ADMIN_USERS, sub),
+        "users:write",
+        {
+          method: "PUT",
+          body: permission,
+          signal,
+        },
+      );
+      await response.body?.cancel();
+    }, signal);
+  }
+  thumbnail(id, signal) {
+    return this.metadata(async (signal) => {
+      const response = await this.response(
+        `${itemPath(ADMIN_INBOX, id)}/thumbnail`,
+        "inbox:read",
+        { signal },
+      );
+      if (response.headers.get("Content-Type") !== "image/jpeg") {
+        await response.body?.cancel();
+        throw invalidResponse();
+      }
+      return new Blob([await limitedBytes(response, 1024 * 1024, signal)], {
+        type: "image/jpeg",
+      });
     }, signal);
   }
   download(id, signal) {

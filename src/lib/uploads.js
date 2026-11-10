@@ -20,12 +20,11 @@ export async function uploadResponse(response) {
 }
 
 export class UploadClient {
-  constructor(backend, token) {
-    this.transport = new DirectTransport(backend, {
-      mode: "bearer",
-      bearer: token,
-    });
+  constructor(backend, token, { path = backendPaths.inbox, authorize } = {}) {
+    this.transport = new DirectTransport(backend);
     this.token = token;
+    this.path = path;
+    this.authorize = authorize;
     this.closed = false;
   }
   close() {
@@ -33,12 +32,30 @@ export class UploadClient {
     this.transport.close();
   }
   async info(signal) {
-    return this.request(backendPaths.inbox, { signal });
+    return this.request(this.path, { signal });
   }
-  async request(path, options) {
+  async headers(method, path, signal) {
     if (this.closed)
       throw new DOMException(t("core.connectionClosed"), "AbortError");
-    return uploadResponse(await this.transport.request(path, options));
+    const headers = this.authorize
+      ? await this.authorize(method, path, signal)
+      : { Authorization: "Bearer " + this.token };
+    signal?.throwIfAborted();
+    if (this.closed)
+      throw new DOMException(t("core.connectionClosed"), "AbortError");
+    return headers;
+  }
+  async send(path, { method = "GET", signal, headers, ...options } = {}) {
+    const authorization = await this.headers(method, path, signal);
+    return this.transport.request(path, {
+      ...options,
+      method,
+      signal,
+      headers: { ...headers, ...authorization },
+    });
+  }
+  async request(path, options) {
+    return uploadResponse(await this.send(path, options));
   }
   async sendHTTP(path, file, signal, onProgress) {
     signal?.throwIfAborted();
@@ -49,12 +66,14 @@ export class UploadClient {
       !["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname)
     )
       throw coreError("UPLOAD_HTTPS_REQUIRED");
+    const headers = await this.headers("PUT", path, signal);
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const abort = () => xhr.abort();
       const finish = () => signal?.removeEventListener("abort", abort);
       xhr.open("PUT", endpoint);
-      xhr.setRequestHeader("Authorization", "Bearer " + this.token);
+      for (const [name, value] of Object.entries(headers))
+        xhr.setRequestHeader(name, value);
       xhr.setRequestHeader("Accept-Language", locale);
       xhr.setRequestHeader("Content-Type", "application/octet-stream");
       xhr.upload.onprogress = (event) => {
@@ -78,18 +97,20 @@ export class UploadClient {
     });
   }
   async upload(file, { signal, onProgress } = {}) {
-    const task = await this.request(backendPaths.inbox, {
+    const task = await this.request(this.path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: file.name, size: file.size }),
       signal,
     });
-    const path = `${backendPaths.inbox}/${task.id}`;
+    if (!/^[a-f0-9]{32}$/.test(task?.id ?? ""))
+      throw coreError("UPLOAD_CONNECTION_INTERRUPTED");
+    const path = `${this.path}/${task.id}`;
     try {
       const response =
         this.transport.config.transport === "http"
           ? await this.sendHTTP(path, file, signal, onProgress)
-          : await this.transport.request(path, {
+          : await this.send(path, {
               method: "PUT",
               headers: { "Content-Type": "application/octet-stream" },
               body: file,
@@ -105,7 +126,7 @@ export class UploadClient {
         const status = await this.request(path, { signal: cleanupSignal });
         if (status.status === "complete") return status;
         if (this.closed) throw error;
-        const cancelled = await this.transport.request(path, {
+        const cancelled = await this.send(path, {
           method: "DELETE",
           signal: cleanupSignal,
         });

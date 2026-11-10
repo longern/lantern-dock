@@ -59,11 +59,21 @@ export function parseRoute(input) {
         directory: "",
       };
     if (path === "/account") return { ...common, page: "account" };
-    if (["/admin", "/admin/links", "/admin/inbox"].includes(path))
+    const member = /^\/admin\/users\/(ld_[A-Za-z0-9_-]{22})$/.exec(path)?.[1];
+    if (
+      member ||
+      ["/admin", "/admin/links", "/admin/inbox", "/admin/users"].includes(path)
+    )
       return {
         ...common,
         page: "admin",
-        tab: path.endsWith("/inbox") ? "inbox" : "links",
+        tab:
+          member || path.endsWith("/users")
+            ? "users"
+            : path.endsWith("/links")
+              ? "links"
+              : "inbox",
+        member,
       };
     if (path === "/upload")
       return {

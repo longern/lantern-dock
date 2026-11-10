@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -454,5 +455,16 @@ func (s *Server) serveAccount(w http.ResponseWriter, r *http.Request) {
 		writeIdentityError(w, r, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"user": user, "administratorConfigured": len(s.identity.admins) > 0, "capabilities": map[string]bool{"adminLinks": user.Role == "admin", "adminInbox": user.Role == "admin"}})
+	if err = s.Store.rememberMember(r.Context(), user); err != nil {
+		writeError(w, r, err)
+		return
+	}
+	admin := user.Role == "admin"
+	_, err = s.memberLink(r.Context(), user)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		writeError(w, r, err)
+		return
+	}
+	direct := err == nil
+	writeJSON(w, 200, map[string]any{"user": user, "administratorConfigured": len(s.identity.admins) > 0, "capabilities": map[string]bool{"adminLinks": admin, "adminInbox": admin, "personalUploads": admin, "adminUsers": admin, "directUploads": direct}})
 }

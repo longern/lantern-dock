@@ -612,3 +612,296 @@ test("a filtered inbox URL starts with its filter and survives refresh", async (
   await page.reload();
   await expect(page.locator(".admin-inbox-file")).toHaveCount(1);
 });
+
+async function installIntake(page, options) {
+  const id = "a".repeat(32);
+  const state = await install(page, {
+    capabilities: { adminLinks: true, adminInbox: true, personalUploads: true },
+    async handle(route, url, request) {
+      if (!url.pathname.startsWith("/api/admin/uploads")) return false;
+      if (request.method() === "GET")
+        await route.fulfill({
+          json: { ...fixtureLink, usedFiles: 0, usedBytes: 0 },
+        });
+      else if (request.method() === "POST")
+        await route.fulfill({ status: 201, json: { id } });
+      else if (request.method() === "PUT")
+        await route.fulfill({ status: 201, json: { id, status: "complete" } });
+      else throw new Error("Unexpected personal upload request");
+      return true;
+    },
+    ...options,
+  });
+  await page.route("**/api/config", (route) =>
+    route.fulfill({
+      json: {
+        backend: {
+          transport: "http",
+          endpoint: new URL(route.request().url()).origin,
+          rootPath: "/dav/",
+          auth: "none",
+        },
+      },
+    }),
+  );
+  await page.route("**/dav/**", (route) =>
+    route.fulfill({
+      status: 207,
+      contentType: "application/xml",
+      body: '<d:multistatus xmlns:d="DAV:"><d:response><d:href>/dav/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>',
+    }),
+  );
+  return state;
+}
+
+test("file intake offers a local QR and a separate authenticated personal upload", async ({
+  page,
+}) => {
+  const state = await installIntake(page);
+  await page.goto("/files/");
+  const trigger = page.locator("#file-intake-trigger");
+  await expect(trigger).toBeVisible();
+  const compact = await isCompact(page);
+  if (compact) {
+    await trigger.tap();
+    const handle = page.locator(".intake-sheet-handle");
+    await handle.evaluate(async (node) => {
+      await Promise.all(
+        node
+          .closest("dialog")
+          .getAnimations()
+          .map((motion) => motion.finished),
+      );
+    });
+    const box = await handle.boundingBox();
+    const client = await page.context().newCDPSession(page);
+    const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    try {
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [point],
+      });
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ ...point, y: point.y + 80 }],
+      });
+      await client.send("Input.dispatchTouchEvent", {
+        type: "touchEnd",
+        touchPoints: [],
+      });
+    } finally {
+      await client.detach();
+    }
+    await expect(handle).toHaveCount(0);
+  }
+  const choose = async (label) => {
+    await trigger.click();
+    if (compact) {
+      const drawer = page.locator(".intake-sheet");
+      await expect(drawer).toBeVisible();
+      expect(
+        await drawer.evaluate((node) => node.getBoundingClientRect().width),
+      ).toBe(await page.evaluate(() => innerWidth));
+      await drawer.getByRole("button", { name: label }).click();
+    } else {
+      await page.getByRole("menuitem", { name: label }).click();
+    }
+  };
+  await choose("邀请上传");
+  const invite = page.locator("#admin-create-dialog");
+  await invite.getByRole("button", { name: /当面扫码/ }).click();
+  const qr = invite.getByRole("img", { name: "扫码打开上传页面" });
+  await expect(qr).toBeVisible();
+  expect(
+    await qr.evaluate((canvas) =>
+      canvas
+        .getContext("2d")
+        .getImageData(0, 0, canvas.width, canvas.height)
+        .data.some((value, index) => index % 4 === 0 && value === 0),
+    ),
+  ).toBe(true);
+  await invite.getByRole("button", { name: "复制链接" }).click();
+  expect(await page.evaluate(() => window.adminCopies[0])).toContain(
+    "/upload#token=" + token,
+  );
+  const scan = state.requests.find(
+    (request) =>
+      request.method === "POST" && request.pathname === "/api/admin/links",
+  );
+  expect(
+    Date.parse(JSON.parse(scan.body).expiresAt) - Date.now(),
+  ).toBeGreaterThan(29 * 60000);
+  expect(
+    Date.parse(JSON.parse(scan.body).expiresAt) - Date.now(),
+  ).toBeLessThanOrEqual(30 * 60000);
+  await invite.getByRole("button", { name: "完成", exact: true }).click();
+  await expect(invite).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+
+  await choose("邀请上传");
+  await invite.getByRole("button", { name: /发给微信好友/ }).click();
+  await expect(invite.locator("#admin-created-url")).toBeVisible();
+  await expect(invite.locator("canvas")).toHaveCount(0);
+  const share = state.requests
+    .filter((request) => request.method === "POST")
+    .at(-1);
+  expect(
+    Date.parse(JSON.parse(share.body).expiresAt) - Date.now(),
+  ).toBeGreaterThan(71 * 3600000);
+  await invite.getByRole("button", { name: "完成", exact: true }).click();
+  await expect(invite).toHaveCount(0);
+
+  const chooser = page.waitForEvent("filechooser");
+  await choose("上传文件");
+  const personal = page.getByRole("dialog", { name: "上传文件" });
+  await (
+    await chooser
+  ).setFiles({
+    name: "my-photo.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("photo"),
+  });
+  await expect(personal.locator(".upload-result.complete")).toBeVisible();
+  const put = state.requests.find((request) => request.method === "PUT");
+  expect(put.pathname).toBe("/api/admin/uploads/" + "a".repeat(32));
+  expect(put.body).toBe("photo");
+  expect(put.headers.authorization).toBe("DPoP scoped-secret");
+  expect(put.headers.dpop).toBe("fixture-proof");
+  expect(state.scopes).toContain("inbox:write");
+  expect(
+    state.requests.filter(
+      (request) =>
+        request.method === "POST" && request.pathname === "/api/admin/links",
+    ),
+  ).toHaveLength(2);
+});
+
+test("a signed-in member has no file intake actions", async ({ page }) => {
+  await installIntake(page, { role: "member" });
+  const checked = page.waitForResponse("**/fixture/account");
+  await page.goto("/files/");
+  await checked;
+  await expect(page.locator("#file-intake-trigger")).toHaveCount(0);
+});
+
+test("admin layout navigates to a member and saves direct upload permissions", async ({
+  page,
+}, info) => {
+  const sub = "ld_" + "A".repeat(22);
+  let member = {
+    sub,
+    name: "小王",
+    admin: false,
+    assignedElsewhere: false,
+    permission: { enabled: false, maxFiles: 100, maxFileBytes: 100 * 1048576 },
+  };
+  const state = await install(page, {
+    capabilities: { adminLinks: true, adminInbox: true, adminUsers: true },
+    async handle(route, url, request) {
+      if (url.pathname === "/api/admin/users") {
+        await route.fulfill({ json: { users: [member], nextOffset: null } });
+        return true;
+      }
+      if (
+        url.pathname === "/api/admin/users/" + sub &&
+        request.method() === "PUT"
+      ) {
+        member = { ...member, permission: request.postDataJSON() };
+        await route.fulfill({ status: 204 });
+        return true;
+      }
+      return false;
+    },
+  });
+  await page.goto("/admin");
+  await expect(page).toHaveURL(/\/admin\/inbox$/);
+  const navigation = page.locator(".admin-navigation");
+  await page.getByRole("button", { name: "访客投递", exact: true }).click();
+  await expect(page).toHaveURL(/source=guest$/);
+  await expect
+    .poll(() =>
+      state.requests.some(({ query }) => query.includes("source=guest")),
+    )
+    .toBe(true);
+  await navigation.getByRole("button", { name: "用户", exact: true }).click();
+  await page.getByRole("button", { name: /小王/ }).click();
+  await expect(page).toHaveURL(new RegExp("/admin/users/" + sub + "$"));
+  const toggle = page.getByRole("switch", { name: /允许直接投递/ });
+  await expect(toggle).not.toBeChecked();
+  if (isCompact(page)) {
+    await expect(navigation).toBeHidden();
+    await expect(page.locator(".admin-user-list-pane")).toBeHidden();
+  } else {
+    await expect(navigation).toBeVisible();
+    await expect(page.locator(".admin-user-list-pane")).toBeVisible();
+  }
+  await toggle.check();
+  await page.locator("[name=maxFiles]").fill("12");
+  await page.getByRole("button", { name: "保存权限" }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "权限已保存" }),
+  ).toBeVisible();
+  expect(member.permission).toEqual({
+    enabled: true,
+    maxFiles: 12,
+    maxFileBytes: 100 * 1048576,
+  });
+  expect(state.scopes).toContain("users:write");
+  await assertNoOverflow(page);
+  if (process.env.ADMIN_SCREENSHOTS === "1") {
+    const path = info.outputPath("permission.png");
+    await page.screenshot({ path });
+    await info.attach("permission", { path, contentType: "image/png" });
+  }
+  await page.reload();
+  await expect(
+    page.getByRole("switch", { name: /允许直接投递/ }),
+  ).toBeChecked();
+});
+
+test("an authorized ordinary user deposits from Files with their login proof", async ({
+  page,
+}) => {
+  await installIntake(page, {
+    role: "member",
+    capabilities: { directUploads: true },
+  });
+  const id = "b".repeat(32);
+  let received = false;
+  await page.route(/\/api\/account\/uploads(?:\/[^/]+)?$/, (route) => {
+    const request = route.request();
+    expect(request.headers().authorization).toBe("DPoP scoped-secret");
+    expect(request.headers().dpop).toBe("fixture-proof");
+    if (request.method() === "POST")
+      return route.fulfill({ status: 201, json: { id } });
+    if (request.method() === "PUT") {
+      expect(request.postData()).toBe("deposit");
+      received = true;
+      return route.fulfill({ status: 201, json: { id, status: "complete" } });
+    }
+    return route.fulfill({
+      json: { ...fixtureLink, usedFiles: 0, usedBytes: 0 },
+    });
+  });
+  await page.goto("/files/");
+  const chooser = page.waitForEvent("filechooser");
+  await page.locator("#file-intake-trigger").click();
+  if (isCompact(page)) {
+    const sheet = page.locator(".intake-sheet");
+    await expect(sheet.getByRole("button", { name: "邀请上传" })).toHaveCount(
+      0,
+    );
+    await sheet.getByRole("button", { name: "上传文件" }).click();
+  }
+  await (
+    await chooser
+  ).setFiles({
+    name: "photo.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("deposit"),
+  });
+  const dialog = page.getByRole("dialog", { name: "上传文件" });
+  await expect(dialog.locator(".upload-result.complete")).toBeVisible();
+  expect(received).toBe(true);
+  await expect(dialog.getByRole("link", { name: "查看收件" })).toHaveCount(0);
+});

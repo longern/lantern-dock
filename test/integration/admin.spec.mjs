@@ -41,7 +41,7 @@ async function loginAdministrator(page) {
   await expect(
     page.getByText("管理员权限已启用", { exact: false }),
   ).toBeVisible();
-  await page.goto(fixture.origin + "/admin");
+  await page.goto(fixture.origin + "/admin/links");
   await expect(page.locator("#admin-create-link")).toBeVisible();
 }
 
@@ -361,7 +361,7 @@ for (const transport of ["webtransport", "http"]) {
 
       await page
         .getByRole("navigation", { name: "后台管理分类", exact: true })
-        .getByRole("button", { name: "收件链接", exact: true })
+        .getByRole("button", { name: "邀请", exact: true })
         .click();
       await card
         .getByRole("button", { name: `撤销“${title}”`, exact: true })
@@ -440,3 +440,40 @@ for (const transport of ["webtransport", "http"]) {
     }
   });
 }
+
+test("an administrator uploads to their own inbox through the file intake actions", async ({
+  page,
+  context,
+}) => {
+  await fixture.nas.administrators([siteIdentitySubject]);
+  await fixture.browser(context);
+  await loginAdministrator(page);
+  await page.goto(fixture.origin + "/files/");
+  await page.locator("#file-intake-trigger").click();
+  const action = page
+    .getByRole("button", { name: "上传文件", exact: true })
+    .or(page.getByRole("menuitem", { name: "上传文件" }));
+  const chooser = page.waitForEvent("filechooser");
+  await action.click();
+  const dialog = page.getByRole("dialog", { name: "上传文件" });
+  const name = "my-personal-photo.jpg";
+  await (
+    await chooser
+  ).setFiles({
+    name,
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("personal upload"),
+  });
+  await expect(dialog.locator(".upload-result.complete")).toHaveText("已接收");
+  await dialog.getByRole("link", { name: "查看收件" }).click();
+  const row = page
+    .locator(".admin-inbox-file")
+    .filter({ hasText: name })
+    .first();
+  await expect(row.getByText("我的收件", { exact: true })).toBeVisible();
+  await page
+    .locator(".admin-navigation")
+    .getByRole("button", { name: "用户", exact: true })
+    .click();
+  await expect(page.locator(".admin-user-list")).toContainText("管理员");
+});

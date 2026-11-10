@@ -1,6 +1,7 @@
 package nas
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/ecdsa"
@@ -10,6 +11,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"image"
+	"image/jpeg"
 	"io"
 	"mime"
 	"net/http"
@@ -114,6 +117,7 @@ func TestAdminRequiresBothLocalRoleAndOperationScope(t *testing.T) {
 		{"DELETE", adminPath + "/links/" + link.ID, linksWriteScope},
 		{"GET", adminPath + "/inbox", inboxReadScope},
 		{"GET", adminPath + "/inbox/" + randomID() + "/download", inboxReadScope},
+		{"POST", personalUploadsPath, inboxWriteScope},
 	} {
 		t.Run(operation.method+operation.path, func(t *testing.T) {
 			status(t, f.request(t, operation.method, operation.path, "", strings.NewReader(validLinkInput()), nil), 401)
@@ -125,7 +129,7 @@ func TestAdminRequiresBothLocalRoleAndOperationScope(t *testing.T) {
 					t.Fatal("wrong scope challenge")
 				}
 			}
-			for _, otherScope := range []string{linksReadScope, linksWriteScope, inboxReadScope} {
+			for _, otherScope := range []string{linksReadScope, linksWriteScope, inboxReadScope, inboxWriteScope} {
 				if otherScope != operation.scope {
 					status(t, f.admin(t, operation.method, operation.path, otherScope, validLinkInput()), 403)
 				}
@@ -143,7 +147,7 @@ func TestAdminRequiresBothLocalRoleAndOperationScope(t *testing.T) {
 	}
 	r := f.admin(t, "GET", accountPath, "account:read", "")
 	status(t, r, 200)
-	if !strings.Contains(read(t, r), `"capabilities":{"adminInbox":true,"adminLinks":true}`) {
+	if !strings.Contains(read(t, r), `"capabilities":{"adminInbox":true,"adminLinks":true,"adminUsers":true,"directUploads":false,"personalUploads":true}`) {
 		t.Fatal("missing admin capability")
 	}
 	delete(f.s.identity.admins, identityTestSubject("owner"))
@@ -151,6 +155,67 @@ func TestAdminRequiresBothLocalRoleAndOperationScope(t *testing.T) {
 	r = f.admin(t, "GET", accountPath, "account:read", "")
 	if !strings.Contains(read(t, r), `"adminLinks":false`) {
 		t.Fatal("stale capability")
+	}
+}
+
+func TestAdminPersonalUploadsArePrivateToTheirOwner(t *testing.T) {
+	f := newAdminFixture(t, "")
+	f.s.identity.admins[identityTestSubject("other")] = true
+	var source bytes.Buffer
+	if err := jpeg.Encode(&source, image.NewRGBA(image.Rect(0, 0, 320, 160)), nil); err != nil {
+		t.Fatal(err)
+	}
+	payload := source.String()
+	reservation, _ := json.Marshal(map[string]any{"name": "mine.jpg", "size": len(payload)})
+	other := func(method, target, scope, body string) *http.Response {
+		return f.request(t, method, target, "", strings.NewReader(body), f.headers(t, method, target, "other", scope))
+	}
+	r := f.admin(t, "POST", personalUploadsPath, inboxWriteScope, string(reservation))
+	status(t, r, 201)
+	task := decodeResponse[Upload](t, r)
+	status(t, other("PUT", personalUploadsPath+"/"+task.ID, inboxWriteScope, payload), 404)
+	status(t, other("DELETE", personalUploadsPath+"/"+task.ID, inboxWriteScope, ""), 404)
+	status(t, f.admin(t, "PUT", personalUploadsPath+"/"+task.ID, inboxWriteScope, payload), 201)
+	status(t, f.admin(t, "GET", personalUploadsPath+"/"+task.ID, inboxWriteScope, ""), 200)
+	_, guest := f.link(t, 10, 20, 2)
+	status(t, f.request(t, "GET", inboxPath+"/"+task.ID, guest, nil, nil), 404)
+
+	inbox := adminPath + "/inbox"
+	r = f.admin(t, "GET", inbox, inboxReadScope, "")
+	status(t, r, 200)
+	mine := decodeResponse[struct{ Uploads []inboxFile }](t, r).Uploads
+	if len(mine) != 1 || mine[0].ID != task.ID || !mine[0].Personal {
+		t.Fatalf("owner inbox: %+v", mine)
+	}
+	r = other("GET", inbox+"?linkId="+mine[0].LinkID, inboxReadScope, "")
+	status(t, r, 200)
+	if files := decodeResponse[struct{ Uploads []inboxFile }](t, r).Uploads; len(files) != 0 {
+		t.Fatalf("another administrator received personal metadata: %+v", files)
+	}
+	download := inbox + "/" + task.ID + "/download"
+	status(t, other("GET", download, inboxReadScope, ""), 404)
+	r = f.admin(t, "GET", download, inboxReadScope, "")
+	status(t, r, 200)
+	if body := read(t, r); body != payload {
+		t.Fatalf("got file contents %q", body)
+	}
+	thumbnail := inbox + "/" + task.ID + "/thumbnail"
+	status(t, other("GET", thumbnail, inboxReadScope, ""), 404)
+	r = f.admin(t, "GET", thumbnail, inboxReadScope, "")
+	status(t, r, 200)
+	if r.Header.Get("Content-Type") != "image/jpeg" || r.Header.Get("Cache-Control") != "no-store" {
+		t.Fatalf("thumbnail headers: %v", r.Header)
+	}
+	image, err := jpeg.DecodeConfig(r.Body)
+	r.Body.Close()
+	if err != nil || image.Width >= 320 || image.Height >= 160 {
+		t.Fatalf("expected a small JPEG, got %+v (%v)", image, err)
+	}
+	status(t, f.admin(t, "DELETE", adminPath+"/links/"+mine[0].LinkID, linksWriteScope, ""), 404)
+	r = f.admin(t, "GET", adminPath+"/links", linksReadScope, "")
+	status(t, r, 200)
+	if links := decodeResponse[struct{ Links []Link }](t, r).Links; len(links) != 1 || links[0].ID == mine[0].LinkID {
+		t.Fatalf("personal inbox leaked into guest links: %+v", links)
 	}
 }
 func TestAdminLinkCreateListRevokeAndOneTimeSecret(t *testing.T) {
@@ -366,5 +431,67 @@ func TestAdminProofReplayMethodCORSAndStorageErrors(t *testing.T) {
 	body, _ := io.ReadAll(r.Body)
 	if strings.Contains(string(body), f.data) || strings.Contains(string(body), "database") {
 		t.Fatal("storage details leaked")
+	}
+}
+
+func TestMemberDepositIsScopedToGrantorAndRevocable(t *testing.T) {
+	f := newAdminFixture(t, "")
+	f.s.identity.admins[identityTestSubject("other")] = true
+	actor := func(sub, method, target, scope, body string) *http.Response {
+		return f.request(t, method, target, "", strings.NewReader(body), f.headers(t, method, target, sub, scope))
+	}
+	members := adminPath + "/users"
+	sub := identityTestSubject("member")
+	edit := members + "/" + sub
+	const enable = `{"enabled":true,"maxFiles":1,"maxFileBytes":10}`
+	const disable = `{"enabled":false,"maxFiles":1,"maxFileBytes":10}`
+	const file = `{"name":"direct.txt","size":4}`
+	status(t, f.admin(t, "PUT", edit, usersWriteScope, enable), 404)
+	status(t, actor("member", "GET", accountPath, "account:read", ""), 200)
+	status(t, actor("member", "PUT", edit, usersWriteScope, enable), 403)
+	status(t, f.admin(t, "PUT", edit, linksWriteScope, enable), 403)
+	status(t, actor("member", "POST", memberUploadPath, inboxWriteScope, file), 403)
+	status(t, f.admin(t, "PUT", edit, usersWriteScope, enable), 204)
+	status(t, actor("other", "PUT", edit, usersWriteScope, enable), 409)
+	r := f.admin(t, "GET", members+"?sub="+sub+"&enabled=1", usersReadScope, "")
+	status(t, r, 200)
+	if users := decodeResponse[struct{ Users []managedMember }](t, r).Users; len(users) != 1 || !users[0].Permission.Enabled || users[0].Permission.MaxFiles != 1 {
+		t.Fatalf("unexpected permissions: %+v", users)
+	}
+	status(t, actor("member", "POST", memberUploadPath, "account:read", file), 403)
+	status(t, actor("member", "POST", memberUploadPath, inboxWriteScope, `{"name":"oversize.txt","size":11}`), 413)
+	r = actor("member", "POST", memberUploadPath, inboxWriteScope, file)
+	status(t, r, 201)
+	task := decodeResponse[Upload](t, r)
+	status(t, actor("member", "PUT", memberUploadPath+"/"+task.ID, inboxWriteScope, "data"), 201)
+	status(t, actor("member", "POST", memberUploadPath, inboxWriteScope, file), 409)
+	if _, err := f.s.Store.DB.Exec("UPDATE uploads SET created_at=created_at-86400 WHERE id=?", task.ID); err != nil {
+		t.Fatal(err)
+	}
+	r = actor("member", "POST", memberUploadPath, inboxWriteScope, file)
+	status(t, r, 201)
+	pending := decodeResponse[Upload](t, r)
+	status(t, f.admin(t, "PUT", edit, usersWriteScope, disable), 204)
+	status(t, actor("member", "PUT", memberUploadPath+"/"+pending.ID, inboxWriteScope, "data"), 403)
+	status(t, f.admin(t, "PUT", edit, usersWriteScope, enable), 204)
+	status(t, actor("member", "PUT", memberUploadPath+"/"+pending.ID, inboxWriteScope, "data"), 409)
+
+	inbox := adminPath + "/inbox"
+	r = f.admin(t, "GET", inbox+"?source=mine", inboxReadScope, "")
+	status(t, r, 200)
+	if files := decodeResponse[struct{ Uploads []inboxFile }](t, r).Uploads; len(files) != 1 || files[0].ID != task.ID || !files[0].Direct {
+		t.Fatalf("recipient inbox: %+v", files)
+	}
+	r = actor("other", "GET", inbox, inboxReadScope, "")
+	status(t, r, 200)
+	if files := decodeResponse[struct{ Uploads []inboxFile }](t, r).Uploads; len(files) != 0 {
+		t.Fatal("another administrator saw member deposits")
+	}
+	status(t, actor("other", "GET", inbox+"/"+task.ID+"/thumbnail", inboxReadScope, ""), 404)
+	status(t, actor("member", "GET", inbox+"/"+task.ID+"/download", inboxReadScope, ""), 403)
+	r = f.admin(t, "GET", inbox+"/"+task.ID+"/download", inboxReadScope, "")
+	status(t, r, 200)
+	if body := read(t, r); body != "data" {
+		t.Fatalf("recipient download: %q", body)
 	}
 }

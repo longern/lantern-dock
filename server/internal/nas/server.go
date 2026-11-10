@@ -222,6 +222,8 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.serveCapabilities(w, r)
 	case r.URL.Path == adminPath || strings.HasPrefix(r.URL.Path, adminPath+"/"):
 		s.serveAdmin(w, r)
+	case r.URL.Path == memberUploadPath || strings.HasPrefix(r.URL.Path, memberUploadPath+"/"):
+		s.serveMemberUploads(w, r)
 	case r.URL.Path == accountPath || strings.HasPrefix(r.URL.Path, accountPath+"/"):
 		s.serveAccount(w, r)
 	case r.URL.Path == "/healthz" && (r.Method == "GET" || r.Method == "HEAD"):
@@ -252,11 +254,15 @@ func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
-	id := strings.TrimPrefix(r.URL.Path, inboxPath)
-	if id == "" || id == "/" {
+	id := strings.TrimPrefix(strings.TrimPrefix(r.URL.Path, inboxPath), "/")
+	s.serveUploadTask(w, r, l, id)
+}
+
+func (s *Server) serveUploadTask(w http.ResponseWriter, r *http.Request, l Link, id string) {
+	if id == "" {
 		switch r.Method {
 		case "GET":
-			if err = s.Store.Usage(r.Context(), &l); err != nil {
+			if err := s.Store.Usage(r.Context(), &l); err != nil {
 				writeError(w, r, err)
 				return
 			}
@@ -269,11 +275,11 @@ func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 			}
 			decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 4096))
 			decoder.DisallowUnknownFields()
-			if err = decoder.Decode(&input); err != nil || input.Size == nil {
+			if err := decoder.Decode(&input); err != nil || input.Size == nil {
 				writeError(w, r, fault(400, "INVALID_FILE", "errors.fileDetailsRequired"))
 				return
 			}
-			if err = decoder.Decode(new(any)); err != io.EOF {
+			if err := decoder.Decode(new(any)); err != io.EOF {
 				writeError(w, r, fault(400, "INVALID_FILE", "errors.singleJsonObjectRequired"))
 				return
 			}
@@ -289,8 +295,7 @@ func (s *Server) serveUploads(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	id = strings.TrimPrefix(id, "/")
-	if len(id) != 32 || strings.Trim(id, "0123456789abcdef") != "" {
+	if !validID(id) {
 		writeError(w, r, fault(404, "UPLOAD_NOT_FOUND", "errors.uploadNotFound"))
 		return
 	}
