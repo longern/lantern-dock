@@ -12,7 +12,6 @@ const base = {
   endpoint: "https://files.example.com",
   rootPath: "/dav/",
   auth: "none",
-  gatewayAuth: false,
   certificateMode: "pinned",
 };
 
@@ -72,20 +71,17 @@ test("setup validates addresses and paths before offering configuration", () => 
   );
 });
 
-test("WebTransport setup includes gateway and certificate choices only when relevant", () => {
+test("WebTransport setup exports certificate mode when overridden", () => {
   const vars = setupVariables({
     ...base,
     transport: "webtransport",
     endpoint: "https://bridge.example.com:4433/webtransport",
-    gatewayAuth: true,
     certificateMode: "webpki",
   });
-  assert.equal(vars.GATEWAY_AUTH, undefined);
-  assert.equal(vars.CERTIFICATE_MODE, "webpki");
-  assert.equal(
-    setupVariables({ ...base, gatewayAuth: true }).GATEWAY_AUTH,
-    undefined,
-  );
+  assert.deepEqual(vars, {
+    WEBTRANSPORT_URL: "https://bridge.example.com:4433/webtransport",
+    CERTIFICATE_MODE: "webpki",
+  });
   assert.equal(setupVariables(base).CERTIFICATE_MODE, undefined);
 });
 
@@ -130,7 +126,6 @@ test("explicit resets clear the other URL and old overrides when applying genera
     BACKEND_ROOT: "/old/",
     BACKEND_AUTH: "bearer",
     BACKEND_NAME: "Old name",
-    GATEWAY_AUTH: "false",
   };
   const vars = setupVariables(
     { ...base, rootPath: "", endpoint: "https://files.example.com/public/" },
@@ -152,7 +147,6 @@ test("default WebTransport paths need no root variable and preserve explicit roo
     transport: "webtransport",
     endpoint: "https://bridge.example.com/webtransport",
     rootPath: "",
-    gatewayAuth: true,
   });
   assert.deepEqual(vars, {
     WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
@@ -161,11 +155,6 @@ test("default WebTransport paths need no root variable and preserve explicit roo
     setupVariables({ ...base, transport: "webtransport", rootPath: "/" })
       .BACKEND_ROOT,
     "/",
-  );
-  assert.equal(
-    setupVariables({ ...base, transport: "webtransport", gatewayAuth: false })
-      .GATEWAY_AUTH,
-    "false",
   );
 });
 

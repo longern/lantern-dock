@@ -70,25 +70,8 @@
 }
 .sidebar-bottom {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
   border-top: 1px solid var(--line);
   padding: 12px 8px 0;
-}
-.sidebar-settings {
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  min-height: 40px;
-  padding: 8px 12px;
-  border-radius: var(--radius-control);
-  color: #626779;
-  font-size: 13px;
-}
-@media (hover: hover) {
-  .sidebar-settings:hover {
-    background: #ededf5;
-  }
 }
 .mini-chip {
   font-size: 11px;

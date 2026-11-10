@@ -28,9 +28,10 @@ export function pinOptions(certificates) {
   }));
 }
 export class DirectTransport {
-  constructor(config, credentials = {}) {
+  constructor(config, credentials = {}, { onGatewayChallenge } = {}) {
     this.config = config;
     this.credentials = credentials;
+    this.onGatewayChallenge = onGatewayChallenge;
     this.session = null;
     this.pending = null;
     this.connecting = null;
@@ -155,7 +156,7 @@ export class DirectTransport {
               : new TextEncoder().encode(String(body));
       const length = blob ? blob.size : bytes.length;
       // Insert this after Headers construction, never through a guarded browser Request.
-      if (this.config.gatewayAuth && this.credentials.gatewayToken)
+      if (this.credentials.gatewayToken)
         outgoing.set(
           "Proxy-Authorization",
           "Bearer " + this.credentials.gatewayToken,
@@ -218,6 +219,7 @@ export class DirectTransport {
         await response.body?.cancel(sendError);
         throw sendError;
       }
+      if (response.status === 407) this.onGatewayChallenge?.();
       return response;
     } catch (error) {
       signal?.removeEventListener("abort", abort);

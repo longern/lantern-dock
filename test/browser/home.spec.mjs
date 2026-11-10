@@ -410,15 +410,33 @@ test("mobile headers keep page titles and listing actions without a navigation d
   }
 });
 
-test("desktop account remains keyboard reachable from the sidebar", async ({
+test("desktop avatar opens a keyboard-accessible account and settings menu", async ({
   page,
 }) => {
   test.skip(isCompact(page), "Desktop sidebar account entry");
-  const account = page
+  const trigger = page
     .locator("#sidebar")
-    .getByRole("link", { name: "我的账户", exact: true });
-  await expect(account).toBeVisible();
-  await account.focus();
+    .getByRole("button", { name: "我的账户", exact: true });
+  const menu = page.getByRole("menu", { name: "我的账户", exact: true });
+  const account = menu.getByRole("menuitem", {
+    name: "我的账户",
+    exact: true,
+  });
+  const settings = menu.getByRole("menuitem", {
+    name: "连接设置",
+    exact: true,
+  });
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  await expect(menu).toBeVisible();
+  await expect(menu).toHaveAttribute("data-placement", "top");
+  await expect(account).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(settings).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(account).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/account$/);

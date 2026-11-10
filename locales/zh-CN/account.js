@@ -108,7 +108,6 @@ export default {
   gatewayCertificate: "网关证书",
   pinnedCertificate: "短期证书 + 自动更新",
   trustedCertificate: "公开受信任的 HTTPS 证书",
-  gatewayRequiresToken: "网关要求访问令牌",
   credentialsHelp: "账号和访问令牌在连接时填写。",
   generateConfiguration: "生成配置",
   configurationCopied: "已复制配置。",

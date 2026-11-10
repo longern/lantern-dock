@@ -58,6 +58,8 @@ test("real bridge distinguishes gateway 407 and backend 401, then browses, previ
 }, testInfo) => {
   await page.goto(fixture.origin);
   await expect(page.getByRole("alert")).toContainText("网关需要认证");
+  await login(page, "invalid-gateway-token");
+  await expect(page.getByRole("alert")).toContainText("网关需要认证");
   await login(page, gatewayToken, "invalid-backend-token");
   await expect(page.getByRole("alert")).toContainText("后端需要登录");
   await login(page);

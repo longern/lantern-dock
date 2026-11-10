@@ -21,6 +21,7 @@ export function useLibrary() {
   const previousCredentials = useRef(credentials);
   const [revision, setRevision] = useState(0);
   const [connection, setConnection] = useState(null);
+  const [challengedBackend, setChallengedBackend] = useState(null);
   const [connecting, setConnecting] = useState(true);
   const [configError, setConfigError] = useState(null);
   const [setup, setSetup] = useState(null);
@@ -66,7 +67,11 @@ export function useLibrary() {
       transport =
         backend.transport === "demo"
           ? null
-          : new DirectTransport(backend, credentials);
+          : new DirectTransport(backend, credentials, {
+              onGatewayChallenge: () => {
+                if (!controller.signal.aborted) setChallengedBackend(backend);
+              },
+            });
       client = transport ? new DAVClient(transport, backend) : new DemoClient();
       setConnection({ backend, client, transport });
     };
@@ -84,7 +89,6 @@ export function useLibrary() {
             endpoint: "",
             rootPath: "/",
             auth: "none",
-            gatewayAuth: false,
             certificates: [],
           });
           return;
@@ -205,6 +209,7 @@ export function useLibrary() {
     connection,
     album,
     backend,
+    gatewayTokenRequired: !!backend && challengedBackend === backend,
     credentials,
     setCredentials,
     key,

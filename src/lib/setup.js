@@ -61,11 +61,6 @@ export function setupVariables(form, resetVariables = []) {
   optional("BACKEND_AUTH", form.auth, defaults.auth);
   if (form.transport === "webtransport") {
     optional("BACKEND_ROOT", root, defaults.rootPath);
-    optional(
-      "GATEWAY_AUTH",
-      String(!!form.gatewayAuth),
-      String(defaults.gatewayAuth),
-    );
   } else if (root === "/") {
     // A bare origin uses /dav/ by default; preserve an explicit third-party root.
     vars.BACKEND_ROOT = "/";

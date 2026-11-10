@@ -405,7 +405,6 @@ test("missing certificate guidance retains the WebTransport settings", async ({
     BACKEND_TRANSPORT: "webtransport",
     BACKEND_ENDPOINT: "https://bridge.example.com:4433/webtransport",
     BACKEND_ROOT: "/public/",
-    GATEWAY_AUTH: "true",
   });
   await page.goto("/");
   await expect(
@@ -436,7 +435,7 @@ test("missing certificate guidance retains the WebTransport settings", async ({
     page.getByLabel("WebTransport 网关地址", { exact: true }),
   ).toHaveValue("https://bridge.example.com:4433/webtransport");
   await page.getByText("高级设置", { exact: true }).click();
-  await expect(page.getByLabel("网关要求访问令牌")).toBeChecked();
+  await expect(page.getByLabel("网关要求访问令牌")).toHaveCount(0);
   await generate(page);
   await expect(page.locator(".setup-checklist")).toContainText(
     "CERTIFICATES_JSON",

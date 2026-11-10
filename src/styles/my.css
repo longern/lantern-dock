@@ -112,17 +112,12 @@
   font-size: 22px;
   font-weight: 650;
 }
-/* Each identity is one control, without an avatar or control fill. */
 .my-identity-control {
-  width: fit-content;
-  max-width: 100%;
+  width: 100%;
   min-height: 60px;
   padding: 0;
   text-align: left;
   border-radius: var(--radius-control);
-}
-.my-identity-control .my-account-symbol {
-  background: none;
 }
 .my-guest-title {
   font-size: 19px;

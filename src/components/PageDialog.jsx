@@ -11,6 +11,7 @@ export function PageDialog({
   backLabel,
   open,
   animateEntry = true,
+  focusHeader = false,
   onClose,
   onExited,
   fallbackFocus,
@@ -30,7 +31,11 @@ export function PageDialog({
       fallbackFocus={fallbackFocus}
       aria-labelledby={titleId}
     >
-      <header class={`page-dialog-header ${headerClassName}`}>
+      <header
+        class={`page-dialog-header ${headerClassName}`}
+        tabIndex={focusHeader ? -1 : undefined}
+        autofocus={focusHeader}
+      >
         <button
           id={backId}
           class="icon-button edge-start"

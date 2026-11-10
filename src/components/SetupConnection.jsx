@@ -120,16 +120,6 @@ export function SetupConnection({ wizard }) {
               <option value="pinned">{t("account.pinnedCertificate")}</option>
               <option value="webpki">{t("account.trustedCertificate")}</option>
             </select>
-            <label class="setup-checkbox">
-              <input
-                type="checkbox"
-                checked={form.gatewayAuth}
-                onChange={(event) =>
-                  update("gatewayAuth", event.currentTarget.checked)
-                }
-              />
-              {t("account.gatewayRequiresToken")}
-            </label>
           </>
         )}
         <p class="field-note">{t("account.credentialsHelp")}</p>

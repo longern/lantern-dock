@@ -98,7 +98,7 @@ for (const language of ["zh-CN", "en"]) {
     });
     const copy = copyByLanguage[language];
 
-    test("icon and guest text form one backgroundless button, and opening never starts login", async ({
+    test("icon and guest text form one button, and opening never starts login", async ({
       page,
     }) => {
       let logins = 0;
@@ -118,7 +118,7 @@ for (const language of ["zh-CN", "en"]) {
       await expect(trigger).toHaveCSS("border-top-width", "0px");
       await expect(trigger).toHaveCSS("box-shadow", "none");
       const icon = trigger.locator(".my-account-symbol");
-      await expect(icon).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+      await expect(icon).toHaveCSS("background-color", "rgb(239, 237, 252)");
       await expect(icon.locator("svg")).toHaveCount(1);
       await expect(page.locator("#my-account-link")).toHaveCount(0);
       await expect(page.locator("#my-account").getByRole("button")).toHaveCount(
@@ -145,6 +145,11 @@ for (const language of ["zh-CN", "en"]) {
       await page.keyboard.press("Escape");
       await expect(dialog).toHaveCount(0);
       await trigger.getByText(copy.guest, { exact: true }).click();
+      await expect(dialog).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(dialog).toHaveCount(0);
+      const { width } = await page.locator("#my-account").boundingBox();
+      await trigger.click({ position: { x: width - 16, y: size.height / 2 } });
       await expect(dialog).toBeVisible();
       expect(logins).toBe(0);
     });

@@ -385,6 +385,7 @@ test("zoom originals have a separate disk budget and the same logout fence", asy
 
 test("public zoom originals revalidate after reload, respect freshness and evict on no-store or denial", async (t) => {
   const f = storageFixture();
+  f.transport.config.gatewayAuth = true; // An older Worker may still send this hint.
   const item = { path: "/dav/photo.jpg", etag: '"source"', size: 4 };
   let now = 1000;
   t.mock.method(Date, "now", () => now);
@@ -444,8 +445,8 @@ test("public zoom originals revalidate after reload, respect freshness and evict
   control = "private, no-cache";
   await get(make());
   assert.equal(log.at(-1).status, 200);
-  denial = 403;
-  await assert.rejects(get(make()), (error) => error.status === 403);
+  denial = 407;
+  await assert.rejects(get(make()), (error) => error.status === 407);
   assert.equal(
     await f.makeOriginal().get(item.path, item.etag, originalImageAccept, 10),
     null,

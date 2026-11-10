@@ -57,7 +57,6 @@ function setupConfiguration(env, reason, t) {
         ...(env.BACKEND_NAME ? ["BACKEND_NAME"] : []),
         ...Object.entries({
           BACKEND_AUTH: defaults.auth,
-          GATEWAY_AUTH: String(defaults.gatewayAuth),
           CERTIFICATE_MODE: defaults.certificateMode,
         })
           .filter(([key, value]) => env[key] && env[key] !== value)
@@ -74,7 +73,6 @@ function setupConfiguration(env, reason, t) {
         auth: ["basic", "bearer"].includes(env.BACKEND_AUTH)
           ? env.BACKEND_AUTH
           : "none",
-        gatewayAuth: env.GATEWAY_AUTH !== "false",
         certificateMode:
           env.CERTIFICATE_MODE === "webpki" ? "webpki" : "pinned",
       },
@@ -130,7 +128,6 @@ export async function configuration(env, t = createTranslator("en")) {
         endpoint: "",
         rootPath: "/",
         auth: "none",
-        gatewayAuth: false,
         certificates: [],
       },
     };
@@ -207,7 +204,6 @@ export async function configuration(env, t = createTranslator("en")) {
       endpoint: transport === "http" ? endpoint.origin : endpoint.href,
       rootPath: root.endsWith("/") ? root : root + "/",
       auth,
-      gatewayAuth: transport === "webtransport" && env.GATEWAY_AUTH !== "false",
       certificates,
     },
   };

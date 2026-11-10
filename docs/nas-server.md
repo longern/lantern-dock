@@ -64,11 +64,7 @@ The bridge listens on **4433/udp** (`BRIDGE_PORT` optionally changes the host po
 
 If you keep an existing bridge container instead, attach it and the NAS service to the same Docker network and update those arguments. Preserve the bridge's existing certificate volume, certificate flags and frontend origin. Do not start a second bridge on an occupied host UDP port. Changing to a new bridge certificate volume requires that instance to publish its new hashes before clients connect.
 
-Keep the existing Worker `WEBTRANSPORT_URL`. The file root now defaults to `/dav/`, so a new deployment only needs this override for the public bridge:
-
-```dotenv
-GATEWAY_AUTH="false"
-```
+Keep the existing Worker `WEBTRANSPORT_URL`. The file root defaults to `/dav/`. LanternDock detects bridge authentication from the bridge's response.
 
 An explicit existing `BACKEND_ROOT` remains authoritative. Clear an old override or set it to `/dav/` if it points elsewhere; keep `BACKEND_AUTH` unset or `none` for anonymous browsing. File drops, account checks and capability metadata use fixed paths under `/api`, independently of the file root. See the [service path contract](backend-protocol.md).
 

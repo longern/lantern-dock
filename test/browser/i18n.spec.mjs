@@ -99,7 +99,6 @@ function backend(origin, transport = "demo") {
     endpoint: transport === "demo" ? "" : origin,
     rootPath: transport === "demo" ? "/" : "/dav/",
     auth: "none",
-    gatewayAuth: false,
     certificates: [],
   };
 }
@@ -296,14 +295,20 @@ for (const locale of ["en-US", "zh-CN"]) {
       await page.goto("/");
       await expect(page.locator(".file-item")).toHaveCount(12);
       const mobile = isCompact(page);
+      const trigger = page.locator(
+        mobile ? "#my-settings" : "#account-menu-trigger",
+      );
       for (const dismiss of ["button", "escape"]) {
-        if (mobile)
+        if (mobile) {
           await mainNavigation(page, copy)
             .getByRole("button", { name: copy.me, exact: true })
             .click();
-        await page
-          .locator(mobile ? "#my-settings" : "#connection-settings")
-          .click();
+        }
+        await trigger.click();
+        if (!mobile)
+          await page
+            .getByRole("menuitem", { name: copy.settings, exact: true })
+            .click();
         const dialog = page.getByRole("dialog", {
           name: copy.settings,
           exact: true,
@@ -325,9 +330,7 @@ for (const locale of ["en-US", "zh-CN"]) {
             .click();
         else await page.keyboard.press("Escape");
         await expect(dialog).toHaveCount(0);
-        await expect(
-          page.locator(mobile ? "#my-settings" : "#connection-settings"),
-        ).toBeFocused();
+        await expect(trigger).toBeFocused();
       }
     });
   });

@@ -240,7 +240,6 @@ export async function startFixture({ nas = false, identity = false } = {}) {
       BACKEND_ENDPOINT: endpoint,
       BACKEND_ROOT: "/public/",
       BACKEND_AUTH: "bearer",
-      GATEWAY_AUTH: "true",
       SECRET_KEY: masterKey,
       KV: {
         async get(key) {
@@ -430,7 +429,6 @@ export async function startFixture({ nas = false, identity = false } = {}) {
       backendEndpoint = `http://${address}`;
       delete env.BACKEND_ROOT;
       env.BACKEND_AUTH = "none";
-      env.GATEWAY_AUTH = "false";
       nasFixture = {
         endpoint: backendEndpoint,
         dataDir,

@@ -230,7 +230,7 @@ for (const language of ["zh-CN", "en"]) {
       expect(avatarRequests).toEqual([]);
     });
 
-    test("signed-in avatar and identity form one backgroundless account link", async ({
+    test("signed-in avatar and identity form one account link", async ({
       page,
     }) => {
       let logins = 0;
@@ -262,9 +262,10 @@ for (const language of ["zh-CN", "en"]) {
       await expect(trigger).toHaveCSS("border-top-width", "0px");
       await expect(trigger).toHaveCSS("box-shadow", "none");
       const icon = trigger.locator(".my-account-symbol");
-      await expect(icon).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+      await expect(icon).toHaveCSS("background-color", "rgb(239, 237, 252)");
       await expect(icon.locator("svg")).toHaveCount(1);
-      expect((await trigger.boundingBox()).height).toBeGreaterThanOrEqual(44);
+      const { height } = await trigger.boundingBox();
+      expect(height).toBeGreaterThanOrEqual(44);
       for (const activation of ["avatar", "name", "keyboard"]) {
         if (activation === "avatar") await icon.click();
         else if (activation === "name")
@@ -289,8 +290,9 @@ for (const language of ["zh-CN", "en"]) {
         await expect(page).toHaveURL(/\/me$/);
         await expect(trigger).toBeVisible();
       }
-      // Native page navigation still supports browser Back and Forward.
-      await trigger.click();
+      // The trailing space opens the account and supports native history.
+      const { width } = await account.boundingBox();
+      await trigger.click({ position: { x: width - 16, y: height / 2 } });
       await expect(page).toHaveURL(/\/account\?return=(?:%2F|\/)me$/);
       await page.goBack();
       await expect(trigger).toBeVisible();
@@ -558,8 +560,8 @@ test("resizing My to desktop returns to the desktop library without stranding fo
     page.getByRole("dialog", { name: "连接设置", exact: true }),
   ).toHaveCount(0);
   await expect(page).toHaveURL(/\/$/);
-  await expect(page.locator("#connection-settings")).toBeVisible();
-  await expect(page.locator("#connection-settings")).toBeFocused();
+  await expect(page.locator("#account-menu-trigger")).toBeVisible();
+  await expect(page.locator("#account-menu-trigger")).toBeFocused();
   await expect(page.locator("#my-page")).toHaveCount(0);
   await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
   await expect(

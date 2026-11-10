@@ -34,7 +34,6 @@ async function install(page, root = "/dav/") {
           endpoint: "http://127.0.0.1:8788",
           rootPath: root,
           auth: "none",
-          gatewayAuth: false,
           certificates: [],
         },
       },

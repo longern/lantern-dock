@@ -55,7 +55,6 @@ Downloads are named `lantern-dock.env` so browsers do not rename a hidden `.env`
 | `BACKEND_NAME`      | `我的文件`                                | Resource name shown in the interface.                                                                                         |
 | `BACKEND_ROOT`      | URL mount path, otherwise `/dav/`         | Optional file-root override. Applies to both transports; use `/` explicitly for a third-party DAV service at the origin root. |
 | `BACKEND_AUTH`      | `none`                                    | Optional login-form preset: `none`, `basic`, or `bearer`. The backend enforces authentication.                                |
-| `GATEWAY_AUTH`      | `true` for WebTransport                   | Show a separate bridge-token field. Set `false` to hide it for a public bridge. Ignored for direct WebDAV.                    |
 | `CERTIFICATE_MODE`  | `pinned`                                  | Certificate hashes by default; use `webpki` for a publicly trusted gateway certificate.                                       |
 | `CERTIFICATES_JSON` | Unset                                     | Local certificate document when no `KV` binding is available.                                                                 |
 | `DEMO_MODE`         | `false`                                   | Set `true` for a site-wide sample-only experience. Otherwise, an unconfigured site opens the wizard.                          |
@@ -102,7 +101,7 @@ BACKEND_ROOT="/public/"
 
 The endpoint is the complete WebTransport session URL. Configure the bridge to permit the frontend origin and `GET`, `HEAD`, and **`PROPFIND`**. Restrict its allowed paths and backend permissions to the intended resources. WebTransport requires a compatible browser, a secure frontend context, and network reachability to the bridge's UDP port.
 
-The bridge-token field is shown by default. Visitors enter a bridge token separately from their backend credentials. Set `GATEWAY_AUTH="false"` to hide that field for a public bridge. The bridge must consume `Proxy-Authorization`; the backend's `Authorization` stays intact. This header is encoded inside the WebTransport stream, not sent through browser Fetch.
+LanternDock shows the bridge-token field in Connection settings after the bridge responds with `407 Proxy Authentication Required`. The token is sent as `Proxy-Authorization` inside the WebTransport stream. Backend credentials use the separate `Authorization` header. The legacy Worker variable `GATEWAY_AUTH` can be removed.
 
 For a publicly trusted gateway certificate, set `CERTIFICATE_MODE="webpki"` to use browser certificate validation without pins. Otherwise configure the pinned-certificate flow below. There is no automatic fallback from WebTransport to HTTPS.
 

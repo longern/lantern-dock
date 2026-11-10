@@ -6,6 +6,7 @@ import { useCompactLayout } from "../hooks/useMediaQuery.js";
 
 export function ConnectionDialog({
   backend,
+  gatewayTokenRequired,
   credentials,
   onConnect,
   onForget,
@@ -44,7 +45,7 @@ export function ConnectionDialog({
       onExited={onExited}
       fallbackFocus={
         !mobile
-          ? "#connection-settings"
+          ? "#account-menu-trigger"
           : fallbackFocus || ".mobile-tabs button:last-child"
       }
       class="settings-dialog"
@@ -108,7 +109,8 @@ export function ConnectionDialog({
           </>
         )}
         {form.mode === "bearer" && input("bearer", t("library.accessToken"))}
-        {backend?.gatewayAuth &&
+        {backend?.transport === "webtransport" &&
+          (gatewayTokenRequired || credentials.gatewayToken) &&
           input("gatewayToken", t("library.gatewayToken"))}
         <p class="field-note">{t("library.credentialsNote")}</p>
         <details class="connection-help">

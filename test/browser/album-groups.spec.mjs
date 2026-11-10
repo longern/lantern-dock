@@ -90,7 +90,6 @@ test.beforeEach(async ({ page }) => {
           endpoint: "http://127.0.0.1:8788",
           rootPath: "/dav/",
           auth: "none",
-          gatewayAuth: false,
           certificates: [],
         },
       },

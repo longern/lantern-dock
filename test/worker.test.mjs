@@ -159,24 +159,17 @@ test("URL variables select the transport and retain legacy settings", async () =
   );
   const legacy = (await configuration(base)).backend;
   assert.equal(legacy.rootPath, "/dav/");
-  const bridge = (
-    await configuration({
-      WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
-      KV: { get: async () => ({ version: 1, certificates: [pin] }) },
-    })
-  ).backend;
+  const bridgeEnv = {
+    WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
+    KV: { get: async () => ({ version: 1, certificates: [pin] }) },
+  };
+  const { backend: bridge } = await configuration(bridgeEnv);
   assert.equal(bridge.transport, "webtransport");
   assert.equal(bridge.rootPath, "/dav/");
-  assert.equal(bridge.gatewayAuth, true);
-  assert.equal(
-    (
-      await configuration({
-        WEBTRANSPORT_URL: "https://bridge.example.com/webtransport",
-        GATEWAY_AUTH: "false",
-        CERTIFICATE_MODE: "webpki",
-      })
-    ).backend.gatewayAuth,
-    false,
+  assert.equal("gatewayAuth" in bridge, false);
+  assert.deepEqual(
+    (await configuration({ ...bridgeEnv, GATEWAY_AUTH: "false" })).backend,
+    bridge,
   );
   assert.equal(
     (
@@ -293,14 +286,13 @@ test("configuration mistakes and missing pins provide safe setup defaults", asyn
       ...base,
       BACKEND_TRANSPORT: "webtransport",
       BACKEND_ENDPOINT: "https://bridge.example.com:4433/webtransport",
-      GATEWAY_AUTH: "true",
     },
   );
   const pins = await missing.json();
   assert.equal(missing.status, 200);
   assert.equal(pins.setup.reason, "missing-certificates");
   assert.equal(pins.setup.backend.transport, "webtransport");
-  assert.equal(pins.setup.backend.gatewayAuth, true);
+  assert.equal("gatewayAuth" in pins.setup.backend, false);
 });
 
 test("storage outages remain errors and the public config endpoint cannot write settings", async () => {

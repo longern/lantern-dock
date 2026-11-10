@@ -5,7 +5,6 @@ export const backendDefaults = Object.freeze({
   transport: "http",
   rootPath: backendPaths.files,
   auth: "none",
-  gatewayAuth: true,
   certificateMode: "pinned",
 });
 

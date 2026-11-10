@@ -45,7 +45,6 @@ function anonymous(transport) {
       !endpoint.username &&
       !endpoint.password &&
       config.auth === "none" &&
-      !config.gatewayAuth &&
       (transport.credentials?.mode || "none") === "none" &&
       !transport.credentials?.gatewayToken
     );

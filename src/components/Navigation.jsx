@@ -2,6 +2,7 @@ import { flushSync } from "preact/compat";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { t } from "../../shared/i18n.js";
 import { Icon } from "./Icon.jsx";
+import { Menu } from "./Menu.jsx";
 import { useCompactLayout } from "../hooks/useMediaQuery.js";
 import { accountHref } from "../../shared/routes.js";
 
@@ -67,22 +68,28 @@ export function Sidebar({ library, onSettings }) {
       </nav>
       <div class="sidebar-spacer" />
       <div class="sidebar-bottom">
-        <a
-          class="icon-button"
-          href={accountHref(location.pathname + location.search)}
-          aria-label={t("library.myAccount")}
-        >
-          <Icon name="user" />
-        </a>
-        <button
-          id="connection-settings"
-          class="sidebar-settings"
-          aria-label={t("library.connectionSettings")}
-          onClick={onSettings}
-        >
-          <Icon name="settings" />
-          <span>{t("library.connectionSettings")}</span>
-        </button>
+        <Menu
+          triggerId="account-menu-trigger"
+          triggerIcon="user"
+          label={t("library.myAccount")}
+          actions={[
+            {
+              key: "account",
+              icon: "user",
+              label: t("library.myAccount"),
+              onSelect: () =>
+                location.assign(
+                  accountHref(location.pathname + location.search),
+                ),
+            },
+            {
+              key: "settings",
+              icon: "settings",
+              label: t("library.connectionSettings"),
+              onSelect: onSettings,
+            },
+          ]}
+        />
       </div>
     </>
   );

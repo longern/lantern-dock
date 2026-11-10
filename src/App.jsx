@@ -388,12 +388,19 @@ function LibraryApp() {
     source.error,
     source.entries,
   ]);
-  const finishPreview = () => {
+  const finishPreview = ({ restoreFocus }) => {
     const path = selected?.path;
     setRecentSnapshot(null);
     setSelected(null);
     setGallery(null);
+    if (!restoreFocus) return;
+    const active = document.activeElement;
     requestAnimationFrame(() => {
+      if (
+        document.activeElement !== active &&
+        document.activeElement !== document.body
+      )
+        return;
       const scope =
         [...document.querySelectorAll("dialog:modal")].at(-1) || document;
       (
@@ -709,6 +716,7 @@ function LibraryApp() {
           backLabel={t("library.backToHome")}
           open={albumOpen}
           animateEntry={!router.initial}
+          focusHeader
           onClose={navigation.closeAlbum}
           onExited={() => setAlbumMounted(false)}
           fallbackFocus=".category-album"
@@ -811,6 +819,7 @@ function LibraryApp() {
           }
           onExited={() => setSettings(null)}
           backend={library.backend}
+          gatewayTokenRequired={library.gatewayTokenRequired}
           credentials={library.credentials}
           onConnect={connect}
           onForget={() => {

@@ -37,7 +37,6 @@ for (const service of ["unavailable", "unsupported", "broken-image"]) {
             endpoint: "http://127.0.0.1:8788",
             rootPath: "/dav/",
             auth: "none",
-            gatewayAuth: false,
             certificates: [],
           },
         },

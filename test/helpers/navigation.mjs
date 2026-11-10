@@ -72,9 +72,7 @@ export const connectionSettingsReturnTarget = (page) =>
           ? "#my-settings"
           : ".mobile-tabs button:last-child",
       )
-    : page
-        .locator("#sidebar")
-        .getByRole("button", { name: "连接设置", exact: true });
+    : page.locator("#account-menu-trigger");
 
 export async function openConnectionSettings(page) {
   if (isCompact(page)) {
@@ -82,7 +80,10 @@ export async function openConnectionSettings(page) {
       .getByRole("button", { name: "我的", exact: true })
       .click();
     await page.locator("#my-settings").click();
-  } else await page.locator("#connection-settings").click();
+  } else {
+    await page.locator("#account-menu-trigger").click();
+    await page.getByRole("menuitem", { name: "连接设置", exact: true }).click();
+  }
   await expect(
     page.getByRole("dialog", { name: "连接设置", exact: true }),
   ).toBeVisible();

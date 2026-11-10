@@ -120,7 +120,6 @@ export default {
   gatewayCertificate: "Gateway certificate",
   pinnedCertificate: "Short-lived certificate + automatic renewal",
   trustedCertificate: "Publicly trusted HTTPS certificate",
-  gatewayRequiresToken: "Gateway requires an access token",
   credentialsHelp: "Enter your credentials and access tokens when connecting.",
   generateConfiguration: "Generate configuration",
   configurationCopied: "Copied configuration.",

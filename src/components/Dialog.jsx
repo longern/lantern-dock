@@ -60,10 +60,14 @@ export function Dialog({
     const timer = setTimeout(
       () => {
         if (callbacks.current.open) return;
+        const active = document.activeElement;
+        const restoreFocus =
+          modal || node.contains(active) || active === document.body;
         node.close();
         const trigger = returnFocus.current;
         const topModal = [...document.querySelectorAll("dialog:modal")].at(-1);
         const canFocus = (target) =>
+          restoreFocus &&
           target &&
           target !== document.body &&
           target !== document.documentElement &&
@@ -80,7 +84,7 @@ export function Dialog({
           if (canFocus(fallback)) fallback.focus({ preventScroll: true });
         }
         returnFocus.current = null;
-        callbacks.current.onExited?.();
+        callbacks.current.onExited?.({ restoreFocus });
       },
       duration ? duration + 20 : 0,
     );
