@@ -257,7 +257,7 @@ for (const language of ["zh-CN", "en"]) {
       await expect(account).not.toContainText(copy.signedIn);
       await expect(trigger).toHaveAttribute("id", "my-account-link");
       await expect(trigger).toHaveAttribute("href", "/account?return=/me");
-      await expect(trigger).not.toHaveAttribute("aria-haspopup", "dialog");
+      await expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
       await expect(trigger).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
       await expect(trigger).toHaveCSS("border-top-width", "0px");
       await expect(trigger).toHaveCSS("box-shadow", "none");
@@ -266,6 +266,7 @@ for (const language of ["zh-CN", "en"]) {
       await expect(icon.locator("svg")).toHaveCount(1);
       const { height } = await trigger.boundingBox();
       expect(height).toBeGreaterThanOrEqual(44);
+      const dialog = page.locator("#account-dialog");
       for (const activation of ["avatar", "name", "keyboard"]) {
         if (activation === "avatar") await icon.click();
         else if (activation === "name")
@@ -280,21 +281,34 @@ for (const language of ["zh-CN", "en"]) {
           await page.keyboard.press("Enter");
         }
         await expect(page).toHaveURL(/\/account\?return=(?:%2F|\/)me$/);
+        await expect(dialog).toHaveAttribute("data-entry", "animated");
+        await expect(dialog).toHaveCSS("animation-name", "page-dialog-in");
         await expect(
-          page
-            .locator(".account-page")
-            .getByRole("heading", { name: "Mina Chen", exact: true }),
+          dialog.getByRole("heading", { name: "Mina Chen", exact: true }),
         ).toBeVisible();
+        await expect(trigger).toBeAttached();
+        await trigger.evaluate((node) => node.focus());
+        expect(
+          await dialog.evaluate((node) =>
+            node.contains(document.activeElement),
+          ),
+        ).toBe(true);
         await expect(page.locator("#sign-in-dialog")).toHaveCount(0);
-        await page.getByRole("link", { name: copy.back, exact: true }).click();
+        if (activation === "keyboard") await page.keyboard.press("Escape");
+        else
+          await dialog
+            .getByRole("button", { name: copy.back, exact: true })
+            .click();
         await expect(page).toHaveURL(/\/me$/);
-        await expect(trigger).toBeVisible();
+        await expect(dialog).toHaveCount(0);
+        await expect(trigger).toBeFocused();
       }
       // The trailing space opens the account and supports native history.
       const { width } = await account.boundingBox();
       await trigger.click({ position: { x: width - 16, y: height / 2 } });
       await expect(page).toHaveURL(/\/account\?return=(?:%2F|\/)me$/);
       await page.goBack();
+      await expect(dialog).toHaveCount(0);
       await expect(trigger).toBeVisible();
       await page.goForward();
       await expect(page).toHaveURL(/\/account\?return=(?:%2F|\/)me$/);
@@ -616,7 +630,9 @@ test("signing out during a pending account check cannot resurrect the old identi
   await enterMyPage(page, "zh-CN");
   await page.locator("#my-account-link").click();
   await expect(
-    page.getByRole("heading", { name: "Previous account", exact: true }),
+    page
+      .locator("#account-dialog")
+      .getByRole("heading", { name: "Previous account", exact: true }),
   ).toBeVisible();
   await expect(page.getByText("正在检查账户…", { exact: true })).toBeVisible();
   await expect
@@ -639,7 +655,7 @@ test("signing out during a pending account check cannot resurrect the old identi
     "previous@example.test",
   );
   await expect(page.getByRole("alert")).toHaveCount(0);
-  await page.getByRole("link", { name: "返回我的", exact: true }).click();
+  await page.getByRole("button", { name: "返回我的", exact: true }).click();
   await expect(
     page
       .locator("#my-account")
@@ -675,7 +691,7 @@ test("logout completing after returning to My refreshes its real session", async
   try {
     await page.getByRole("button", { name: "退出登录", exact: true }).click();
     await expect.poll(() => logoutStarted).toBe(true);
-    await page.getByRole("link", { name: "返回我的", exact: true }).click();
+    await page.getByRole("button", { name: "返回我的", exact: true }).click();
     await expect(page.locator("#my-account")).toContainText(
       "Signing out account",
     );

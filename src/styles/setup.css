@@ -12,6 +12,7 @@
   font-weight: 700;
   letter-spacing: -0.6px;
   margin: 0 auto 24px;
+  overflow-wrap: anywhere;
 }
 .setup-brand .brand-symbol svg {
   width: 30px;

@@ -1,35 +1,136 @@
-.account-page .setup-card {
+.account-page {
+  min-height: 100svh;
+  background: var(--canvas);
+}
+.account-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding-top: env(safe-area-inset-top);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+}
+.account-page .account-dialog-header {
+  background: var(--surface);
+}
+.account-bar,
+.account-content {
   max-width: 620px;
+  margin: 0 auto;
+  padding-inline: 16px;
+}
+.account-bar {
+  display: grid;
+  grid-template-columns: var(--topbar-button-size) minmax(0, 1fr) var(
+      --topbar-button-size
+    );
+  align-items: center;
+  min-height: var(--topbar-height);
+}
+.account-bar .icon-button {
+  width: var(--topbar-button-size);
+  height: var(--topbar-button-size);
+}
+.account-bar h1 {
+  margin: 0;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+}
+.account-content {
+  display: grid;
+  gap: 16px;
+  padding-top: 20px;
+}
+.account-page:not(.page-dialog) .account-content {
+  padding-bottom: max(28px, env(safe-area-inset-bottom));
+}
+.account-profile {
+  padding-block: 12px 16px;
+}
+.account-content .my-list-button {
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 16px;
+}
+.account-content .my-list-icon {
+  color: var(--muted);
+}
+.account-content .my-list-icon svg {
+  width: 24px;
+  height: 24px;
 }
 .account-details {
-  margin: 24px 0;
+  margin: 0;
 }
 .account-details > div {
   display: grid;
-  grid-template-columns: 90px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: center;
   gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
+  min-height: 56px;
+  padding: 12px 16px;
 }
-.account-details dt {
-  color: var(--muted);
+.account-details dt,
+.account-details dd {
+  overflow-wrap: anywhere;
 }
 .account-details dd {
   margin: 0;
-  overflow-wrap: anywhere;
+  text-align: end;
+  color: var(--muted);
+}
+.account-advanced {
+  border-top: 1px solid var(--line);
+}
+.account-advanced summary::-webkit-details-marker {
+  display: none;
+}
+.account-advanced summary {
+  cursor: pointer;
+}
+.account-advanced[open] summary > svg:last-child {
+  transform: rotate(180deg);
+}
+.account-advanced .account-details,
+.account-identifier {
+  border-top: 1px solid var(--line);
+}
+.account-identifier {
+  padding: 12px 16px 16px;
+}
+.account-identifier .form-label {
+  margin: 0 0 6px;
 }
 .account-copy {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 .account-copy input {
   min-width: 0;
   flex: 1;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface-subtle);
+  color: inherit;
   font-family: ui-monospace, monospace;
 }
-.account-copy button {
-  flex-shrink: 0;
+.account-copy .icon-button {
+  width: 44px;
+  height: 44px;
+}
+.account-content .account-notice {
+  margin: 0;
+  padding: 16px;
+}
+.account-content .account-sign-out {
+  color: #a83636;
+}
+.account-content .account-sign-out .my-list-icon {
+  color: inherit;
 }
 .account-notice {
   margin: 24px 0;
@@ -64,44 +165,8 @@
   background: #fbf5f5;
   color: #964747;
 }
-.account-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 24px;
-  flex-wrap: wrap;
-}
-.account-actions .upload-back {
-  margin-top: 0;
-  margin-left: auto;
-}
 .account-feedback {
   color: var(--muted);
   font-size: 12px;
-  margin-top: 16px;
-}
-.account-advanced {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-control);
-  padding: 14px 16px;
-  margin: 20px 0;
-}
-.account-advanced summary {
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 13px;
-}
-.account-advanced .account-details {
-  margin: 12px 0;
-}
-@media (--down-sm) {
-  .account-page .setup-card {
-    padding: 24px 20px;
-  }
-  .account-copy {
-    flex-wrap: wrap;
-  }
-  .account-copy input {
-    flex-basis: 100%;
-  }
+  margin: 0;
 }

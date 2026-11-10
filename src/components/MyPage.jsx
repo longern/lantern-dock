@@ -53,6 +53,7 @@ export function MyPage({ active = true, onFavorites, onSettings }) {
             id="my-account-link"
             class="my-account-summary my-identity-control"
             href="/account?return=/me"
+            aria-haspopup="dialog"
           >
             <span class="my-account-symbol" aria-hidden="true">
               <Icon name="user" />

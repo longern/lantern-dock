@@ -46,9 +46,11 @@ test("a pending Worker check never blocks public files and survives My navigatio
   await expect(page.locator("#my-account")).toContainText("Shared account");
   await page.locator("#my-account-link").click();
   await expect(
-    page.getByRole("heading", { name: "Shared account", exact: true }),
+    page
+      .locator("#account-dialog")
+      .getByRole("heading", { name: "Shared account", exact: true }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "返回我的", exact: true }).click();
+  await page.getByRole("button", { name: "返回我的", exact: true }).click();
   await expect(page.locator("#my-account")).toContainText("Shared account");
   expect(checks).toBe(1);
 });

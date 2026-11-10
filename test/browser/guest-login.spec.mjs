@@ -426,11 +426,18 @@ test("the account return destination survives refresh without a session-storage 
     window.dispatchEvent(new PopStateEvent("popstate"));
   }, returnKey);
   await expect(
-    page.getByRole("heading", { name: "Signed-in visitor", exact: true }),
+    page
+      .locator("#account-dialog")
+      .getByRole("heading", { name: "Signed-in visitor", exact: true }),
   ).toBeVisible();
   await expect(page).toHaveURL(/\/account\?return=(?:%2F|\/)me$/);
   expect(await hint(page)).toBeNull();
-  await page.getByRole("link", { name: "返回我的", exact: true }).click();
+  await page.reload();
+  await expect(page.locator("#account-dialog")).toHaveAttribute(
+    "data-entry",
+    "instant",
+  );
+  await page.getByRole("button", { name: "返回我的", exact: true }).click();
   await expect(page).toHaveURL(/\/me$/);
   const account = page.locator("#my-account");
   await expect(
@@ -448,7 +455,9 @@ test("the account return destination survives refresh without a session-storage 
     .click();
   await expect(page).toHaveURL(/\/account\?return=(?:%2F|\/)me$/);
   await expect(
-    page.getByRole("heading", { name: "Signed-in visitor", exact: true }),
+    page
+      .locator("#account-dialog")
+      .getByRole("heading", { name: "Signed-in visitor", exact: true }),
   ).toBeVisible();
   await expect(page.locator("#sign-in-dialog")).toHaveCount(0);
 });

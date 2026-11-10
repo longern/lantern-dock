@@ -33,8 +33,13 @@ import { useLibrary } from "./hooks/useLibrary.js";
 import { useRecords } from "./hooks/useRecords.js";
 import { useDownload } from "./hooks/useDownload.js";
 import { useTransferPanel } from "./hooks/useTransferPanel.js";
-import { useRouter } from "./hooks/useRouter.jsx";
-import { albumHref, filesHref } from "../shared/routes.js";
+import { RouteScope, useRouter } from "./hooks/useRouter.jsx";
+import {
+  albumHref,
+  filesHref,
+  parseRoute,
+  safeReturnPath,
+} from "../shared/routes.js";
 import { groupMediaByDate } from "./lib/album.js";
 
 // The route owner composes header actions from the same preferences as the
@@ -413,6 +418,7 @@ function LibraryApp() {
   };
   useLayoutEffect(() => {
     const keyboard = (event) => {
+      if (document.querySelector("#account-dialog:modal")) return;
       if (event.key === "Escape" && !settings && !event.defaultPrevented) {
         if (
           selected &&
@@ -560,6 +566,14 @@ function LibraryApp() {
           albumPresent ? "background-file-list" : "file-list",
           listingActions(library, visibleRecords, mobile),
         );
+  const intakeAction = !route &&
+    library.mode === "all" &&
+    !["album", "image"].includes(library.kind) &&
+    library.connection &&
+    !library.demoPreview &&
+    library.backend?.transport !== "demo" && (
+      <FileIntakeActions mobile={mobile} suspended={!!touchSelections.size} />
+    );
   const feedback = (
     <>
       <TransferCenter transfer={transfer} mobile={mobile} {...transferPanel} />
@@ -645,19 +659,7 @@ function LibraryApp() {
                 )
               }
               actions={topbarActions}
-              intakeAction={
-                !route &&
-                library.mode === "all" &&
-                !["album", "image"].includes(library.kind) &&
-                library.connection &&
-                !library.demoPreview &&
-                library.backend?.transport !== "demo" && (
-                  <FileIntakeActions
-                    mobile={mobile}
-                    suspended={!!touchSelections.size}
-                  />
-                )
-              }
+              intakeAction={!mobile && intakeAction}
             />
             {library.mode === "home" && (
               <CategoryCards library={library} albumOpen={albumOpen} />
@@ -703,6 +705,7 @@ function LibraryApp() {
                 onSettings={showSettings}
               />
             )}
+            {mobile && intakeAction}
           </>
         )}
       </main>
@@ -841,11 +844,8 @@ function LibraryApp() {
   );
 }
 
-export function App() {
-  const { route } = useRouter();
-  return route.page === "account" ? (
-    <AccountPage />
-  ) : route.page === "admin" ? (
+function RoutedPage({ route }) {
+  return route.page === "admin" ? (
     <AdminPage />
   ) : route.page === "upload" ? (
     <UploadPage key={route.token} token={route.token} />
@@ -856,5 +856,52 @@ export function App() {
     </main>
   ) : (
     <LibraryApp />
+  );
+}
+
+export function App() {
+  const router = useRouter();
+  const { route, state, initial } = router;
+  const mobile = useCompactLayout();
+  const accountOpen = route.page === "account";
+  const [closingAccount, setClosingAccount] = useState(null);
+  useLayoutEffect(() => {
+    if (mobile && accountOpen) setClosingAccount(route);
+    else if (!mobile) setClosingAccount(null);
+  }, [mobile, accountOpen, route]);
+  const accountRoute = accountOpen ? route : mobile ? closingAccount : null;
+  const from =
+    mobile && accountOpen && !initial
+      ? safeReturnPath(state.accountFrom, "")
+      : "";
+  const background = from ? parseRoute(from) : accountOpen ? null : route;
+  const target = accountRoute
+    ? safeReturnPath(
+        new URL(accountRoute.href, location.origin).searchParams.get("return"),
+        "/",
+      )
+    : "/";
+  const returnTo = parseRoute(target).page === "account" ? "/" : target;
+  return (
+    <>
+      <RouteScope
+        route={background}
+        state={from ? state.accountBackgroundState || {} : state}
+      >
+        {background && <RoutedPage route={background} />}
+      </RouteScope>
+      {accountRoute && (
+        <AccountPage
+          mobile={mobile}
+          open={accountOpen}
+          animateEntry={!!from}
+          returnTo={returnTo}
+          onClose={() => {
+            if (accountOpen) router.close("accountFrom", returnTo);
+          }}
+          onExited={() => setClosingAccount(null)}
+        />
+      )}
+    </>
   );
 }

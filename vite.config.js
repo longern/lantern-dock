@@ -5,6 +5,24 @@ import { Readable } from "node:stream";
 import worker from "./worker/index.js";
 import { loadLocalEnvironment } from "./scripts/local-env.mjs";
 import { breakpointMedia } from "./scripts/breakpoint-media.mjs";
+import { resolveSiteTitle } from "./src/lib/site-title.js";
+
+function siteTitleHTML() {
+  let escapedTitle;
+  return {
+    name: "lantern-dock-site-title",
+    configResolved({ env }) {
+      escapedTitle = resolveSiteTitle(env.VITE_SITE_TITLE)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;");
+    },
+    transformIndexHtml(html) {
+      return html.replaceAll("%SITE_TITLE%", () => escapedTitle);
+    },
+  };
+}
 
 function connectionAPI() {
   const setup = async (server) => {
@@ -42,7 +60,7 @@ function connectionAPI() {
 }
 
 export default defineConfig({
-  plugins: [preact(), connectionAPI()],
+  plugins: [preact(), siteTitleHTML(), connectionAPI()],
   css: { postcss: { plugins: [breakpointMedia()] } },
   server: {
     host: "127.0.0.1",

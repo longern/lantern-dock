@@ -5,6 +5,7 @@ import { useSetupWizard } from "../hooks/useSetupWizard.js";
 import { SetupConnection } from "./SetupConnection.jsx";
 import { SetupExport } from "./SetupExport.jsx";
 import { SetupCertificates } from "./SetupCertificates.jsx";
+import { siteTitle } from "../lib/site-title.js";
 
 const reasons = {
   "missing-backend": "account.missingBackendReason",
@@ -42,7 +43,7 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
         <span class="brand-symbol">
           <Icon name="portal" />
         </span>
-        <span>LanternDock</span>
+        <span>{siteTitle}</span>
       </header>
       <section class="setup-card" aria-labelledby="setup-title">
         <div class="setup-intro">

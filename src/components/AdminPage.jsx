@@ -18,6 +18,7 @@ import { TransferCenter } from "./TransferCenter.jsx";
 import { Icon } from "./Icon.jsx";
 import { useRouter } from "../hooks/useRouter.jsx";
 import { accountHref } from "../../shared/routes.js";
+import { siteTitle } from "../lib/site-title.js";
 
 const ignore = () => {};
 
@@ -77,7 +78,7 @@ export function AdminPage() {
         <div class="admin-heading">
           <span class="admin-eyebrow">
             <Icon name="shield" />
-            LanternDock
+            {siteTitle}
           </span>
           <h1>{t("admin.title")}</h1>
           <p>{t("admin.description")}</p>
@@ -282,7 +283,7 @@ function AdminWorkspace({ account, refreshNAS, refreshIdentity }) {
     <div class="admin-workspace">
       <nav class="admin-navigation" aria-label={t("admin.sections")}>
         <div class="admin-nav-brand">
-          <Icon name="portal" /> LanternDock
+          <Icon name="portal" /> {siteTitle}
         </div>
         {tabs.map(({ key, icon, label }) => (
           <button

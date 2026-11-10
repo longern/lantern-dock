@@ -85,6 +85,7 @@ test("real workers-sso CIMD login uses HttpOnly cookies and shows a copyable adm
       },
     }),
   );
+  await page.locator(".account-advanced summary").click();
   await page.getByRole("button", { name: "复制 sub", exact: true }).click();
   expect(await page.evaluate(() => window.copiedIdentity)).toBe(
     identitySubject,
@@ -142,7 +143,7 @@ test("administrator subjects are enforced on the NAS and apply to an existing lo
   await fixture.nas.administrators([otherSiteSubject, identitySubject]);
   await page.getByRole("button", { name: "重新检测", exact: true }).click();
   await expect(
-    page.getByText("管理员权限已启用", { exact: false }),
+    page.locator(".account-details dd").getByText("管理员", { exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "尚未配置管理员", exact: true }),
@@ -288,7 +289,7 @@ test("NAS sees only site identity and an existing session works without an upstr
   await fixture.nas.administrators([identitySubject]);
   await page.getByRole("button", { name: "重新检测", exact: true }).click();
   await expect(
-    page.getByText("管理员权限已启用", { exact: false }),
+    page.locator(".account-details dd").getByText("管理员", { exact: true }),
   ).toBeVisible();
   const previous = { ...fixture.env };
   delete fixture.env.OIDC_ISSUER_URL;
@@ -300,7 +301,7 @@ test("NAS sees only site identity and an existing session works without an upstr
   try {
     await page.reload();
     await expect(
-      page.getByText("管理员权限已启用", { exact: false }),
+      page.locator(".account-details dd").getByText("管理员", { exact: true }),
     ).toBeVisible();
     const session = await page.evaluate(async () =>
       (await fetch("/api/auth/session")).json(),

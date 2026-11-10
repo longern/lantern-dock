@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { UploadClient } from "../lib/uploads.js";
 import { bytes, date } from "../lib/format.js";
+import { siteTitle } from "../lib/site-title.js";
 
 export function UploadPage({ token }) {
   return (
@@ -11,7 +12,7 @@ export function UploadPage({ token }) {
         <span class="brand-symbol">
           <Icon name="portal" />
         </span>
-        <span>LanternDock</span>
+        <span>{siteTitle}</span>
       </a>
       <section class="setup-card" aria-labelledby="upload-title">
         <UploadPanel token={token} />

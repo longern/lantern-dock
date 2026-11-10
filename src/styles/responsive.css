@@ -76,6 +76,10 @@
   }
   .mobile-brand {
     display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-weight: 700;
     font-size: 18px;
     letter-spacing: -0.5px;

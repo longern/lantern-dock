@@ -28,6 +28,10 @@
 .brand-symbol {
   color: var(--accent);
 }
+.brand > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .brand-symbol svg {
   width: 28px;
   height: 30px;

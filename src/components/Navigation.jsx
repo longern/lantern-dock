@@ -5,6 +5,7 @@ import { Icon } from "./Icon.jsx";
 import { Menu } from "./Menu.jsx";
 import { useCompactLayout } from "../hooks/useMediaQuery.js";
 import { accountHref } from "../../shared/routes.js";
+import { siteTitle } from "../lib/site-title.js";
 
 const modes = [
   ["home", "home", "library.home"],
@@ -34,7 +35,7 @@ export function Sidebar({ library, onSettings }) {
           <span class="brand-symbol">
             <Icon name="portal" />
           </span>
-          <span>LanternDock</span>
+          <span>{siteTitle}</span>
         </a>
       </div>
       <nav class="main-nav" aria-label={t("library.resourceNavigation")}>
@@ -227,7 +228,7 @@ export function Topbar({
               library.selectMode("home");
             }}
           >
-            LanternDock
+            {siteTitle}
           </a>
         )}
         {!mobile && !home && breadcrumbs}

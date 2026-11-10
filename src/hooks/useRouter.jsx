@@ -83,13 +83,20 @@ export function RouterProvider({ children }) {
       )
         return;
       const url = new URL(anchor.href);
-      if (
-        url.origin !== location.origin ||
-        parseRoute(url.href).page === "not-found"
-      )
-        return;
+      if (url.origin !== location.origin) return;
+      const target = parseRoute(url.href);
+      if (target.page === "not-found") return;
       event.preventDefault();
-      navigate(url.pathname + url.search + url.hash);
+      const current = snapshot();
+      const state =
+        target.page === "account" &&
+        ["library", "admin"].includes(current.route.page)
+          ? {
+              accountFrom: current.route.href,
+              accountBackgroundState: current.state,
+            }
+          : {};
+      navigate(url.pathname + url.search + url.hash, { state });
     };
     window.addEventListener("popstate", changed);
     window.addEventListener(navigationEvent, changed);
@@ -124,4 +131,13 @@ export function useRouter() {
   const value = useContext(Context);
   if (!value) throw new Error("RouterProvider is required");
   return value;
+}
+
+export function RouteScope({ route, state, children }) {
+  const router = useRouter();
+  return (
+    <Context.Provider value={{ ...router, route, state }}>
+      {children}
+    </Context.Provider>
+  );
 }

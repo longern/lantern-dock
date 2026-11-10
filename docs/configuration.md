@@ -6,6 +6,8 @@ For an anonymous public NAS folder and temporary private collection links, see t
 
 LanternDock serves one configured WebDAV root. Configure it in `.env` for Vite development and through the Cloudflare dashboard or `wrangler.jsonc` for deployment. Restart the development server after changing local settings.
 
+Set `VITE_SITE_TITLE="My NAS"` in `.env` or in the environment that runs `npm run build` to customize the browser title and frontend branding. An unset or blank value defaults to `LanternDock`. For Cloudflare deployments, supply it to the frontend build and redeploy the resulting assets. `BACKEND_NAME` is the separate display name for the connected file space.
+
 The setup wizard has two steps: **Connect a backend** combines transport selection, the connection address, and optional advanced settings; **Save and deploy** exports the site `.env` and, for pinned WebTransport, its matching bridge configuration. Only local development and Cloudflare Workers are deployment choices. Wrangler JSON is available under **Other deployment methods**. The page does not write server configuration or persist inputs.
 
 Once the WebTransport address and site key are configured, `missing-certificates` opens a focused certificate page showing the saved address, publication steps, and a recheck action. It does not repeat environment exports or offer to replace the key. If the key is still missing, the wizard first opens **Save and deploy** to generate the paired key and webhook URL. After applying configuration, recheck the current site; a localhost export for a different Cloudflare site instead opens that deployed site.

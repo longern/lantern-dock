@@ -39,7 +39,7 @@ async function loginAdministrator(page) {
     siteIdentitySubject,
   );
   await expect(
-    page.getByText("管理员权限已启用", { exact: false }),
+    page.locator(".account-details dd").getByText("管理员", { exact: true }),
   ).toBeVisible();
   await page.goto(fixture.origin + "/admin/links");
   await expect(page.locator("#admin-create-link")).toBeVisible();

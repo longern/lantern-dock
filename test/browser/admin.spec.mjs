@@ -236,7 +236,13 @@ for (const legacy of [false, true]) {
     await expect(page.locator(".account-details").first()).toContainText(
       "管理员",
     );
-    await expect(page.locator("#account-admin-entry")).toBeVisible();
+    const entry = page.locator("#account-admin-entry");
+    await expect(entry).toBeVisible();
+    await expect(entry).toHaveCSS("min-height", "56px");
+    await expect(entry).toHaveCSS("padding-inline", "16px");
+    const icon = entry.locator(".my-list-icon");
+    await expect(icon).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(icon.locator("svg")).toHaveCSS("width", "24px");
     await page.goBack();
     await page.locator("#my-admin").click();
     if (legacy) {
@@ -661,8 +667,21 @@ test("file intake offers a local QR and a separate authenticated personal upload
   await page.goto("/files/");
   const trigger = page.locator("#file-intake-trigger");
   await expect(trigger).toBeVisible();
-  const compact = await isCompact(page);
+  const compact = isCompact(page);
   if (compact) {
+    const position = await trigger.evaluate((node) => {
+      const bounds = node.getBoundingClientRect();
+      const tabs = document
+        .querySelector(".mobile-tabs")
+        .getBoundingClientRect();
+      return {
+        aboveTabs: tabs.top - bounds.bottom,
+        fromRight: innerWidth - bounds.right,
+      };
+    });
+    expect(position.aboveTabs).toBeGreaterThanOrEqual(0);
+    expect(position.aboveTabs).toBeLessThanOrEqual(32);
+    expect(position.fromRight).toBe(16);
     await trigger.tap();
     const handle = page.locator(".intake-sheet-handle");
     await handle.evaluate(async (node) => {
@@ -693,6 +712,8 @@ test("file intake offers a local QR and a separate authenticated personal upload
       await client.detach();
     }
     await expect(handle).toHaveCount(0);
+  } else {
+    await expect(page.locator(".topbar").locator(trigger)).toBeVisible();
   }
   const choose = async (label) => {
     await trigger.click();

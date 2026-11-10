@@ -1,17 +1,28 @@
 import { t } from "../../shared/i18n.js";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { AdminEntry } from "./AdminEntry.jsx";
 import { useSession } from "../hooks/useSession.jsx";
 import { useRouter } from "../hooks/useRouter.jsx";
-import { safeReturnPath } from "../../shared/routes.js";
+import { PageDialog } from "./PageDialog.jsx";
 
-export function AccountPage() {
+export function AccountPage({
+  mobile,
+  open,
+  animateEntry,
+  returnTo,
+  onClose,
+  onExited,
+}) {
   const router = useRouter();
-  const [returnTo] = useState(() =>
-    safeReturnPath(new URLSearchParams(location.search).get("return"), "/"),
+  const title = t("account.myAccount");
+  const backLabel = t(
+    returnTo === "/me"
+      ? "library.backToMe"
+      : returnTo === "/"
+        ? "account.backToPublicFiles"
+        : "account.backToPrevious",
   );
-  const returnToMe = returnTo === "/me";
   const {
     identity,
     nas,
@@ -56,18 +67,25 @@ export function AccountPage() {
     },
     [],
   );
-  useEffect(() => {
-    const query = new URLSearchParams(location.search);
-    if (query.has("error")) {
-      setError(query.get("error"));
-      query.delete("error");
+  useLayoutEffect(() => {
+    if (!open && loginRequest.current) {
+      loginRequest.current.abort();
+      loginRequest.current = null;
+      setBusy(false);
     }
+  }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const query = new URLSearchParams(location.search);
+    if (!query.has("error")) return;
+    setError(query.get("error"));
+    query.delete("error");
     const suffix = query.toString();
     router.navigate(`/account${suffix ? `?${suffix}` : ""}`, {
       replace: true,
       state: router.state,
     });
-  }, []);
+  }, [open, router.route.href]);
   useEffect(() => {
     if (identity.status === "authenticated") void ensureNAS();
   }, [identity.status, identity.user, ensureNAS]);
@@ -107,178 +125,202 @@ export function AccountPage() {
       if (mounted.current) setBusy(false);
     }
   };
-  return (
-    <main class="setup-page account-page">
-      <a class="setup-brand" href={returnTo}>
-        <span class="brand-symbol">
-          <Icon name="portal" />
+  const content = (
+    <section class="account-content" aria-labelledby="account-title">
+      <div class="my-account-summary account-profile">
+        <span class="my-account-symbol" aria-hidden="true">
+          <Icon name="user" />
         </span>
-        <span>LanternDock</span>
-      </a>
-      <section class="setup-card" aria-labelledby="account-title">
-        <div class="setup-intro">
-          <span class="setup-eyebrow">{t("account.myAccount")}</span>
-          <h1 id="account-title">
+        <div class="my-account-copy">
+          <h2>
             {session
-              ? session.user.name || t("account.signedIn")
+              ? session.user.name || session.user.email || t("account.signedIn")
               : loading
                 ? t("account.checkingAccount")
                 : sessionFailure
                   ? t("account.sessionUnavailable")
                   : t("account.signInTitle")}
-          </h1>
+          </h2>
+          {session?.user.name && session.user.email && (
+            <p>{session.user.email}</p>
+          )}
           {identity.status === "signed-out" && (
             <p>{t("account.signInDescription")}</p>
           )}
         </div>
-        {(loading || nas.status === "loading") && (
-          <p class="upload-message" role="status">
-            {t("account.checkingAccount")}
-          </p>
-        )}
-        {(error || sessionFailure) && (
-          <p class="account-notice error" role="alert">
-            {error || sessionFailure}
-          </p>
-        )}
-        {session && (
-          <>
+      </div>
+      {(error || sessionFailure) && (
+        <p class="account-notice error" role="alert">
+          {error || sessionFailure}
+        </p>
+      )}
+      {session && (
+        <>
+          <div class="my-action-list">
             <dl class="account-details">
-              {session.user.email && (
-                <div>
-                  <dt>{t("account.email")}</dt>
-                  <dd>{session.user.email}</dd>
-                </div>
-              )}
               <div>
                 <dt>{t("account.siteRole")}</dt>
-                <dd>
+                <dd aria-live="polite">
                   {account
                     ? account.user.role === "admin"
                       ? t("account.administrator")
                       : t("account.standardUser")
                     : accountError
                       ? t("account.verificationUnavailable")
-                      : t("account.verifying")}
+                      : t("account.checkingAccount")}
                 </dd>
               </div>
             </dl>
-            <details
-              class="account-advanced"
-              open={!account?.administratorConfigured}
-            >
-              <summary>{t("account.accountDetails")}</summary>
+            <details class="account-advanced">
+              <summary class="my-list-button">
+                <span>{t("account.accountDetails")}</span>
+                <Icon name="chevron-down" />
+              </summary>
               <dl class="account-details">
                 <div>
                   <dt>{t("account.identityIssuer")}</dt>
                   <dd>{session.user.issuer}</dd>
                 </div>
               </dl>
-              <label class="form-label" for="account-sub">
-                {t("account.userSubject")}
-              </label>
-              <div class="account-copy">
-                <input id="account-sub" readOnly value={session.user.sub} />
-                <button
-                  class="secondary-button"
-                  onClick={() =>
-                    copy(session.user.sub, t("account.subjectCopied"))
-                  }
-                >
-                  <Icon name="copy" />
-                  {t("account.copySubject")}
-                </button>
+              <div class="account-identifier">
+                <label class="form-label" for="account-sub">
+                  {t("account.userSubject")}
+                </label>
+                <div class="account-copy">
+                  <input id="account-sub" readOnly value={session.user.sub} />
+                  <button
+                    class="icon-button"
+                    aria-label={t("account.copySubject")}
+                    onClick={() =>
+                      copy(session.user.sub, t("account.subjectCopied"))
+                    }
+                  >
+                    <Icon name="copy" />
+                  </button>
+                </div>
               </div>
             </details>
-            {account && !account.administratorConfigured && (
-              <div class="account-notice">
-                <h2>{t("account.administratorMissing")}</h2>
-                <p>{t("account.administratorInstructions")}</p>
-                <label class="form-label" for="account-admins">
-                  {t("account.administratorValue")}
-                </label>
-                <textarea
-                  id="account-admins"
-                  readOnly
-                  rows={2}
-                  value={session.user.sub}
-                />
-                <button
-                  class="secondary-button"
-                  onClick={() =>
-                    copy(session.user.sub, t("account.administratorCopied"))
-                  }
-                >
-                  <Icon name="copy" />
-                  {t("account.copyAdministrator")}
-                </button>
-              </div>
-            )}
-            {account?.user.role === "admin" && (
-              <p class="account-notice">{t("account.administratorEnabled")}</p>
-            )}
-            {accountError && (
-              <div class="account-notice error">
-                <p role="alert">{accountError}</p>
-                <button
-                  class="secondary-button"
-                  disabled={busy}
-                  onClick={
-                    nas.error.kind === "session-expired"
-                      ? refreshIdentity
-                      : refreshNAS
-                  }
-                >
-                  {t(
-                    nas.error.kind === "session-expired"
-                      ? "account.checkAgain"
-                      : "account.retryNAS",
-                  )}
-                </button>
-              </div>
-            )}
-          </>
-        )}
-        {copied && (
-          <p class="account-feedback" role="status">
-            {copied}
-          </p>
-        )}
-        <div class="account-actions">
-          <AdminEntry id="account-admin-entry" className="secondary-button" />
-          {identity.status === "signed-out" && (
-            <button class="primary-button" disabled={busy} onClick={login}>
-              <Icon name="user" />
-              {busy ? t("account.redirectingToSignIn") : t("account.signIn")}
-            </button>
+          </div>
+          {account && !account.administratorConfigured && (
+            <div class="account-notice">
+              <h2>{t("account.administratorMissing")}</h2>
+              <p>{t("account.administratorInstructions")}</p>
+              <label class="form-label" for="account-admins">
+                {t("account.administratorValue")}
+              </label>
+              <textarea
+                id="account-admins"
+                readOnly
+                rows={2}
+                value={session.user.sub}
+              />
+              <button
+                class="secondary-button"
+                onClick={() =>
+                  copy(session.user.sub, t("account.administratorCopied"))
+                }
+              >
+                <Icon name="copy" />
+                {t("account.copyAdministrator")}
+              </button>
+            </div>
           )}
-          {session && (
-            <button class="secondary-button" disabled={busy} onClick={logout}>
-              <Icon name="logout" />
-              {t("account.signOut")}
-            </button>
+          {accountError && (
+            <div class="account-notice error">
+              <p role="alert">{accountError}</p>
+              <button
+                class="secondary-button"
+                disabled={busy}
+                onClick={
+                  nas.error.kind === "session-expired"
+                    ? refreshIdentity
+                    : refreshNAS
+                }
+              >
+                {t(
+                  nas.error.kind === "session-expired"
+                    ? "account.checkAgain"
+                    : "account.retryNAS",
+                )}
+              </button>
+            </div>
           )}
+        </>
+      )}
+      <p class="account-feedback" role="status" hidden={!copied}>
+        {copied}
+      </p>
+      {identity.status === "signed-out" && (
+        <button class="primary-button" disabled={busy} onClick={login}>
+          <Icon name="user" />
+          {busy ? t("account.redirectingToSignIn") : t("account.signIn")}
+        </button>
+      )}
+      <div class="my-action-list">
+        <AdminEntry id="account-admin-entry" />
+        <button
+          class="my-list-button"
+          disabled={loading || busy}
+          onClick={() => {
+            setError("");
+            void refreshIdentity();
+          }}
+        >
+          <span class="my-list-icon">
+            <Icon name="refresh" />
+          </span>
+          <span>{t("account.checkAgain")}</span>
+        </button>
+      </div>
+      {session && (
+        <div class="my-action-list">
           <button
-            class="text-button"
-            disabled={loading || busy}
-            onClick={() => {
-              setError("");
-              void refreshIdentity();
-            }}
+            class="my-list-button account-sign-out"
+            disabled={busy}
+            onClick={logout}
           >
-            {t("account.checkAgain")}
+            <span class="my-list-icon">
+              <Icon name="logout" />
+            </span>
+            <span>{t("account.signOut")}</span>
           </button>
-          <a class="upload-back" href={returnTo}>
-            {t(
-              returnToMe
-                ? "library.backToMe"
-                : returnTo === "/"
-                  ? "account.backToPublicFiles"
-                  : "account.backToPrevious",
-            )}
-          </a>
         </div>
-      </section>
+      )}
+    </section>
+  );
+  return mobile ? (
+    <PageDialog
+      id="account-dialog"
+      titleId="account-title"
+      title={title}
+      backId="account-back"
+      backLabel={backLabel}
+      className="account-page"
+      headerClassName="account-dialog-header"
+      open={open}
+      animateEntry={animateEntry}
+      focusHeader
+      onClose={onClose}
+      onExited={onExited}
+      fallbackFocus="#my-account-link, #my-guest-button, .admin-account-link"
+    >
+      {content}
+    </PageDialog>
+  ) : (
+    <main class="account-page">
+      <header class="account-header">
+        <div class="account-bar">
+          <a
+            class="icon-button edge-start"
+            href={returnTo}
+            aria-label={backLabel}
+          >
+            <Icon name="chevron-left" />
+          </a>
+          <h1 id="account-title">{title}</h1>
+        </div>
+      </header>
+      {content}
     </main>
   );
 }

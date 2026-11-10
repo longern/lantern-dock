@@ -378,7 +378,10 @@ test("English account entry and recheck remain local and translated", async ({
         page.getByRole("button", { name: "Sign in", exact: true }),
       ).toBeVisible();
       await page
-        .getByRole("link", { name: "Back to public files", exact: true })
+        .getByRole(isCompact(page) ? "button" : "link", {
+          name: "Back to public files",
+          exact: true,
+        })
         .click();
       await expect(
         page.getByRole("searchbox", { name: "Search files", exact: true }),
