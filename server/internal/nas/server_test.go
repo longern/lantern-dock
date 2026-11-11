@@ -15,6 +15,8 @@ import (
 	"time"
 )
 
+const fixtureSecret = "test-only-nas-secret-0123456789abcdef"
+
 type fixture struct {
 	s            *Server
 	http         *httptest.Server
@@ -26,7 +28,7 @@ func newFixture(t *testing.T) *fixture {
 	root := t.TempDir()
 	f := &fixture{public: filepath.Join(root, "public"), data: filepath.Join(root, "data")}
 	var err error
-	f.s, err = New(f.public, f.data, []string{"https://portal.example"})
+	f.s, err = New(f.public, f.data, []string{"https://portal.example"}, WithSecretKey(fixtureSecret))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -283,11 +285,11 @@ func TestNamesCorsAndMalformedBodies(t *testing.T) {
 func TestPersistenceRecoveryAndSingleInstance(t *testing.T) {
 	root := t.TempDir()
 	public, data := filepath.Join(root, "public"), filepath.Join(root, "data")
-	s, err := New(public, data, nil)
+	s, err := New(public, data, nil, WithSecretKey(fixtureSecret))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if second, err := New(public, data, nil); err == nil {
+	if second, err := New(public, data, nil, WithSecretKey(fixtureSecret)); err == nil {
 		second.Close()
 		t.Fatal("two servers opened one store")
 	}
@@ -304,7 +306,7 @@ func TestPersistenceRecoveryAndSingleInstance(t *testing.T) {
 	s.private.MkdirAll("inbox/"+l.ID, 0700)
 	s.private.WriteFile(destination(u), []byte("renamed before commit"), 0600)
 	s.Close()
-	s, err = New(public, data, nil)
+	s, err = New(public, data, nil, WithSecretKey(fixtureSecret))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -327,7 +329,7 @@ func TestPersistenceRecoveryAndSingleInstance(t *testing.T) {
 }
 func TestOverlappingDirectoriesRejected(t *testing.T) {
 	root := t.TempDir()
-	if s, err := New(root, filepath.Join(root, "private"), nil); err == nil {
+	if s, err := New(root, filepath.Join(root, "private"), nil, WithSecretKey(fixtureSecret)); err == nil {
 		s.Close()
 		t.Fatal("private state exposed")
 	}

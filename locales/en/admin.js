@@ -55,6 +55,44 @@ export default {
   uploadMemberHelp:
     "Ask an administrator for an upload link or permission to upload directly from your account.",
   inviteUpload: "Invite others to upload",
+  createInvitation: "Create invitation link",
+  invitationDefaultTitle: "File collection for {{date}}",
+  invitationDescription: "Collect photos, videos and documents through a link.",
+  invitationNote: "Note",
+  invitationRules: "Collection settings",
+  invitationValidity: "Valid for",
+  invitationTotalLimit: "Total collection limit",
+  invitationOneHour: "1 hour",
+  invitationDays_one: "{{count}} day",
+  invitationDays_other: "{{count}} days",
+  invitationCustom: "Custom…",
+  invitationCustomValue: "Custom {{label}}",
+  invitationCustomSizeUnit: "In MB (1024 MB = 1 GB)",
+  invitationLimitsHint:
+    "Uploads are accepted until the invitation expires or a limit is reached.",
+  invitationLink: "Invitation link",
+  invitationCreated: "Invitation link created",
+  invitationSummary:
+    "{{file}} per file · {{total}} total · Up to {{count}} files",
+  invitationSaveHint:
+    "You can view and share this link again from Invitations in the admin page.",
+  invitationLegacySaveHint:
+    "This NAS cannot retrieve links again yet. Copy or save this link before closing.",
+  invitationLegacyHint:
+    "This invitation was created by an older version and its link cannot be retrieved. Saved links still work. Create a new invitation if it is lost.",
+  invitationUpgradeHint:
+    "Update the NAS to share new invitations again here. Keep existing links saved.",
+  invitationManageHint:
+    "Active invitations can be shared again. Received files remain available after invitations end.",
+  share: "Share",
+  shareNamed: "Share “{{title}}”",
+  invitationShare: "Share link",
+  invitationShowQR: "Show QR code",
+  invitationHideQR: "Hide QR code",
+  invitationScanHint: "Scan to upload files",
+  invitationShareFallback:
+    "System sharing is unavailable in this browser. The link was copied.",
+  invitationShareFailed: "Could not share. Copy the link to share it instead.",
   personalInbox: "My inbox",
   personalUploadDescription: "Files will be saved to your private inbox.",
   optionalTitle: "Note (optional)",
@@ -138,7 +176,7 @@ export default {
   copyFailed:
     "Could not copy automatically. Select the link and copy it manually before closing.",
   createUncertain:
-    "The connection was interrupted, so the link may have been created. Close this dialog and refresh the list before trying again. If it appears without a saved URL, revoke it and create a replacement.",
+    "The connection was interrupted, so the invitation may have been created. Close this dialog and refresh the list before trying again. Use Share to reopen an invitation that was created.",
   revokeTitle: "Revoke this upload link?",
   revokeDescription:
     "This cannot be undone. The link will stop accepting uploads, including uploads that have not finished. Files already received will stay in the private inbox.",

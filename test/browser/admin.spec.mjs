@@ -24,6 +24,7 @@ const fixtureLink = {
   revoked: false,
   usedBytes: 42,
   usedFiles: 1,
+  shareable: true,
 };
 const fixtureFile = {
   id: "upload-one",
@@ -39,9 +40,9 @@ const copy = {
   "zh-CN": {
     title: "管理后台",
     create: "创建链接",
-    created: "链接已创建",
+    created: "邀请链接已创建",
     copied: "链接已复制。",
-    save: "我已保存链接",
+    save: "完成",
     copy: "复制链接",
     revoke: "撤销链接",
     revokeTitle: "撤销这个收件链接？",
@@ -54,9 +55,9 @@ const copy = {
   en: {
     title: "Administration",
     create: "Create link",
-    created: "Your link is ready",
+    created: "Invitation link created",
     copied: "Link copied.",
-    save: "I’ve saved the link",
+    save: "Done",
     copy: "Copy link",
     revoke: "Revoke link",
     revokeTitle: "Revoke this upload link?",
@@ -175,6 +176,16 @@ async function install(page, options = {}) {
       state.links = [link, ...state.links];
       return route.fulfill({ status: 201, json: { link, token } });
     }
+    if (url.pathname.endsWith("/share") && request.method() === "GET") {
+      const link = state.links.find(
+        (item) => url.pathname === `/api/admin/links/${item.id}/share`,
+      );
+      return route.fulfill(
+        link
+          ? { json: { link, token } }
+          : { status: 404, json: { error: "Not found" } },
+      );
+    }
     if (request.method() === "DELETE") {
       state.links = state.links.map((link) =>
         url.pathname.endsWith("/" + link.id)
@@ -282,7 +293,7 @@ for (const language of ["zh-CN", "en"]) {
   test.describe(`${language} administration`, () => {
     test.use({ locale: language });
     const text = copy[language];
-    test("create once, copy, dismiss, and browser history never recover the token", async ({
+    test("create once, dismiss clears credentials, explicit sharing reopens the same invitation", async ({
       page,
     }) => {
       const state = await install(page, { links: [] });
@@ -325,6 +336,29 @@ for (const language of ["zh-CN", "en"]) {
       await page.goBack();
       await expect(page).toHaveURL(/\/admin(?:\/links)?$/);
       await expect(page.locator("#admin-created-url")).toHaveCount(0);
+      await page.locator("#admin-share-new-link").click();
+      await expect(page.locator("#admin-created-url")).toHaveValue(url);
+      await expect(page.locator(".invite-success")).toHaveCount(0);
+      await expect(page.locator("#admin-copy-link")).toBeFocused();
+      await page
+        .locator("#admin-create-dialog")
+        .getByRole("button", {
+          name: language === "en" ? "Show QR code" : "显示二维码",
+          exact: true,
+        })
+        .click();
+      await expect(page.locator("canvas[role=img]")).toBeVisible();
+      await page
+        .locator("#admin-create-dialog")
+        .getByRole("button", { name: text.save, exact: true })
+        .click();
+      await expect(page.locator("#admin-create-dialog")).toHaveCount(0);
+      await expect(page.locator("#admin-share-new-link")).toBeFocused();
+      expect(
+        await page.evaluate(() =>
+          JSON.stringify([localStorage, sessionStorage]),
+        ),
+      ).not.toContain(token);
       expect(
         state.requests.filter((request) => request.method === "POST"),
       ).toHaveLength(1);
@@ -417,6 +451,171 @@ for (const [name, options, heading] of [
   });
 }
 
+test("invitation list shares only usable links and explains legacy invitations", async ({
+  page,
+}, info) => {
+  await install(page, {
+    links: [
+      fixtureLink,
+      {
+        ...fixtureLink,
+        id: "legacy-link",
+        title: "Legacy collection",
+        shareable: false,
+      },
+      {
+        ...fixtureLink,
+        id: "older-server",
+        title: "Older NAS",
+        shareable: undefined,
+      },
+      {
+        ...fixtureLink,
+        id: "expired-link",
+        title: "Expired collection",
+        expiresAt: "2000-01-01T00:00:00Z",
+      },
+      {
+        ...fixtureLink,
+        id: "revoked-link",
+        title: "Revoked collection",
+        revoked: true,
+      },
+      {
+        ...fixtureLink,
+        id: "full-link",
+        title: "Full collection",
+        usedFiles: fixtureLink.maxFiles,
+      },
+    ],
+  });
+  await page.goto("/admin/links");
+  await expect(page.locator(".admin-invitation-share")).toHaveCount(1);
+  const legacy = page
+    .locator(".admin-link-card")
+    .filter({ hasText: "Legacy collection" });
+  await expect(legacy).toContainText("已保存的链接仍可使用");
+  await expect(
+    page.locator(".admin-link-card").filter({ hasText: "Older NAS" }),
+  ).toContainText("更新 NAS");
+  for (const title of ["Expired collection", "Revoked collection"]) {
+    const card = page.locator(".admin-link-card").filter({ hasText: title });
+    await expect(card.locator(".secondary-button")).toBeVisible();
+    await expect(card.locator(".admin-danger")).toHaveCount(0);
+  }
+  await assertNoOverflow(page);
+  await page.screenshot({ path: info.outputPath("invitation-list-share.png") });
+});
+
+test("reopened invitation reuses the link and presents copy, share and QR actions", async ({
+  page,
+}, info) => {
+  const state = await install(page);
+  await page.goto("/admin/links");
+  await page.locator("#admin-share-link-one").click();
+  const dialog = page.locator("#admin-create-dialog");
+  await expect(dialog.locator("#admin-created-url")).toHaveValue(
+    new URL(`/upload#token=${token}`, page.url()).href,
+  );
+  await expect(dialog).toContainText("可在后台的邀请列表中再次查看和分享");
+  await expect(dialog.locator(".invite-success")).toHaveCount(0);
+  await expect(dialog.locator(".invite-share-actions button")).toHaveCount(3);
+  await dialog.getByRole("button", { name: "复制链接", exact: true }).click();
+  await expect(dialog.getByRole("status")).toHaveText("链接已复制。");
+  await expect(dialog.locator(".toast")).toHaveCount(0);
+  await assertNoOverflow(page);
+  await dialog.evaluate((node) =>
+    Promise.all(node.getAnimations().map((animation) => animation.finished)),
+  );
+  await dialog.screenshot({ path: info.outputPath("invitation-reopened.png") });
+  await dialog.getByRole("button", { name: "显示二维码", exact: true }).click();
+  await expect(dialog.locator("canvas[role=img]")).toBeVisible();
+  await assertNoOverflow(page);
+  await dialog.screenshot({
+    path: info.outputPath("invitation-reopened-qr.png"),
+  });
+  expect(
+    state.requests.filter((request) => request.method === "POST"),
+  ).toHaveLength(0);
+});
+
+test("share retrieval can retry read errors without creating an invitation", async ({
+  page,
+}) => {
+  let attempts = 0;
+  const state = await install(page, {
+    handle: async (route, url) => {
+      if (!url.pathname.endsWith("/share")) return false;
+      attempts++;
+      if (attempts > 1) return false;
+      await route.fulfill({
+        status: 503,
+        json: { error: "Temporary share failure" },
+      });
+      return true;
+    },
+  });
+  await page.goto("/admin");
+  await page.locator("#admin-share-link-one").click();
+  const dialog = page.locator("#admin-create-dialog");
+  await expect(dialog.getByRole("alert")).toHaveText("Temporary share failure");
+  await dialog.getByRole("button", { name: "重试", exact: true }).click();
+  await expect(dialog.locator("#admin-created-url")).toBeVisible();
+  expect(attempts).toBe(2);
+  expect(
+    state.requests.filter((request) => request.method === "POST"),
+  ).toHaveLength(0);
+});
+
+test("closing a pending share discards a late credential response", async ({
+  page,
+}) => {
+  await install(page);
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch;
+    window.fetch = function (input, options) {
+      if (String(input).endsWith("/api/admin/links/link-one/share"))
+        return new Promise((resolve) => {
+          window.releaseShare = () =>
+            resolve(
+              new Response(
+                JSON.stringify({
+                  link: {
+                    id: "link-one",
+                    title: "Event photos",
+                    expiresAt: "2036-01-01T00:00:00Z",
+                    maxFileBytes: 104857600,
+                    maxTotalBytes: 1073741824,
+                    maxFiles: 100,
+                    revoked: false,
+                    usedBytes: 42,
+                    usedFiles: 1,
+                    shareable: true,
+                  },
+                  token: "A".repeat(43),
+                }),
+                { headers: { "Content-Type": "application/json" } },
+              ),
+            );
+        });
+      return originalFetch.call(this, input, options);
+    };
+  });
+  await page.goto("/admin");
+  await page.locator("#admin-share-link-one").click();
+  await expect
+    .poll(() => page.evaluate(() => typeof window.releaseShare))
+    .toBe("function");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#admin-create-dialog")).toHaveCount(0);
+  await page.evaluate(() => window.releaseShare());
+  await expect(page.locator("#admin-created-url")).toHaveCount(0);
+  await expect(page.locator("#admin-share-link-one")).toBeFocused();
+  expect(
+    await page.evaluate(() => JSON.stringify([localStorage, sessionStorage])),
+  ).not.toContain(token);
+});
+
 test("rapid form submits create once, cancellation is locked while the outcome is pending", async ({
   page,
 }) => {
@@ -468,7 +667,7 @@ test("uncertain creation is not automatically retried", async ({ page }) => {
   const dialog = page.locator("#admin-create-dialog");
   await dialog.locator("[name=title]").fill("One link");
   await dialog.locator("button[type=submit]").click();
-  await expect(dialog).toContainText("链接可能已创建");
+  await expect(dialog).toContainText("邀请可能已创建");
   await expect(dialog.locator("button[type=submit]")).toBeDisabled();
   expect(
     state.requests.filter((request) => request.method === "POST"),
@@ -559,7 +758,7 @@ test("a timed-out creation unlocks dismissal and never retries or reveals a late
     .toBe(1);
   await page.clock.fastForward(30001);
   await expect(dialog).toContainText("NAS 请求超时");
-  await expect(dialog).toContainText("链接可能已创建");
+  await expect(dialog).toContainText("邀请可能已创建");
   await expect(
     dialog.getByRole("button", { name: "取消", exact: true }),
   ).toBeEnabled();
@@ -756,7 +955,10 @@ test("file intake offers a local QR and a separate authenticated personal upload
   };
   await choose("邀请他人上传");
   const invite = page.locator("#admin-create-dialog");
-  await invite.getByRole("button", { name: /当面扫码/ }).click();
+  await invite
+    .getByRole("button", { name: "创建邀请链接", exact: true })
+    .click();
+  await invite.getByRole("button", { name: "显示二维码", exact: true }).click();
   const qr = invite.getByRole("img", { name: "扫码打开上传页面" });
   await expect(qr).toBeVisible();
   expect(
@@ -777,16 +979,19 @@ test("file intake offers a local QR and a separate authenticated personal upload
   );
   expect(
     Date.parse(JSON.parse(scan.body).expiresAt) - Date.now(),
-  ).toBeGreaterThan(29 * 60000);
+  ).toBeGreaterThan(7 * 86400000 - 10000);
   expect(
     Date.parse(JSON.parse(scan.body).expiresAt) - Date.now(),
-  ).toBeLessThanOrEqual(30 * 60000);
+  ).toBeLessThanOrEqual(7 * 86400000);
   await invite.getByRole("button", { name: "完成", exact: true }).click();
   await expect(invite).toHaveCount(0);
   await expect(trigger).toBeFocused();
 
   await choose("邀请他人上传");
-  await invite.getByRole("button", { name: /发给微信好友/ }).click();
+  await invite.locator("#admin-link-expiry").selectOption("24");
+  await invite
+    .getByRole("button", { name: "创建邀请链接", exact: true })
+    .click();
   await expect(invite.locator("#admin-created-url")).toBeVisible();
   await expect(invite.locator("canvas")).toHaveCount(0);
   const share = state.requests
@@ -794,7 +999,7 @@ test("file intake offers a local QR and a separate authenticated personal upload
     .at(-1);
   expect(
     Date.parse(JSON.parse(share.body).expiresAt) - Date.now(),
-  ).toBeGreaterThan(71 * 3600000);
+  ).toBeGreaterThan(24 * 3600000 - 10000);
   await invite.getByRole("button", { name: "完成", exact: true }).click();
   await expect(invite).toHaveCount(0);
 
@@ -1354,4 +1559,235 @@ test("an authorized ordinary user deposits from Files with their login proof", a
   await expect(dialog.locator(".upload-result.complete")).toBeVisible();
   expect(received).toBe(true);
   await expect(dialog.getByRole("link", { name: "查看收件" })).toHaveCount(0);
+});
+
+test.describe("upload invitation form", () => {
+  test.use({ timezoneId: "Asia/Shanghai" });
+
+  test("the grouped form starts with local-date defaults and measures expiry from creation", async ({
+    page,
+  }, info) => {
+    await page.clock.install({ time: new Date("2026-11-10T16:05:00Z") });
+    const state = await install(page);
+    await page.goto("/admin");
+    await page.locator("#admin-create-link").click();
+    const dialog = page.locator("#admin-create-dialog");
+    await expect(dialog.locator("[name=title]")).toHaveValue(
+      "11月11日的文件收集",
+    );
+    await expect(dialog.locator(".invite-topbar")).toHaveCSS("height", "60px");
+    await expect(dialog.locator(".invite-topbar")).toHaveCSS(
+      "border-bottom-width",
+      "0px",
+    );
+    await expect(dialog.locator(".invite-row")).toHaveCount(5);
+    for (const row of await dialog.locator(".invite-row").all())
+      await expect(row).toHaveCSS("height", "60px");
+    await expect(dialog.locator("#admin-link-expiry")).toHaveValue("168");
+    await expect(dialog.locator("[name=maxFileMiB]")).toHaveValue("1024");
+    await expect(dialog.locator("[name=maxTotalMiB]")).toHaveValue("10240");
+    await expect(dialog.locator("[name=maxFiles]")).toHaveValue("1000");
+    await expect(dialog.locator(".invite-group")).toHaveCount(2);
+    await assertNoOverflow(page);
+    await dialog.screenshot({ path: info.outputPath("invite-create.png") });
+    await page.clock.fastForward(2 * 3600000);
+    const before = await page.evaluate(() => Date.now());
+    await dialog
+      .getByRole("button", { name: "创建邀请链接", exact: true })
+      .click();
+    await expect(dialog.locator("#admin-created-url")).toBeVisible();
+    const created = JSON.parse(
+      state.requests.find((request) => request.method === "POST").body,
+    );
+    expect(created).toMatchObject({
+      title: "11月11日的文件收集",
+      maxFileBytes: 1024 ** 3,
+      maxTotalBytes: 10 * 1024 ** 3,
+      maxFiles: 1000,
+    });
+    expect(Date.parse(created.expiresAt)).toBeGreaterThanOrEqual(
+      before + 7 * 86400000,
+    );
+    expect(Date.parse(created.expiresAt)).toBeLessThan(
+      before + 7 * 86400000 + 3000,
+    );
+    await dialog.screenshot({ path: info.outputPath("invite-created.png") });
+    await dialog
+      .getByRole("button", { name: "显示二维码", exact: true })
+      .click();
+    await expect(
+      dialog.getByRole("img", { name: "扫码打开上传页面" }),
+    ).toBeVisible();
+    const qrBounds = await dialog.locator("canvas").boundingBox();
+    expect(qrBounds.width).toBeLessThanOrEqual(240);
+    expect(qrBounds.height).toBe(qrBounds.width);
+    expect(
+      await dialog
+        .locator(".invite-result-content")
+        .evaluate((node) => node.scrollWidth <= node.clientWidth),
+    ).toBe(true);
+    await dialog.screenshot({ path: info.outputPath("invite-qr.png") });
+    await dialog
+      .getByRole("button", { name: "隐藏二维码", exact: true })
+      .click();
+    await expect(dialog.locator("#admin-created-url")).toBeVisible();
+    expect(
+      state.requests.filter((request) => request.method === "POST"),
+    ).toHaveLength(1);
+  });
+
+  test("custom dates and quotas are submitted exactly and invalid quota combinations stay local", async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date("2026-11-10T16:05:00Z") });
+    const state = await install(page);
+    await page.goto("/admin");
+    await page.locator("#admin-create-link").click();
+    const dialog = page.locator("#admin-create-dialog");
+    await dialog.locator("[name=title]").fill("旅行视频收集");
+    await dialog.locator("#admin-link-expiry").selectOption("custom");
+    await dialog.locator("[name=expiresAt]").fill("2026-11-15T12:00");
+    await dialog.locator("#admin-link-file-limit").selectOption("custom");
+    await dialog.locator("input[name=maxFileMiB]").fill("123.5");
+    await dialog.locator("#admin-link-total-limit").selectOption("custom");
+    await dialog.locator("input[name=maxTotalMiB]").fill("100");
+    await dialog.locator("#admin-link-file-count").selectOption("custom");
+    await dialog.locator("input[name=maxFiles]").fill("17");
+    await dialog
+      .getByRole("button", { name: "创建邀请链接", exact: true })
+      .click();
+    await expect(dialog.getByRole("alert")).toContainText(
+      "累计额度不能小于单文件上限",
+    );
+    expect(
+      state.requests.filter((request) => request.method === "POST"),
+    ).toHaveLength(0);
+    await dialog.locator("input[name=maxTotalMiB]").fill("500");
+    await dialog
+      .getByRole("button", { name: "创建邀请链接", exact: true })
+      .click();
+    await expect(dialog.locator("#admin-created-url")).toBeVisible();
+    const created = JSON.parse(
+      state.requests.find((request) => request.method === "POST").body,
+    );
+    expect(created).toEqual({
+      title: "旅行视频收集",
+      expiresAt: "2026-11-15T04:00:00.000Z",
+      maxFileBytes: 123.5 * 1048576,
+      maxTotalBytes: 500 * 1048576,
+      maxFiles: 17,
+    });
+  });
+
+  test("native sharing uses the same invitation and duplicate shares and late results are ignored", async ({
+    page,
+  }) => {
+    const state = await install(page);
+    await page.addInitScript(() => {
+      window.invitationShares = [];
+      Object.defineProperty(navigator, "canShare", {
+        configurable: true,
+        value: () => true,
+      });
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        value: (data) => {
+          window.invitationShares.push(data);
+          return new Promise((resolve, reject) => {
+            window.invitationShare = { resolve, reject };
+          });
+        },
+      });
+    });
+    await page.goto("/admin");
+    await page.locator("#admin-create-link").click();
+    const dialog = page.locator("#admin-create-dialog");
+    await dialog
+      .getByRole("button", { name: "创建邀请链接", exact: true })
+      .click();
+    const url = await dialog.locator("#admin-created-url").inputValue();
+    const share = dialog.getByRole("button", { name: "分享链接", exact: true });
+    await share.click();
+    await expect(share).toBeDisabled();
+    expect(await page.evaluate(() => window.invitationShares)).toEqual([
+      {
+        title: await dialog.locator(".invite-result-info h3").innerText(),
+        url,
+      },
+    ]);
+    await page.evaluate(() =>
+      window.invitationShare.reject(
+        new DOMException("Cancelled", "AbortError"),
+      ),
+    );
+    await expect(share).toBeEnabled();
+    await expect(dialog.locator(".toast")).toHaveCount(0);
+    await share.click();
+    await page.evaluate(() =>
+      window.invitationShare.reject(new Error("No share target")),
+    );
+    await expect(dialog.getByRole("alert")).toContainText("暂时无法分享");
+    await expect(share).toBeEnabled();
+    await share.click();
+    await dialog.getByRole("button", { name: "完成", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await page.evaluate(() =>
+      window.invitationShare.reject(new Error("Late result")),
+    );
+    await expect(page.locator(".toast")).toHaveCount(0);
+    await expect(page.locator("body")).not.toContainText(token);
+    expect(
+      state.requests.filter((request) => request.method === "POST"),
+    ).toHaveLength(1);
+  });
+
+  test("sharing falls back to copying and clipboard failure keeps the full URL available", async ({
+    page,
+  }) => {
+    await install(page);
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, "share", {
+        configurable: true,
+        value: undefined,
+      });
+    });
+    await page.goto("/admin");
+    await page.locator("#admin-create-link").click();
+    const dialog = page.locator("#admin-create-dialog");
+    await dialog
+      .getByRole("button", { name: "创建邀请链接", exact: true })
+      .click();
+    const url = await dialog.locator("#admin-created-url").inputValue();
+    await dialog.evaluate((node) =>
+      Promise.all(node.getAnimations().map((animation) => animation.finished)),
+    );
+    const before = await dialog.boundingBox();
+    await dialog.getByRole("button", { name: "分享链接", exact: true }).click();
+    await expect(dialog.getByRole("status")).toContainText("链接已复制");
+    expect(await page.evaluate(() => window.adminCopies)).toEqual([url]);
+    expect(await dialog.boundingBox()).toEqual(before);
+    await dialog
+      .getByRole("button", { name: "显示二维码", exact: true })
+      .click();
+    await expect(
+      dialog.getByRole("img", { name: "扫码打开上传页面" }),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      navigator.clipboard.writeText = async () => {
+        throw new DOMException("Denied", "NotAllowedError");
+      };
+    });
+    await dialog.getByRole("button", { name: "复制链接", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toContainText("手动复制");
+    await expect(dialog.locator("#admin-created-url")).toHaveValue(url);
+    await expect(dialog.locator("#admin-created-url")).toBeFocused();
+    expect(
+      await dialog
+        .locator("#admin-created-url")
+        .evaluate((node) => node.selectionEnd - node.selectionStart),
+    ).toBe(url.length);
+    expect(
+      await page.evaluate(() => JSON.stringify([localStorage, sessionStorage])),
+    ).not.toContain(token);
+  });
 });

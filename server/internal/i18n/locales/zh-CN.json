@@ -66,6 +66,7 @@
   "errors.jsonRequired": "请使用 application/json 提交收件链接信息。",
   "errors.invalidLink": "请填写 1–200 字节的标题、未来的到期时间和正整数限制，单文件限制不能超过总容量。",
   "errors.linkNotFound": "找不到此收件链接。",
+  "errors.linkNotRecoverable": "此邀请创建于旧版本，无法取回链接。已保存的链接仍可使用；如已遗失，请创建新邀请。",
   "errors.invalidListQuery": "每页数量应为 1–200，偏移量不能为负数，收件链接 ID 必须有效。",
   "errors.mediaUnavailable": "暂时无法读取动态照片信息。",
   "errors.mediaReadOnly": "媒体预览仅支持只读访问。",

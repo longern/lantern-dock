@@ -8,6 +8,7 @@ services:
       SITE_ORIGIN: ${SITE_ORIGIN}
       ADMIN_SUBJECTS: ${ADMIN_SUBJECTS:-}
       NAS_RESOURCE_ORIGIN: ${NAS_RESOURCE_ORIGIN:-}
+      SECRET_KEY: ${SECRET_KEY:?Set a persistent NAS SECRET_KEY of at least 32 characters}
     volumes:
       - type: bind
         source: ${PUBLIC_DIR:?Set PUBLIC_DIR to the folder you want to publish}

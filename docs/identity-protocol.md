@@ -141,6 +141,7 @@ All endpoints below use the same 60-second access-token validation and persisten
 | `GET /api/admin/links`                       | `links:read`   | Current NAS administrator |
 | `POST /api/admin/links`                      | `links:write`  | Current NAS administrator |
 | `DELETE /api/admin/links/<id>`               | `links:write`  | Current NAS administrator |
+| `GET /api/admin/links/<id>/share`            | `links:write`  | Current NAS administrator |
 | `GET /api/admin/inbox`                       | `inbox:read`   | Current NAS administrator |
 | `GET`, `HEAD /api/admin/inbox/<id>/download` | `inbox:read`   | Current NAS administrator |
 

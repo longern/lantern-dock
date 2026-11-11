@@ -374,7 +374,7 @@ export function FileIntakeActions({ client, mobile, suspended }) {
       {inviteClient && (
         <CreateLinkDialog
           client={inviteClient}
-          quick
+          fallbackFocus="#file-intake-trigger"
           onExit={close}
           onError={(error) => {
             if (error.code === "LOGIN_REQUIRED") void refreshIdentity();

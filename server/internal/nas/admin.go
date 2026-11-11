@@ -41,7 +41,10 @@ func (s *Server) serveAdmin(w http.ResponseWriter, r *http.Request) {
 		}
 	case strings.HasPrefix(r.URL.Path, adminPath+"/links/"):
 		id = strings.TrimPrefix(r.URL.Path, adminPath+"/links/")
-		if validID(id) {
+		if strings.HasSuffix(id, "/share") && validID(strings.TrimSuffix(id, "/share")) {
+			id = strings.TrimSuffix(id, "/share")
+			scope, allow = linksWriteScope, "GET, OPTIONS"
+		} else if validID(id) {
 			scope, allow = linksWriteScope, "DELETE, OPTIONS"
 		}
 	case r.URL.Path == adminPath+"/users":
@@ -123,6 +126,15 @@ func (s *Server) serveAdmin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if scope == linksWriteScope {
+		if r.Method == "GET" {
+			link, token, err := s.Store.Invitation(r.Context(), id)
+			if err != nil {
+				writeError(w, r, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"link": link, "token": token})
+			return
+		}
 		if err = s.Store.Revoke(r.Context(), id); err != nil {
 			writeError(w, r, err)
 			return
@@ -162,8 +174,8 @@ func (s *Server) createAdminLink(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, err)
 		return
 	}
-	// Tokens are never persisted or included in any list/get response. The
-	// browser constructs the fragment-only collection URL from this one reply.
+	// Credential responses are limited to creation and the authorized share
+	// endpoint. The browser constructs the fragment-only upload URL.
 	writeJSON(w, http.StatusCreated, map[string]any{"link": link, "token": token})
 }
 
@@ -210,7 +222,8 @@ func (s *Server) listAdminLinks(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.Store.DB.QueryContext(r.Context(), `SELECT l.id,l.title,l.expires_at,l.max_file_bytes,l.max_total_bytes,l.max_files,l.revoked,
  (SELECT COALESCE(SUM(size),0) FROM uploads WHERE link_id=l.id AND `+usageWhere+`),
  (SELECT COUNT(*) FROM uploads WHERE link_id=l.id AND `+usageWhere+`),
- (SELECT COUNT(*) FROM uploads WHERE link_id=l.id AND status='complete')
+ (SELECT COUNT(*) FROM uploads WHERE link_id=l.id AND status='complete'),
+ EXISTS(SELECT 1 FROM invitation_tokens WHERE link_id=l.id)
  FROM links l WHERE l.id NOT IN (SELECT link_id FROM personal_inboxes UNION ALL SELECT link_id FROM member_grants)
  ORDER BY l.created_at DESC,l.id LIMIT ? OFFSET ?`, now, now, limit+1, offset)
 	if err != nil {
@@ -222,7 +235,7 @@ func (s *Server) listAdminLinks(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var link Link
 		var expires int64
-		if err = rows.Scan(&link.ID, &link.Title, &expires, &link.MaxFileBytes, &link.MaxTotalBytes, &link.MaxFiles, &link.Revoked, &link.UsedBytes, &link.UsedFiles, &link.ReceivedFiles); err != nil {
+		if err = rows.Scan(&link.ID, &link.Title, &expires, &link.MaxFileBytes, &link.MaxTotalBytes, &link.MaxFiles, &link.Revoked, &link.UsedBytes, &link.UsedFiles, &link.ReceivedFiles, &link.Shareable); err != nil {
 			writeError(w, r, err)
 			return
 		}

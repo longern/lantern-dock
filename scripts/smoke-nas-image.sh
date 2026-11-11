@@ -5,6 +5,7 @@ image=${1:?Usage: smoke-nas-image.sh IMAGE}
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 helper=busybox:1.37.0
 prefix="lantern-dock-smoke-${RANDOM}"
+nas_secret=smoke-test-only-nas-secret-0123456789abcdef
 test_dir=$(mktemp -d)
 containers=()
 cleanup() {
@@ -30,7 +31,7 @@ start() {
 	container="$prefix-$suffix"
 	containers+=("$container")
 	docker run -d --name "$container" --read-only \
-		"${mounts[@]}" -p 127.0.0.1::8080 "$@" "$image" >/dev/null
+		"${mounts[@]}" -e "SECRET_KEY=$nas_secret" -p 127.0.0.1::8080 "$@" "$image" >/dev/null
 	address=$(docker port "$container" 8080/tcp)
 	for attempt in $(seq 1 30); do
 		if curl --fail --silent --max-time 2 "http://$address/healthz"; then break; fi
@@ -104,7 +105,7 @@ list_link() {
 expect_failure() {
 	local expected=$1
 	shift
-	if docker run --rm --read-only "${mounts[@]}" "$@" "$image" >"$test_dir/error.log" 2>&1; then
+	if docker run --rm --read-only "${mounts[@]}" -e "SECRET_KEY=$nas_secret" "$@" "$image" >"$test_dir/error.log" 2>&1; then
 		echo "Expected startup to fail: $expected" >&2
 		exit 1
 	fi
@@ -129,18 +130,20 @@ docker exec "$container" /lantern-dock link create --data-dir=/data \
 	--site=https://files.example.com >"$test_dir/drop.json"
 jq -e '.link.id and (.url | startswith("https://files.example.com/upload#token="))' "$test_dir/drop.json" >/dev/null
 list_link
+fixture 'test ! -e /fixture/data/invitation.key'
 test "$(fixture 'stat -c %u:%g /fixture/data/lantern-dock.sqlite')" = 1000:1000
 test "$(fixture 'stat -c %u:%g:%a /fixture/public/hello.txt')" = 0:0:644
 stop
 
 # Migrate existing SQLite state and inbox files while preserving link IDs and
 # public ownership/permissions. Unrelated files in the data mount stay untouched.
-fixture 'mkdir -p /fixture/data/inbox/legacy; printf "private fixture" > /fixture/data/inbox/legacy/photo.txt; chmod 400 /fixture/data/inbox/legacy/photo.txt; chown -R 65532:65532 /fixture/data; printf "unrelated" > /fixture/data/notes.txt; chmod 400 /fixture/data/notes.txt; chown -R 1001:100 /fixture/public; chmod 700 /fixture/public; chmod 600 /fixture/public/hello.txt'
+fixture 'mkdir -p /fixture/data/inbox/legacy; printf "private fixture" > /fixture/data/inbox/legacy/photo.txt; chmod 400 /fixture/data/inbox/legacy/photo.txt; chown -R 65532:65532 /fixture/data; printf "legacy key" > /fixture/data/invitation.key; chmod 000 /fixture/data/invitation.key; printf "unrelated" > /fixture/data/notes.txt; chmod 400 /fixture/data/notes.txt; chown -R 1001:100 /fixture/public; chmod 700 /fixture/public; chmod 600 /fixture/public/hello.txt'
 start nas-user 1001 100 -e PUID=01001 -e PGID=00100
 list_link
 test "$(fixture 'stat -c %u:%g:%a /fixture/data/inbox/legacy/photo.txt')" = 1001:100:600
 test "$(fixture 'find /fixture/data/cache/images -type f -exec stat -c %u:%g:%a {} \;' | sort -u)" = 1001:100:600
 test "$(fixture 'stat -c %u:%g:%a /fixture/data/notes.txt')" = 0:0:400
+test "$(fixture 'stat -c %u:%g:%a /fixture/data/invitation.key')" = 0:0:0
 test "$(fixture 'stat -c %u:%g:%a /fixture/public/hello.txt')" = 1001:100:600
 stop
 
@@ -165,6 +168,8 @@ expect_failure PGID -e PGID=0
 expect_failure 'public directory /public.*UID=3000 GID=3000' --cap-drop ALL --user 3000:3000
 expect_failure 'nested mount.*private data' \
 	--mount "type=bind,src=$test_dir/public,dst=/data/inbox/mounted-public"
+expect_failure 'SECRET_KEY is required' --user 1001:100 --group-add 2222 -e SECRET_KEY=
+expect_failure 'SECRET_KEY must contain at least 32 characters' --user 1001:100 --group-add 2222 -e SECRET_KEY=short
 test "$(fixture 'stat -c %u:%g:%a /fixture/public/hello.txt')" = 2000:2222:640
 
 echo "NAS image smoke test passed: $image (default user, PUID/PGID, migration, user:, groups, rejected configurations)"

@@ -1,0 +1,368 @@
+.settings-dialog.admin-dialog.invite-dialog {
+  width: min(520px, calc(100vw - 48px));
+  height: min(820px, calc(100dvh - 48px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  background: var(--canvas);
+  overflow: hidden;
+  --invite-padding: 24px;
+}
+.settings-dialog.admin-dialog.invite-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.invite-topbar {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
+  align-items: center;
+  flex-shrink: 0;
+  height: 60px;
+  padding: 0 16px;
+  outline: none;
+}
+.invite-topbar .icon-button {
+  width: 48px;
+  height: 48px;
+  margin-left: -12px;
+}
+.invite-topbar h2 {
+  min-width: 0;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.invite-topbar .icon-button svg {
+  width: 24px;
+  height: 24px;
+}
+.invite-form,
+.invite-result {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.invite-form-content,
+.invite-result-content {
+  flex: 1;
+  min-height: 0;
+  padding: 20px var(--invite-padding);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.invite-intro {
+  margin: 0 0 24px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--muted);
+}
+.invite-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.invite-group {
+  background: var(--surface);
+  border-radius: 16px;
+  overflow: hidden;
+}
+.invite-group-title {
+  margin: 24px 2px 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.invite-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 60px;
+  padding: 0 16px;
+  font-size: 14px;
+}
+.invite-row > span {
+  position: relative;
+  z-index: 1;
+  max-width: 46%;
+  pointer-events: none;
+}
+.invite-dialog .invite-row input,
+.invite-dialog .invite-row select {
+  height: 60px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #53586b;
+  font-size: 16px;
+  text-align: right;
+}
+.invite-dialog .invite-title-row input {
+  flex: 1;
+  width: 0;
+  color: inherit;
+}
+.invite-select-row > span {
+  padding-right: 4px;
+}
+.invite-dialog .invite-select-row select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  padding: 0 44px 0 46%;
+  appearance: none;
+  text-align-last: right;
+  cursor: pointer;
+}
+.invite-select-row > svg {
+  position: absolute;
+  right: 16px;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.invite-row:has(:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+.invite-row input:focus-visible,
+.invite-row select:focus-visible {
+  outline: none;
+}
+.invite-fields:disabled .invite-row select {
+  cursor: default;
+}
+.invite-custom-field {
+  display: grid;
+  gap: 8px;
+  padding: 4px 16px 16px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.invite-dialog .invite-custom-field input {
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  background: var(--surface-subtle);
+  border-radius: var(--radius-control);
+  font-size: 16px;
+}
+.invite-custom-field small {
+  font-size: 12px;
+}
+.invite-rule-hint {
+  margin: 14px 2px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.invite-form .admin-form-error {
+  color: #964747;
+  background: #fbf0f0;
+  margin-bottom: 0;
+}
+.invite-footer {
+  flex-shrink: 0;
+  padding: 16px var(--invite-padding) max(20px, env(safe-area-inset-bottom));
+}
+.invite-footer > button {
+  width: 100%;
+  min-height: 48px;
+  border-radius: var(--radius-control);
+  font-size: 15px;
+}
+.invite-done {
+  background: var(--line);
+  font-weight: 500;
+}
+.invite-success {
+  margin: 8px 0 32px;
+  text-align: center;
+}
+.invite-success > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 16px;
+  border: 1.5px solid #42745b;
+  border-radius: 50%;
+  color: #42745b;
+}
+.invite-success h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+.invite-result-info h3 {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.invite-result[data-reopened] .invite-result-content {
+  padding-top: 36px;
+}
+.invite-load-state h3 {
+  margin-top: 16px;
+  overflow-wrap: anywhere;
+}
+.admin-link-actions .admin-invitation-share {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 16px;
+  border-radius: var(--radius-control);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 500;
+}
+.admin-invitation-share svg {
+  width: 18px;
+  height: 18px;
+}
+.admin-link-actions .secondary-button {
+  border: 0;
+  background: var(--surface-subtle);
+}
+.admin-invitation-compat {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.invite-result-info p {
+  margin: 4px 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+.invite-presentation {
+  margin-top: 24px;
+}
+.invite-url-label {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.invite-dialog #admin-created-url {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  border: 0;
+  border-radius: 12px;
+  resize: none;
+  background: var(--surface);
+  color: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.invite-dialog .invite-qr canvas {
+  display: block;
+  width: min(100%, 240px);
+  height: auto;
+  margin: auto;
+  border-radius: 4px;
+}
+.invite-scan-caption {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+.invite-save-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 18px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.7;
+}
+.invite-save-note svg {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: var(--accent);
+}
+.invite-share-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  flex-shrink: 0;
+  gap: 12px;
+  padding: 8px var(--invite-padding) 4px;
+}
+.invite-share-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 104px;
+  padding: 16px 6px;
+  border-radius: 16px;
+  background: var(--surface);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.invite-share-actions svg {
+  width: 28px;
+  height: 28px;
+  color: var(--accent);
+}
+.invite-share-actions button[data-active],
+.invite-share-actions button:active {
+  background: var(--accent-soft);
+}
+@media (hover: hover) {
+  .invite-share-actions button:hover {
+    background: var(--accent-soft);
+  }
+  .invite-done:hover {
+    background: #e0e1e8;
+  }
+}
+@media (--down-sm) {
+  .settings-dialog.admin-dialog.invite-dialog {
+    inset: 0;
+    margin: 0;
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    --invite-padding: 20px;
+  }
+  .invite-topbar {
+    height: calc(60px + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+  }
+}
+@media (max-width: 360px) {
+  .settings-dialog.admin-dialog.invite-dialog {
+    --invite-padding: 16px;
+  }
+  .invite-row {
+    padding: 0 12px;
+  }
+  .invite-share-actions {
+    gap: 8px;
+  }
+}

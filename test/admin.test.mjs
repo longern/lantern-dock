@@ -115,6 +115,7 @@ test("link metadata never retains secrets or unrecognized fields", () => {
     { id: "../../secret" },
     { expiresAt: "invalid" },
     { revoked: "false" },
+    { shareable: "true" },
     { maxTotalBytes: Number.MAX_SAFE_INTEGER + 1 },
   ])
     assert.throws(() => linkMetadata({ ...link, ...patch }));
@@ -223,7 +224,7 @@ test("each admin request obtains its operation scope and DPoP proof directly to 
   assert.ok(!JSON.stringify(result).includes("secret"));
 });
 
-test("create and revoke use write scope; URL is exposed only on creation", async () => {
+test("create and revoke use write scope; creation returns a validated URL", async () => {
   globalThis.location = { href: "https://site.example/admin" };
   const { client, calls } = fixture({ link, token: "A".repeat(43) }, 201);
   const body = createLinkInput(input, now);
@@ -240,6 +241,42 @@ test("create and revoke use write scope; URL is exposed only on creation", async
   assert.equal(revoked.calls[0].scope, "links:write");
   assert.equal(revoked.calls[2].method, "DELETE");
   assert.equal(revoked.calls[2].path, "/api/admin/links/link-id");
+});
+
+test("sharing explicitly fetches the same invitation with write scope and validates its identity", async () => {
+  globalThis.location = { href: "https://site.example/admin" };
+  const active = {
+    ...link,
+    expiresAt: "2036-01-02T00:00:00Z",
+    shareable: true,
+  };
+  const { client, calls } = fixture({ link: active, token: "A".repeat(43) });
+  const result = await client.share(link.id);
+  assert.deepEqual(result, {
+    link: active,
+    url: `https://site.example/upload#token=${"A".repeat(43)}`,
+  });
+  assert.equal(calls[0].scope, "links:write");
+  assert.equal(calls[1].method, "GET");
+  assert.equal(calls[2].path, `/api/admin/links/${link.id}/share`);
+  assert.equal(calls[2].body, undefined);
+  for (const patch of [
+    { id: "other" },
+    { revoked: true },
+    { expiresAt: "2000-01-01T00:00:00Z" },
+    { usedFiles: 4 },
+    { shareable: false },
+    { shareable: undefined },
+  ]) {
+    const bad = fixture({
+      link: { ...active, ...patch },
+      token: "A".repeat(43),
+    });
+    await assert.rejects(bad.client.share(link.id));
+  }
+  await assert.rejects(
+    fixture({ link: active, token: "invalid" }).client.share(link.id),
+  );
 });
 
 test("inbox and download use private scoped endpoints without bearer tokens in URLs", async () => {

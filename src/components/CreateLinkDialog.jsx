@@ -1,10 +1,82 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { t } from "../../shared/i18n.js";
+import { t, locale } from "../../shared/i18n.js";
 import { createLinkInput, localDateTime } from "../lib/admin.js";
-import { date } from "../lib/format.js";
+import { bytes, date } from "../lib/format.js";
 import { Dialog } from "./Dialog.jsx";
 import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 import { Icon } from "./Icon.jsx";
+import { Toast } from "./Toast.jsx";
+
+const MiB = 1024 * 1024;
+const capacityOptions = (values) =>
+  values.map((value) => ({ value, label: bytes(value * MiB) }));
+
+function InvitationSelect({
+  id,
+  name,
+  label,
+  initial,
+  options,
+  dateTime = false,
+}) {
+  const [selected, setSelected] = useState(String(initial));
+  return (
+    <>
+      <label class="invite-row invite-select-row" for={id}>
+        <span>{label}</span>
+        <select
+          id={id}
+          name={selected === "custom" ? undefined : name}
+          value={selected}
+          onChange={(event) => setSelected(event.currentTarget.value)}
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+          <option value="custom">{t("admin.invitationCustom")}</option>
+        </select>
+        <Icon name="chevron-down" />
+      </label>
+      {selected === "custom" && (
+        <label class="invite-custom-field" for={id + "-custom"}>
+          <span>
+            {t(dateTime ? "admin.expiryLocal" : "admin.invitationCustomValue", {
+              label,
+            })}
+          </span>
+          <input
+            id={id + "-custom"}
+            name={dateTime ? "expiresAt" : name}
+            type={dateTime ? "datetime-local" : "number"}
+            inputMode={
+              dateTime ? undefined : name === "maxFiles" ? "numeric" : "decimal"
+            }
+            required
+            min={dateTime ? localDateTime() : name === "maxFiles" ? 1 : 0.01}
+            step={dateTime ? 60 : name === "maxFiles" ? 1 : 0.01}
+            max={
+              dateTime
+                ? undefined
+                : name === "maxFiles"
+                  ? Number.MAX_SAFE_INTEGER
+                  : Number.MAX_SAFE_INTEGER / MiB
+            }
+            defaultValue={
+              dateTime
+                ? localDateTime(new Date(Date.now() + 7 * 86400000))
+                : initial
+            }
+          />
+          {!dateTime && name !== "maxFiles" && (
+            <small>{t("admin.invitationCustomSizeUnit")}</small>
+          )}
+        </label>
+      )}
+    </>
+  );
+}
 
 function UploadQR({ url }) {
   const canvas = useRef(null);
@@ -14,7 +86,15 @@ function UploadQR({ url }) {
     import("qrcode")
       .then(({ default: encoder }) => {
         if (!active) return;
-        return encoder.toCanvas(canvas.current, url, { width: 384, margin: 4 });
+        const node = canvas.current;
+        return encoder
+          .toCanvas(node, url, { width: 384, margin: 4 })
+          .then(() => {
+            if (!active) return;
+            // Keep a sharp bitmap while CSS controls its responsive display size.
+            node.style.removeProperty("width");
+            node.style.removeProperty("height");
+          });
       })
       .then(
         () => {
@@ -47,58 +127,107 @@ function UploadQR({ url }) {
 
 export function CreateLinkDialog({
   client,
+  invitation = null,
   onExit,
   onCreated = () => {},
   onError,
-  quick = false,
-  preset = "",
+  fallbackFocus = "#admin-create-link",
 }) {
   const [open, setOpen] = useState(true);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(!!invitation);
   const [error, setError] = useState("");
   const [uncertain, setUncertain] = useState(false);
   const [result, setResult] = useState(null);
-  const [copied, setCopied] = useState("");
+  const [showQR, setShowQR] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [feedback, setFeedback] = useState(null);
+  const [defaultTitle] = useState(() =>
+    t("admin.invitationDefaultTitle", {
+      date: new Intl.DateTimeFormat(locale, {
+        month: "long",
+        day: "numeric",
+      }).format(new Date()),
+    }),
+  );
   const request = useRef(null);
-  const mode = useRef("");
+  const shareRequest = useRef(false);
+  const toastTimer = useRef(null);
   const alive = useRef(true);
+  const current = useRef(true);
+  const loadExisting = async () => {
+    if (!invitation || !current.current || request.current) return;
+    const controller = new AbortController();
+    request.current = controller;
+    setBusy(true);
+    setError("");
+    try {
+      const value = await client.share(invitation.id, controller.signal);
+      if (!alive.current || !current.current || controller.signal.aborted)
+        return;
+      setResult(value);
+      requestAnimationFrame(() => {
+        if (current.current)
+          document.getElementById("admin-copy-link")?.focus();
+      });
+    } catch (err) {
+      if (!alive.current || !current.current || controller.signal.aborted)
+        return;
+      setError(err.message || t("admin.requestFailed"));
+      if (err.status === 409 || err.status === 410) onCreated();
+      onError?.(err);
+    } finally {
+      if (request.current === controller) request.current = null;
+      if (alive.current && current.current) setBusy(false);
+    }
+  };
+  useEffect(() => {
+    if (invitation) void loadExisting();
+  }, [client, invitation?.id]);
   useEffect(
     () => () => {
       alive.current = false;
+      current.current = false;
       request.current?.abort();
+      clearTimeout(toastTimer.current);
     },
     [],
   );
+  const notify = (text, error = false) => {
+    if (!alive.current || !current.current) return;
+    clearTimeout(toastTimer.current);
+    setFeedback({ text, error });
+    toastTimer.current = setTimeout(
+      () => {
+        setFeedback((value) => value && { ...value, leaving: true });
+        toastTimer.current = setTimeout(() => setFeedback(null), 200);
+      },
+      error ? 4000 : 2000,
+    );
+  };
   const close = () => {
-    if (request.current) return;
-    // Clear the capability URL immediately, including during the exit animation.
+    if (request.current && !invitation) return;
+    request.current?.abort();
+    current.current = false;
+    // Clear capability-bearing content as soon as dismissal starts.
     setResult((value) => value && { ...value, url: "" });
-    setCopied("");
+    setShowQR(false);
+    clearTimeout(toastTimer.current);
+    setFeedback(null);
     setOpen(false);
   };
   const submit = async (event) => {
     event.preventDefault();
-    if (!open || request.current || result) return;
+    if (!current.current || request.current || result || uncertain) return;
     setError("");
-    setUncertain(false);
     let input;
     try {
       const values = Object.fromEntries(new FormData(event.currentTarget));
-      if (quick) {
-        mode.current =
-          preset || (event.submitter?.value === "scan" ? "scan" : "share");
-        const scan = mode.current === "scan";
-        Object.assign(values, {
-          title:
-            values.title.trim() ||
-            t(scan ? "admin.scanDrop" : "admin.shareDrop"),
-          expiresAt: new Date(
-            Date.now() + (scan ? 30 * 60000 : 72 * 3600000),
-          ).toISOString(),
-          maxFileMiB: 100,
-          maxTotalMiB: 1024,
-          maxFiles: 100,
-        });
+      if (values.expiryHours) {
+        const hours = Number(values.expiryHours);
+        values.expiresAt =
+          Number.isFinite(hours) && hours > 0
+            ? new Date(Date.now() + hours * 3600000).toISOString()
+            : "";
       }
       input = createLinkInput(values);
     } catch (err) {
@@ -113,254 +242,320 @@ export function CreateLinkDialog({
       if (!alive.current || controller.signal.aborted) return;
       setResult(value);
       onCreated();
-      requestAnimationFrame(() =>
-        document.getElementById("admin-copy-link")?.focus(),
-      );
+      requestAnimationFrame(() => {
+        if (current.current)
+          document.getElementById("admin-copy-link")?.focus();
+      });
     } catch (err) {
       if (!alive.current || controller.signal.aborted) return;
       setError(err.message || t("admin.requestFailed"));
-      // Never retry a potentially committed POST automatically.
+      // A lost acknowledgement may have committed the POST; never retry it automatically.
       if (!err.status || err.status >= 500) {
         setUncertain(true);
         onCreated();
       }
-      onError(err);
+      onError?.(err);
     } finally {
       if (request.current === controller) request.current = null;
       if (alive.current) setBusy(false);
     }
   };
-  const copy = async () => {
-    if (!result?.url || !open) return;
+  const copy = async (message = t("admin.linkCopied")) => {
+    if (!result?.url || !current.current) return;
     try {
       await navigator.clipboard.writeText(result.url);
-      if (alive.current) setCopied(t("admin.linkCopied"));
+      notify(message);
     } catch {
-      if (alive.current) setCopied(t("admin.copyFailed"));
+      if (!alive.current || !current.current) return;
+      setShowQR(false);
+      notify(t("admin.copyFailed"), true);
+      requestAnimationFrame(() => {
+        if (current.current)
+          document.getElementById("admin-created-url")?.focus();
+      });
+    }
+  };
+  const share = async () => {
+    if (!result?.url || !current.current || shareRequest.current) return;
+    clearTimeout(toastTimer.current);
+    setFeedback(null);
+    const data = { title: result.link.title, url: result.url };
+    shareRequest.current = true;
+    setSharing(true);
+    try {
+      if (
+        typeof navigator.share !== "function" ||
+        (typeof navigator.canShare === "function" && !navigator.canShare(data))
+      ) {
+        await copy(t("admin.invitationShareFallback"));
+        return;
+      }
+      await navigator.share(data);
+    } catch (err) {
+      if (err?.name !== "AbortError")
+        notify(t("admin.invitationShareFailed"), true);
+    } finally {
+      shareRequest.current = false;
+      if (alive.current && current.current) setSharing(false);
     }
   };
   return (
     <Dialog
-      class="settings-dialog admin-dialog"
+      class="settings-dialog admin-dialog invite-dialog"
       id="admin-create-dialog"
       open={open}
       onClose={close}
       onExited={onExit}
-      fallbackFocus={quick ? "#file-intake-trigger" : "#admin-create-link"}
+      fallbackFocus={fallbackFocus}
       aria-labelledby="admin-create-title"
     >
-      <div class="dialog-heading" {...dialogHeadingFocus}>
-        <h2 id="admin-create-title">
-          {t(
-            result
-              ? "admin.linkCreated"
-              : quick
-                ? "admin.inviteUpload"
-                : "admin.createLink",
-          )}
-        </h2>
+      <header class="invite-topbar" {...dialogHeadingFocus}>
         <button
           class="icon-button"
-          disabled={busy}
-          aria-label={t("admin.close")}
+          disabled={busy && !invitation}
+          aria-label={t(result || invitation ? "admin.close" : "admin.cancel")}
           onClick={close}
         >
-          <Icon name="x" />
+          <Icon name="chevron-left" />
         </button>
-      </div>
+        <h2 id="admin-create-title">
+          {t(
+            result || invitation
+              ? "admin.invitationLink"
+              : "admin.inviteUpload",
+          )}
+        </h2>
+      </header>
       {result ? (
-        <div class="admin-created">
-          {mode.current === "scan" && result.url && (
-            <UploadQR url={result.url} />
-          )}
-          {quick && (
-            <p>
-              {t("admin.expires")}{" "}
-              <time dateTime={result.link.expiresAt}>
-                {date(result.link.expiresAt, true)}
-              </time>
+        <div class="invite-result" data-reopened={invitation ? "" : undefined}>
+          <div class="invite-result-content">
+            {!showQR && !invitation && (
+              <div class="invite-success">
+                <span>
+                  <Icon name="check" />
+                </span>
+                <h3>{t("admin.invitationCreated")}</h3>
+              </div>
+            )}
+            <section class="invite-result-info">
+              <h3>{result.link.title}</h3>
+              <p>
+                {t("admin.expires")}{" "}
+                <time dateTime={result.link.expiresAt}>
+                  {date(result.link.expiresAt, true)}
+                </time>
+              </p>
+              {!showQR && (
+                <p>
+                  {t("admin.invitationSummary", {
+                    file: bytes(result.link.maxFileBytes),
+                    total: bytes(result.link.maxTotalBytes),
+                    count: result.link.maxFiles,
+                  })}
+                </p>
+              )}
+            </section>
+            <div id="invite-presentation" class="invite-presentation">
+              {showQR ? (
+                result.url && (
+                  <>
+                    <UploadQR url={result.url} />
+                    <p class="invite-scan-caption">
+                      {t("admin.invitationScanHint")}
+                    </p>
+                  </>
+                )
+              ) : (
+                <>
+                  <label class="invite-url-label" for="admin-created-url">
+                    {t("admin.invitationLink")}
+                  </label>
+                  <textarea
+                    id="admin-created-url"
+                    readOnly
+                    rows={2}
+                    value={result.url}
+                    autoComplete="off"
+                    spellcheck={false}
+                    onFocus={(event) => event.currentTarget.select()}
+                  />
+                </>
+              )}
+            </div>
+            <p class="invite-save-note">
+              <Icon name="info" />
+              <span>
+                {t(
+                  result.link.shareable === true
+                    ? "admin.invitationSaveHint"
+                    : "admin.invitationLegacySaveHint",
+                )}
+              </span>
             </p>
-          )}
-          <p class="admin-once-warning">
-            <Icon name="lock" />
-            <span>{t("admin.oneTimeWarning")}</span>
-          </p>
-          <label class="form-label" for="admin-created-url">
-            {t("admin.shareableLink")}
-          </label>
-          <textarea
-            id="admin-created-url"
-            readOnly
-            rows={3}
-            value={result.url}
-            autoComplete="off"
-            spellcheck={false}
-            onFocus={(event) => event.currentTarget.select()}
-          />
-          <p>{t("admin.linkPrivacy")}</p>
-          <div class="dialog-actions">
-            <button id="admin-copy-link" class="primary-button" onClick={copy}>
+          </div>
+          <div class="invite-share-actions">
+            <button id="admin-copy-link" onClick={() => void copy()}>
               <Icon name="copy" />
-              {t("admin.copyLink")}
+              <span>{t("admin.copyLink")}</span>
             </button>
-            <button class="secondary-button" onClick={close}>
-              {t(quick ? "admin.done" : "admin.savedLink")}
+            <button
+              disabled={sharing}
+              aria-busy={sharing}
+              onClick={() => void share()}
+            >
+              <Icon name="share" />
+              <span>{t("admin.invitationShare")}</span>
+            </button>
+            <button
+              aria-expanded={showQR}
+              aria-controls="invite-presentation"
+              data-active={showQR ? "" : undefined}
+              onClick={() => setShowQR((value) => !value)}
+            >
+              <Icon name="qr-code" />
+              <span>
+                {t(
+                  showQR ? "admin.invitationHideQR" : "admin.invitationShowQR",
+                )}
+              </span>
             </button>
           </div>
-          {copied && (
-            <p class="account-feedback" role="status">
-              {copied}
-            </p>
-          )}
+          <footer class="invite-footer">
+            <button class="invite-done" onClick={close}>
+              {t("admin.done")}
+            </button>
+          </footer>
         </div>
-      ) : (
-        <form onSubmit={submit}>
-          <p class="dialog-intro">{t("admin.createDescription")}</p>
-          <fieldset disabled={busy} class="admin-form-fields">
-            <label class="form-label" for="admin-link-title">
-              {t(quick ? "admin.optionalTitle" : "admin.linkTitle")}
-            </label>
-            <input
-              id="admin-link-title"
-              name="title"
-              required={!quick}
-              maxLength={200}
-              autoComplete="off"
-              placeholder={t("admin.titlePlaceholder")}
-            />
-            {!quick && (
+      ) : invitation ? (
+        <div class="invite-result">
+          <div class="invite-result-content invite-load-state" aria-busy={busy}>
+            <h3>{invitation.title}</h3>
+            {busy ? (
+              <p role="status">{t("admin.loading")}</p>
+            ) : (
               <>
-                <label class="form-label" for="admin-link-expiry">
-                  {t("admin.expiryLocal")}
-                </label>
-                <input
-                  id="admin-link-expiry"
-                  type="datetime-local"
-                  name="expiresAt"
-                  required
-                  min={localDateTime()}
-                  defaultValue={localDateTime(
-                    new Date(Date.now() + 7 * 86400000),
-                  )}
-                />
-                <div class="admin-form-grid">
-                  <div>
-                    <label class="form-label" for="admin-link-file-limit">
-                      {t("admin.fileLimitMiB")}
-                    </label>
-                    <input
-                      id="admin-link-file-limit"
-                      type="number"
-                      name="maxFileMiB"
-                      min="0.01"
-                      step="0.01"
-                      required
-                      defaultValue="100"
-                    />
-                  </div>
-                  <div>
-                    <label class="form-label" for="admin-link-total-limit">
-                      {t("admin.totalLimitMiB")}
-                    </label>
-                    <input
-                      id="admin-link-total-limit"
-                      type="number"
-                      name="maxTotalMiB"
-                      min="0.01"
-                      step="0.01"
-                      required
-                      defaultValue="1024"
-                    />
-                  </div>
-                </div>
-                <label class="form-label" for="admin-link-file-count">
-                  {t("admin.maxFiles")}
-                </label>
-                <input
-                  id="admin-link-file-count"
-                  type="number"
-                  name="maxFiles"
-                  min="1"
-                  max={Number.MAX_SAFE_INTEGER}
-                  step="1"
-                  required
-                  defaultValue="100"
-                />
-                <p class="admin-form-hint">{t("admin.quotaNote")}</p>
+                <p class="admin-form-error" role="alert">
+                  {error}
+                </p>
+                <button
+                  class="secondary-button"
+                  onClick={() => void loadExisting()}
+                >
+                  {t("library.retry")}
+                </button>
               </>
             )}
-            {quick && <p class="admin-form-hint">{t("admin.quickLimits")}</p>}
-            {preset && (
-              <p class="admin-form-hint">
-                {t(
-                  preset === "scan" ? "admin.scanExpiry" : "admin.shareExpiry",
-                )}
+          </div>
+          <footer class="invite-footer">
+            <button class="invite-done" onClick={close}>
+              {t("admin.done")}
+            </button>
+          </footer>
+        </div>
+      ) : (
+        <form class="invite-form" onSubmit={submit}>
+          <div class="invite-form-content">
+            <p class="invite-intro">{t("admin.invitationDescription")}</p>
+            <fieldset disabled={busy || uncertain} class="invite-fields">
+              <div class="invite-group">
+                <label
+                  class="invite-row invite-title-row"
+                  for="admin-link-title"
+                >
+                  <span>{t("admin.invitationNote")}</span>
+                  <input
+                    id="admin-link-title"
+                    name="title"
+                    required
+                    maxLength={200}
+                    autoComplete="off"
+                    defaultValue={defaultTitle}
+                  />
+                </label>
+              </div>
+              <h3 class="invite-group-title">{t("admin.invitationRules")}</h3>
+              <div class="invite-group">
+                <InvitationSelect
+                  id="admin-link-expiry"
+                  name="expiryHours"
+                  label={t("admin.invitationValidity")}
+                  initial={168}
+                  dateTime
+                  options={[
+                    { value: 1, label: t("admin.invitationOneHour") },
+                    {
+                      value: 24,
+                      label: t("admin.invitationDays", { count: 1 }),
+                    },
+                    {
+                      value: 72,
+                      label: t("admin.invitationDays", { count: 3 }),
+                    },
+                    {
+                      value: 168,
+                      label: t("admin.invitationDays", { count: 7 }),
+                    },
+                    {
+                      value: 720,
+                      label: t("admin.invitationDays", { count: 30 }),
+                    },
+                  ]}
+                />
+                <InvitationSelect
+                  id="admin-link-file-limit"
+                  name="maxFileMiB"
+                  label={t("admin.fileLimit")}
+                  initial={1024}
+                  options={capacityOptions([100, 500, 1024, 2048, 5120])}
+                />
+                <InvitationSelect
+                  id="admin-link-total-limit"
+                  name="maxTotalMiB"
+                  label={t("admin.invitationTotalLimit")}
+                  initial={10240}
+                  options={capacityOptions([1024, 5120, 10240, 51200, 102400])}
+                />
+                <InvitationSelect
+                  id="admin-link-file-count"
+                  name="maxFiles"
+                  label={t("admin.maxFiles")}
+                  initial={1000}
+                  options={[100, 500, 1000, 5000, 10000].map((value) => ({
+                    value,
+                    label: `${value.toLocaleString(locale)} ${t("admin.fileUnit")}`,
+                  }))}
+                />
+              </div>
+              <p class="invite-rule-hint">{t("admin.invitationLimitsHint")}</p>
+            </fieldset>
+            {error && (
+              <p class="admin-form-error" role="alert">
+                {error}
               </p>
             )}
-          </fieldset>
-          {error && (
-            <p class="admin-form-error" role="alert">
-              {error}
-            </p>
-          )}
-          {uncertain && (
-            <p class="admin-form-error" role="alert">
-              {t("admin.createUncertain")}
-            </p>
-          )}
-          {busy && (
-            <p role="status" class="admin-form-hint">
-              {t("admin.creating")}
-            </p>
-          )}
-          {quick && !preset ? (
-            <div class="invite-choices">
-              <button
-                class="secondary-button"
-                type="submit"
-                value="scan"
-                disabled={busy || uncertain}
-              >
-                <Icon name="qr-code" />
-                <span>
-                  {t("admin.scanDrop")}
-                  <small>{t("admin.scanExpiry")}</small>
-                </span>
-              </button>
-              <button
-                class="secondary-button"
-                type="submit"
-                value="share"
-                disabled={busy || uncertain}
-              >
-                <Icon name="copy" />
-                <span>
-                  {t("admin.shareDrop")}
-                  <small>{t("admin.shareExpiry")}</small>
-                </span>
-              </button>
-            </div>
-          ) : (
-            <div class="dialog-actions">
-              <button
-                class="primary-button"
-                type="submit"
-                disabled={busy || uncertain}
-              >
-                {t(busy ? "admin.creating" : "admin.createLink")}
-              </button>
-              <button
-                class="secondary-button"
-                type="button"
-                disabled={busy}
-                onClick={close}
-              >
-                {t("admin.cancel")}
-              </button>
-            </div>
-          )}
+            {uncertain && (
+              <p class="admin-form-error" role="alert">
+                {t("admin.createUncertain")}
+              </p>
+            )}
+            {busy && (
+              <p class="invite-rule-hint" role="status">
+                {t("admin.creating")}
+              </p>
+            )}
+          </div>
+          <footer class="invite-footer">
+            <button
+              class="primary-button"
+              type="submit"
+              disabled={busy || uncertain}
+            >
+              {t(busy ? "admin.creating" : "admin.createInvitation")}
+            </button>
+          </footer>
         </form>
       )}
+      {feedback && <Toast message={feedback} position="center" />}
     </Dialog>
   );
 }

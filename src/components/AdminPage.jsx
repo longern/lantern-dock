@@ -221,6 +221,7 @@ function AdminWorkspace({ account, refreshNAS, refreshIdentity }) {
       : null;
   const [revision, setRevision] = useState(0);
   const [create, setCreate] = useState(false);
+  const [shareLink, setShareLink] = useState(null);
   const [revoke, setRevoke] = useState(null);
   const [notice, setNotice] = useState(null);
   const report = useCallback(
@@ -257,6 +258,7 @@ function AdminWorkspace({ account, refreshNAS, refreshIdentity }) {
       transfer.cancel();
       client.close();
       setCreate(false);
+      setShareLink(null);
       setRevoke(null);
     };
     const resume = (event) => {
@@ -333,7 +335,8 @@ function AdminWorkspace({ account, refreshNAS, refreshIdentity }) {
             revision={revision}
             refresh={refresh}
             onError={onError}
-            onCreate={(preset = "advanced") => setCreate(preset)}
+            onCreate={() => setCreate(true)}
+            onShare={setShareLink}
             onRevoke={setRevoke}
             onInbox={account.capabilities.adminInbox ? showInbox : null}
           />
@@ -373,11 +376,20 @@ function AdminWorkspace({ account, refreshNAS, refreshIdentity }) {
       {create && (
         <CreateLinkDialog
           client={client}
-          quick={create !== "advanced"}
-          preset={create === "advanced" ? "" : create}
           onExit={() => setCreate(false)}
           onCreated={refresh}
           onError={onError}
+        />
+      )}
+      {shareLink && (
+        <CreateLinkDialog
+          key={shareLink.id}
+          client={client}
+          invitation={shareLink}
+          onExit={() => setShareLink(null)}
+          onCreated={refresh}
+          onError={onError}
+          fallbackFocus={`#admin-share-${shareLink.id}`}
         />
       )}
       {revoke && (
@@ -466,6 +478,7 @@ function LinksPanel({
   refresh,
   onError,
   onCreate,
+  onShare,
   onRevoke,
   onInbox,
 }) {
@@ -506,24 +519,9 @@ function LinksPanel({
             onClick={() => onCreate()}
           >
             <Icon name="upload" />
-            {t("admin.createLink")}
+            {t("admin.createInvitation")}
           </button>
         </div>
-      </div>
-      <div class="admin-quick-links">
-        {[
-          ["scan", "qr-code", "admin.scanDrop", "admin.scanExpiry"],
-          ["share", "link", "admin.shareDrop", "admin.shareExpiry"],
-        ].map(([key, icon, title, detail]) => (
-          <button type="button" key={key} onClick={() => onCreate(key)}>
-            <Icon name={icon} />
-            <span>
-              <strong>{t(title)}</strong>
-              <small>{t(detail)}</small>
-            </span>
-            <Icon name="chevron-right" />
-          </button>
-        ))}
       </div>
       <CollectionStatus
         collection={collection}
@@ -609,6 +607,20 @@ function LinksPanel({
                     </div>
                   </details>
                   <div class="admin-link-actions">
+                    {linkState(link, now) === "active" &&
+                      link.shareable === true && (
+                        <button
+                          id={`admin-share-${link.id}`}
+                          class="admin-invitation-share"
+                          onClick={() => onShare(link)}
+                          aria-label={t("admin.shareNamed", {
+                            title: link.title,
+                          })}
+                        >
+                          <Icon name="share" />
+                          {t("admin.share")}
+                        </button>
+                      )}
                     {onInbox && (
                       <button
                         class="secondary-button"
@@ -621,7 +633,7 @@ function LinksPanel({
                         {t("admin.viewInbox")}
                       </button>
                     )}
-                    {!link.revoked && (
+                    {active && (
                       <button
                         class="admin-danger text-button"
                         onClick={() => onRevoke(link)}
@@ -633,6 +645,16 @@ function LinksPanel({
                       </button>
                     )}
                   </div>
+                  {linkState(link, now) === "active" &&
+                    link.shareable !== true && (
+                      <p class="admin-invitation-compat">
+                        {t(
+                          link.shareable === false
+                            ? "admin.invitationLegacyHint"
+                            : "admin.invitationUpgradeHint",
+                        )}
+                      </p>
+                    )}
                 </li>
               ))}
             </ul>
@@ -643,7 +665,7 @@ function LinksPanel({
       <p class="admin-footnote">
         <Icon name="lock" />
         <span>
-          {t("admin.quotaNote")} {t("admin.noTokenRecovery")}
+          {t("admin.quotaNote")} {t("admin.invitationManageHint")}
         </span>
       </p>
     </section>

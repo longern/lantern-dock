@@ -250,24 +250,38 @@ for (const transport of ["webtransport", "http"]) {
       await page.locator("#admin-create-link").click();
       const dialog = page.locator("#admin-create-dialog");
       await dialog.locator("[name=title]").fill(title);
-      await dialog.locator("[name=maxFileMiB]").fill("1");
-      await dialog.locator("[name=maxTotalMiB]").fill("2");
-      await dialog.locator("[name=maxFiles]").fill("3");
+      for (const [name, value] of [
+        ["maxFileMiB", "1"],
+        ["maxTotalMiB", "2"],
+        ["maxFiles", "3"],
+      ]) {
+        await dialog.locator(`select[name=${name}]`).selectOption("custom");
+        await dialog.locator(`input[name=${name}]`).fill(value);
+      }
       await dialog.locator("button[type=submit]").click();
       await expect(
-        dialog.getByRole("heading", { name: "链接已创建", exact: true }),
+        dialog.getByRole("heading", { name: "邀请链接已创建", exact: true }),
       ).toBeVisible();
       const uploadURL = await page.locator("#admin-created-url").inputValue();
       const token = new URLSearchParams(new URL(uploadURL).hash.slice(1)).get(
         "token",
       );
       expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
-      await dialog
-        .getByRole("button", { name: "我已保存链接", exact: true })
-        .click();
+      await dialog.getByRole("button", { name: "完成", exact: true }).click();
       await expect(dialog).toHaveCount(0);
       const card = page.locator(".admin-link-card").filter({ hasText: title });
       await expect(card).toHaveCount(1);
+      await card
+        .getByRole("button", { name: `分享“${title}”`, exact: true })
+        .click();
+      await expect(page.locator("#admin-created-url")).toHaveValue(uploadURL);
+      await expect(dialog.locator(".invite-success")).toHaveCount(0);
+      await dialog
+        .getByRole("button", { name: "显示二维码", exact: true })
+        .click();
+      await expect(dialog.locator("canvas[role=img]")).toBeVisible();
+      await dialog.getByRole("button", { name: "完成", exact: true }).click();
+      await expect(dialog).toHaveCount(0);
       expect(
         await page.evaluate(() =>
           JSON.stringify([localStorage, sessionStorage]),
@@ -289,9 +303,7 @@ for (const transport of ["webtransport", "http"]) {
       const guest = await guestContext.newPage();
       guest.on("pageerror", (error) => errors.push(error.message));
       await guest.goto(uploadURL);
-      await expect(
-        guest.getByRole("heading", { name: title, exact: true }),
-      ).toBeVisible();
+      await expect(guest.locator(".upload-subtitle")).toHaveText(title);
       expect(
         await guest.evaluate(
           async () =>
@@ -303,7 +315,9 @@ for (const transport of ["webtransport", "http"]) {
         mimeType: "text/plain",
         buffer: Buffer.from(contents),
       });
-      await expect(guest.getByRole("status")).toHaveText("已接收");
+      await expect(guest.locator(".upload-result.complete")).toHaveText(
+        "已接收",
+      );
       await page
         .getByRole("button", { name: `查看“${title}”的收件`, exact: true })
         .click();

@@ -46,7 +46,7 @@ type Server struct {
 	searchRequests  chan struct{}
 }
 
-func New(publicDir, dataDir string, origins []string) (*Server, error) {
+func New(publicDir, dataDir string, origins []string, options ...StoreOption) (*Server, error) {
 	if err := os.MkdirAll(publicDir, 0755); err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func New(publicDir, dataDir string, origins []string) (*Server, error) {
 	if inside(pub, data) || inside(data, pub) {
 		return nil, fmt.Errorf("public-dir and data-dir must be separate, non-overlapping directories")
 	}
-	store, err := OpenStore(data)
+	store, err := OpenStore(data, options...)
 	if err != nil {
 		return nil, err
 	}

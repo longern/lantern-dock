@@ -79,7 +79,7 @@ func run(args []string, out io.Writer) error {
 		if flags.NArg() != 0 {
 			return fmt.Errorf("unexpected serve arguments")
 		}
-		service, err := nas.New(*public, *data, strings.Split(*origins, ","))
+		service, err := nas.New(*public, *data, strings.Split(*origins, ","), nas.WithSecretKey(os.Getenv("SECRET_KEY")))
 		if err != nil {
 			return err
 		}
@@ -156,7 +156,7 @@ func run(args []string, out io.Writer) error {
 			return fmt.Errorf("expires must be positive and no more than 8760h")
 		}
 	}
-	store, err := nas.OpenStore(*data)
+	store, err := nas.OpenStore(*data, nas.WithSecretKey(os.Getenv("SECRET_KEY")))
 	if err != nil {
 		return err
 	}

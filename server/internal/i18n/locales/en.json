@@ -66,6 +66,7 @@
   "errors.jsonRequired": "Send link details as application/json.",
   "errors.invalidLink": "Provide a title (1–200 bytes), a future expiry, and positive limits with per-file size at most the total size.",
   "errors.linkNotFound": "This collection link could not be found.",
+  "errors.linkNotRecoverable": "This invitation was created by an older version and its link cannot be retrieved. Saved links still work; create a new invitation if it is lost.",
   "errors.invalidListQuery": "Use a limit from 1 to 200, a non-negative offset, and a valid collection ID.",
   "errors.mediaUnavailable": "Dynamic photo information is temporarily unavailable.",
   "errors.mediaReadOnly": "Media previews are read-only.",

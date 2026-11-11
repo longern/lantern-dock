@@ -83,7 +83,7 @@ An HTTPS reverse proxy forwards both `/dav` and `/api` unchanged to the same NAS
 
 ## Management paths
 
-The browser uses `/api/admin/links` to list/create collection links, `/api/admin/links/:id` to revoke one, `/api/admin/inbox` to list completed private uploads, and `/api/admin/inbox/:id/download` for authorized downloads. Link reads require `links:read`, link changes require `links:write`, and inbox reads/downloads require `inbox:read`; all require the NAS's local administrator role. Guest upload-link Bearer tokens never authorize these endpoints. See [NAS management](nas-server.md) for pagination, quotas and payloads.
+The browser uses `/api/admin/links` to list/create collection links, `/api/admin/links/:id` to revoke one, `/api/admin/links/:id/share` to retrieve an existing invitation credential, `/api/admin/inbox` to list completed private uploads, and `/api/admin/inbox/:id/download` for authorized downloads. Metadata reads require `links:read`; creation, revocation and credential retrieval require `links:write`. Inbox reads/downloads require `inbox:read`; all require the NAS's local administrator role. Guest upload-link Bearer tokens never authorize these endpoints. See [NAS management](nas-server.md) for pagination, quotas and payloads.
 
 Private downloads support GET/HEAD and standard Range/If-Range behavior with attachment disposition. Cross-origin NAS responses allow `Range` and `If-Range` request headers and expose `Content-Disposition` and `Accept-Ranges`. Download bytes do not pass through the Worker, and private inbox files are not exposed through public WebDAV or IIIF routes.
 

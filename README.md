@@ -92,7 +92,7 @@ Set `SITE_ORIGIN` on the NAS and `OIDC_ISSUER_URL` **only on the Worker**; the W
 
 After configuring `ADMIN_SUBJECTS` and rechecking the account, open **Administration** from **Me** on mobile or **My account** on desktop. Both the Worker and NAS must support the management scopes; update them together before using this page. A signed-in ordinary user does not receive administrator permissions.
 
-- Create a collection with a title, expiry, per-file size limit, total capacity and file-count limit. Copy its upload link while the creation dialog is open: the secret is shown only once and cannot be recovered from the list.
+- Create an invitation with a title, expiry and upload limits, then copy, share or display its QR code. Use **Share** in the invitation list to retrieve the same active link again; this preserves its expiry, quotas and received files. Invitations created by older NAS versions remain usable with their saved links but cannot be retrieved.
 - Review collection status and quota usage, or revoke a link to stop further uploads. Revoking or expiring a link does not delete completed files.
 - Open **Private inbox** to list completed uploads, optionally filter by collection, and download them. Files remain private and are not published into WebDAV.
 

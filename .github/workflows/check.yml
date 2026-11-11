@@ -51,6 +51,7 @@ jobs:
           PUBLIC_DIR: /tmp/public
           SITE_ORIGIN: https://files.example.com
           CERT_WEBHOOK_URL: https://files.example.com/api/certificates/ci-placeholder
+          SECRET_KEY: ci-only-nas-secret-key-not-for-production
         run: |
           docker compose -f compose.nas.yaml config --quiet
           docker compose -f compose.nas.yaml -f compose.nas.build.yaml config --quiet

@@ -403,13 +403,17 @@ export async function startFixture({ nas = false, identity = false } = {}) {
       const nasEnvironment = identity
         ? {
             ...process.env,
+            SECRET_KEY: "integration-only-nas-secret-0123456789abcdef",
             SITE_ORIGIN: origin,
             ADMIN_SUBJECTS: "",
             SSL_CERT_FILE: resolve(certDirectory, "cert.pem"),
             HTTPS_PROXY: `http://127.0.0.1:${proxy.address().port}`,
             NO_PROXY: "localhost,127.0.0.1",
           }
-        : process.env;
+        : {
+            ...process.env,
+            SECRET_KEY: "integration-only-nas-secret-0123456789abcdef",
+          };
       processNAS = spawn(nasBinary, nasArguments, {
         env: nasEnvironment,
         stdio: ["ignore", "pipe", "pipe"],

@@ -22,9 +22,10 @@ The NAS backend image is **`ghcr.io/longern/lantern-dock:latest`**, with `linux/
 PUBLIC_DIR="/replace/with/the/actual/public/folder"
 SITE_ORIGIN="https://nas.example.com"
 CERT_WEBHOOK_URL="https://nas.example.com/api/certificates/your-private-derived-token"
+SECRET_KEY="replace-with-a-persistent-random-value-of-at-least-32-characters"
 ```
 
-Use the certificate webhook URL paired with your Worker's `SECRET_KEY`. The NAS upload service does not need the Worker's master key. File-drop tokens are generated independently on the NAS, and only their SHA-256 hashes are stored in SQLite.
+Use the certificate webhook URL paired with your Worker's `SECRET_KEY`. The NAS generates upload tokens independently. SQLite stores SHA-256 hashes for upload validation and AES-256-GCM encrypted credentials for authorized sharing. The NAS can use its own `SECRET_KEY` environment variable for encryption; it does not need the Worker's master key.
 
 ```sh
 docker compose -f compose.nas.yaml pull
@@ -76,7 +77,15 @@ The public service excludes entries named `#recycle` or `@Recycle` at every dire
 
 Sign in on the website with a site subject listed in the NAS `ADMIN_SUBJECTS` environment variable. Open the management page to create a collection link, set its title, expiry and quotas, and copy the link from the creation result. The browser can list/revoke links and list/download completed files from the private inbox without NAS CLI access. The first administrator is still configured using the NAS container environment; there is no first-visitor claim or public bootstrap write API.
 
-The full link is shown only immediately after creation. Save or share it before leaving that result. Listing links later never reconstructs a token. If it is lost, revoke the old link and create a replacement. Uploaded files remain private and are never published by creating a link or downloading from the inbox.
+After creation, copy the link, use system sharing or show its QR code. Choose **Share** on an active invitation in the admin list to retrieve the same link again. Sharing preserves the invitation ID, expiry, quotas, reservations and received files. Expired, revoked or full invitations cannot be shared; received files remain available. Invitations created by older NAS versions have only hashes, so their saved links still work but cannot be retrieved. The UI explains this rather than silently replacing the invitation. Uploaded files remain private.
+
+### Invitation encryption key
+
+The NAS requires an environment variable named `SECRET_KEY`, using the same name and minimum-length convention as the Worker. Use a cryptographically random value, for example 32 random bytes encoded as 64 hexadecimal characters (`openssl rand -hex 32`). Configure it in the NAS deployment environment and keep it stable across container recreation. The bundled Compose file requires and passes `SECRET_KEY` into the NAS. Missing or invalid values produce an explicit configuration error before the database is opened. Use separate environment files or deployment settings when giving the NAS and Worker independent values.
+
+The NAS derives an invitation encryption key with HMAC-SHA256 and the purpose label `lantern-dock:nas:invitation-encryption:v1`. It never writes the configured master secret to SQLite, logs or frontend responses. It does not generate, read or modify `invitation.key` in the data volume; encryption is independent of the container's runtime UID/GID.
+
+Back up `SECRET_KEY` separately from the database. Changing or losing its value makes existing encrypted links unreadable; automatic re-encryption and rotation are not implemented. Existing saved upload links continue to validate against their hashes. If a previous development version generated `invitation.key`, retain that file until any credentials encrypted with it have been migrated; setting a new `SECRET_KEY` does not re-encrypt them. The NAS leaves such files untouched.
 
 ### Optional CLI
 
@@ -95,7 +104,7 @@ docker compose -f compose.nas.yaml exec nas /lantern-dock link create \
 
 The command prints JSON containing the link ID, limits and shareable `url`. The URL opens a dedicated upload page, for example `https://nas.example.com/upload#token=<random-token>`. The token stays in the URL fragment and is sent to the NAS in an `Authorization: Bearer` header. It is never included in the Worker's configuration or a backend request URL. Treat the link as the upload permission; anyone you give it to can use the same limits.
 
-The actual URL is shown only at creation. `link list` never returns tokens, so save the URL or issue a replacement if you lose it.
+`link list` never returns tokens. Active invitations can be shared again through the authorized web admin page. CLI commands must receive the same NAS `SECRET_KEY` as the running service when a configured key is used.
 
 Defaults: 24 hours, 1 GiB per file, 10 GiB total and 100 files. Sizes accept bytes or integer `KiB`, `MiB`, `GiB`, `TiB` (decimal `KB`, `MB`, `GB`, `TB` also work). Lifetimes use Go durations such as `24h` or `168h`, up to `8760h`. If you increase the per-file limit beyond 1 GiB, also increase the bridge's `--max-body` and any intervening proxy's body limit.
 
@@ -131,7 +140,7 @@ On the files page, administrators can open **New → Upload files** to save file
 
 The NAS reserves the declared size and one file slot before transfer, using an SQLite transaction. Reservations count against the shared link quota, including parallel uploads. Single-request uploads expire if unstarted after 15 minutes or at link expiry, whichever comes first. Interrupting a single-request upload releases its reservation and removes the partial file. Guest resumable uploads preserve committed checkpoints through interruption and NAS restart. The server fsyncs and renames a completed file before committing success, and rechecks the link before finalization. There are at most 32 active file bodies per server, with a one-minute read-idle deadline.
 
-Stop the NAS service before making a simple filesystem copy of the data volume, or use SQLite's online backup facilities. Copying only the main `.sqlite` file while it is live can omit committed WAL data. Preserve the whole private volume when updating containers.
+Stop the NAS service before making a simple filesystem copy of the data volume, or use SQLite's online backup facilities. Copying only the main `.sqlite` file while it is live can omit committed WAL data. Preserve the whole private volume when updating containers, and securely back up the configured `SECRET_KEY` separately.
 
 ## Run without Docker
 
@@ -140,6 +149,7 @@ Requires Go 1.26+ on Linux or macOS:
 ```sh
 cd server
 go build -o lantern-dock ./cmd/lantern-dock
+export SECRET_KEY="$(openssl rand -hex 32)" # Generate once; retain this value for future starts.
 ./lantern-dock serve --listen=127.0.0.1:8080 \
   --public-dir=/path/to/public --data-dir=/path/to/private-state
 ```
@@ -201,8 +211,9 @@ The image also includes FFmpeg/ffprobe for video posters. Video playback stays o
 These resources require a site-issued DPoP access token with the exact scope in the [identity protocol](identity-protocol.md#administrative-nas-resources) and a current NAS administrator subject. A guest upload bearer token, Worker login alone, a claimed role in a token, or an `account:read` token cannot authorize them. All management responses use `Cache-Control: no-store`. The existing `/api` bridge path and method allowlists cover these routes; no new bridge namespace or NAS secret is needed.
 
 - `POST /api/admin/links` accepts `application/json` with `title`, `expiresAt` (RFC 3339), `maxFileBytes`, `maxTotalBytes`, and `maxFiles`. The title is 1–200 UTF-8 bytes without control characters, expiry must be in the future, and limits are positive integers no larger than JavaScript's safe integer limit. Per-file size cannot exceed total size. Unknown fields, malformed/trailing JSON and bodies over 4 KiB are rejected.
-- Creation returns `201` with `{ "link": Link, "token": "..." }`. The 32-byte random token is returned only in this response; SQLite stores its SHA-256 hash. The client constructs the `/upload#token=<token>` URL locally. It must not put tokens in request query parameters, browser storage or logs. If the creation response is lost, inspect the list and revoke/recreate as needed rather than automatically replaying the POST.
-- `GET /api/admin/links` returns `{ "links": [Link], "nextOffset": null }`. Each Link contains `id`, `title`, `expiresAt`, `maxFileBytes`, `maxTotalBytes`, `maxFiles`, `revoked`, `usedBytes`, and `usedFiles`. Usage includes completed uploads and live reservations in one database snapshot. Tokens, hashes, filenames and filesystem paths are never returned here.
+- Creation returns `201` with `{ "link": Link, "token": "..." }`. The random token has 32 bytes of entropy. Its validation hash and versioned authenticated ciphertext are persisted atomically; ciphertext is bound to the invitation ID. The client constructs `/upload#token=<token>` locally. It must not put tokens in request query parameters, browser storage or logs. If the response is lost, inspect the list and use Share rather than automatically replaying the POST.
+- `GET /api/admin/links/<id>/share` requires `links:write` and returns `200` with the same `{ "link": Link, "token": "..." }` shape. It returns the existing credential without mutating any invitation or upload state. Missing, personal and member-grant IDs return `404`; expired/revoked invitations return `410`; exhausted quotas return `409`; old hash-only invitations return `409 LINK_NOT_RECOVERABLE`. Corrupt ciphertext or an incorrect encryption key returns `503` without changing the token. Only creation and this explicit authorized endpoint expose credentials; responses use `Cache-Control: no-store` and `Referrer-Policy: no-referrer`.
+- `GET /api/admin/links` returns `{ "links": [Link], "nextOffset": null }`. Each Link contains `id`, `title`, `expiresAt`, `maxFileBytes`, `maxTotalBytes`, `maxFiles`, `revoked`, `usedBytes`, `usedFiles`, `receivedFiles`, and `shareable`. `shareable` indicates an encrypted credential exists; the client also checks expiry, revocation and quotas before offering sharing. Usage includes completed uploads and live reservations in one database snapshot. Tokens, hashes, ciphertext, filenames and filesystem paths are never returned here. Older servers omit `shareable`; clients must not promise credential retrieval on those versions.
 - `DELETE /api/admin/links/<id>` revokes the link and returns `204`, including when already revoked. Unknown IDs return `404`. Revocation blocks new requests and finalization immediately; active body transfers are stopped by the existing sweeper within five seconds. Completed files are retained.
 - `GET /api/admin/inbox` returns `{ "uploads": [{ "id": "...", "linkId": "...", "linkTitle": "...", "name": "...", "size": 123, "status": "complete", "createdAt": "..." }], "nextOffset": null }`. Only completed uploads are listed. Optional `linkId=<id>` limits results to one collection. Expired or revoked collection links do not hide completed files from administrators.
 - Both list routes accept `limit` (1–200, default 100) and `offset` (nonnegative, default 0). When more results exist, `nextOffset` is the next numeric offset; otherwise it is null. Ordering is newest creation first with ID as a deterministic tie-breaker. Refresh from offset zero after creation or when newer uploads arrive, since separate page requests are not a frozen snapshot.

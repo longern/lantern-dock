@@ -26,7 +26,7 @@ func searchFixture(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	var err error
-	f.s, err = New(f.public, f.data, []string{"https://portal.example"})
+	f.s, err = New(f.public, f.data, []string{"https://portal.example"}, WithSecretKey(fixtureSecret))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ CREATE TEMP TRIGGER catalog_audit_delete AFTER DELETE ON catalog BEGIN INSERT IN
 	}
 	f.http.Close()
 	f.s.Close()
-	f.s, err = New(f.public, f.data, []string{"https://portal.example"})
+	f.s, err = New(f.public, f.data, []string{"https://portal.example"}, WithSecretKey(fixtureSecret))
 	if err != nil {
 		t.Fatal(err)
 	}

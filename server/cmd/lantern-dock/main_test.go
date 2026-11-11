@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -12,6 +14,7 @@ func TestLinkCLI(t *testing.T) {
 	// Container identity variables belong to the image launcher, not the CLI.
 	t.Setenv("PUID", "not-a-user")
 	t.Setenv("PGID", "0")
+	t.Setenv("SECRET_KEY", strings.Repeat("c3", 32))
 	data := t.TempDir()
 	var output bytes.Buffer
 	if err := run([]string{"link", "create", "--data-dir", data, "--site", "https://portal.example", "--max-file", "1MiB", "--max-total", "2MiB", "--max-files", "2"}, &output); err != nil {
@@ -33,6 +36,9 @@ func TestLinkCLI(t *testing.T) {
 		t.Fatal("bad link")
 	}
 	secret := strings.TrimPrefix(u.Fragment, "token=")
+	if _, err := os.Stat(filepath.Join(data, "invitation.key")); !os.IsNotExist(err) {
+		t.Fatal("CLI ignored configured SECRET_KEY")
+	}
 	output.Reset()
 	if err := run([]string{"link", "list", "--data-dir", data}, &output); err != nil {
 		t.Fatal(err)

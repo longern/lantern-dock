@@ -2,6 +2,7 @@ package nas
 
 import (
 	"context"
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
@@ -32,8 +33,9 @@ func fault(status int, code, messageKey string) error {
 }
 
 type Store struct {
-	DB        *sql.DB
-	Directory string
+	DB          *sql.DB
+	Directory   string
+	tokenCipher cipher.AEAD
 }
 type Link struct {
 	ID            string    `json:"id"`
@@ -46,6 +48,7 @@ type Link struct {
 	UsedBytes     int64     `json:"usedBytes"`
 	UsedFiles     int64     `json:"usedFiles"`
 	ReceivedFiles *int64    `json:"receivedFiles,omitempty"`
+	Shareable     bool      `json:"shareable"`
 }
 type Upload struct {
 	ID        string    `json:"id"`
@@ -64,7 +67,24 @@ func randomID() string {
 	}
 	return hex.EncodeToString(b[:])
 }
-func OpenStore(directory string) (*Store, error) {
+
+type storeOptions struct{ secretKey string }
+type StoreOption func(*storeOptions)
+
+// WithSecretKey supplies the required deployment-managed NAS SECRET_KEY.
+func WithSecretKey(secret string) StoreOption {
+	return func(options *storeOptions) { options.secretKey = secret }
+}
+
+func OpenStore(directory string, options ...StoreOption) (*Store, error) {
+	var configuration storeOptions
+	for _, option := range options {
+		option(&configuration)
+	}
+	store := &Store{}
+	if err := store.configureInvitationKey(configuration.secretKey); err != nil {
+		return nil, err
+	}
 	directory, err := filepath.Abs(directory)
 	if err != nil {
 		return nil, err
@@ -97,6 +117,8 @@ func OpenStore(directory string) (*Store, error) {
  expires_at INTEGER NOT NULL, max_file_bytes INTEGER NOT NULL CHECK(max_file_bytes>0),
  max_total_bytes INTEGER NOT NULL CHECK(max_total_bytes>0), max_files INTEGER NOT NULL CHECK(max_files>0),
  revoked INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL);
+ CREATE TABLE IF NOT EXISTS invitation_tokens (
+ link_id TEXT PRIMARY KEY REFERENCES links(id), encrypted_token BLOB NOT NULL);
  CREATE TABLE IF NOT EXISTS uploads (
  id TEXT PRIMARY KEY, link_id TEXT NOT NULL REFERENCES links(id), name TEXT NOT NULL,
  size INTEGER NOT NULL CHECK(size>=0), status TEXT NOT NULL CHECK(status IN ('pending','receiving','complete','failed')),
@@ -119,7 +141,9 @@ func OpenStore(directory string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
-	return &Store{DB: db, Directory: directory}, nil
+	store.DB = db
+	store.Directory = directory
+	return store, nil
 }
 func (s *Store) Close() error { return s.DB.Close() }
 func (s *Store) CreateLink(ctx context.Context, link Link) (Link, string, error) {
@@ -140,8 +164,23 @@ func (s *Store) CreateLink(ctx context.Context, link Link) (Link, string, error)
 	link.Revoked = false
 	link.UsedBytes = 0
 	link.UsedFiles = 0
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO links(id,token_hash,title,expires_at,max_file_bytes,max_total_bytes,max_files,created_at) VALUES(?,?,?,?,?,?,?,?)`, link.ID, hash[:], link.Title, link.ExpiresAt.Unix(), link.MaxFileBytes, link.MaxTotalBytes, link.MaxFiles, time.Now().Unix())
-	return link, token, err
+	link.Shareable = true
+	encrypted := append([]byte{1}, s.tokenCipher.Seal(nil, nil, []byte(token), invitationAAD(link.ID))...)
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return Link{}, "", err
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, `INSERT INTO links(id,token_hash,title,expires_at,max_file_bytes,max_total_bytes,max_files,created_at) VALUES(?,?,?,?,?,?,?,?)`, link.ID, hash[:], link.Title, link.ExpiresAt.Unix(), link.MaxFileBytes, link.MaxTotalBytes, link.MaxFiles, time.Now().Unix()); err != nil {
+		return Link{}, "", err
+	}
+	if _, err = tx.ExecContext(ctx, `INSERT INTO invitation_tokens(link_id,encrypted_token) VALUES(?,?)`, link.ID, encrypted); err != nil {
+		return Link{}, "", err
+	}
+	if err = tx.Commit(); err != nil {
+		return Link{}, "", err
+	}
+	return link, token, nil
 }
 
 const linkColumns = `id,title,expires_at,max_file_bytes,max_total_bytes,max_files,revoked`
@@ -217,7 +256,8 @@ const dailyMemberUsage = ` AND (created_at>=unixepoch('now','start of day') OR s
 const usageWhere = `(status='complete' OR (status IN ('pending','receiving') AND expires_at>?))`
 
 func (s *Store) Usage(ctx context.Context, l *Link) error {
-	return s.DB.QueryRowContext(ctx, `SELECT COALESCE(SUM(size),0),COUNT(*) FROM uploads WHERE link_id=? AND `+usageWhere+dailyMemberUsage, l.ID, time.Now().Unix()).Scan(&l.UsedBytes, &l.UsedFiles)
+	return s.DB.QueryRowContext(ctx, `SELECT COALESCE(SUM(size),0),COUNT(*),
+ EXISTS(SELECT 1 FROM invitation_tokens WHERE link_id=?) FROM uploads WHERE link_id=? AND `+usageWhere+dailyMemberUsage, l.ID, l.ID, time.Now().Unix()).Scan(&l.UsedBytes, &l.UsedFiles, &l.Shareable)
 }
 func (s *Store) ListLinks(ctx context.Context) ([]Link, error) {
 	rows, err := s.DB.QueryContext(ctx, `SELECT `+linkColumns+` FROM links

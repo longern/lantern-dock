@@ -115,6 +115,7 @@ func TestAdminRequiresBothLocalRoleAndOperationScope(t *testing.T) {
 		{"GET", adminPath + "/links", linksReadScope},
 		{"POST", adminPath + "/links", linksWriteScope},
 		{"DELETE", adminPath + "/links/" + link.ID, linksWriteScope},
+		{"GET", adminPath + "/links/" + link.ID + "/share", linksWriteScope},
 		{"GET", adminPath + "/inbox", inboxReadScope},
 		{"GET", adminPath + "/inbox/" + randomID() + "/download", inboxReadScope},
 		{"POST", personalUploadsPath, inboxWriteScope},
@@ -218,7 +219,7 @@ func TestAdminPersonalUploadsArePrivateToTheirOwner(t *testing.T) {
 		t.Fatalf("personal inbox leaked into guest links: %+v", links)
 	}
 }
-func TestAdminLinkCreateListRevokeAndOneTimeSecret(t *testing.T) {
+func TestAdminLinkCreateListRevokeAndPrivateSecret(t *testing.T) {
 	f := newAdminFixture(t, "")
 	link, token := f.createLink(t)
 	u := f.reserve(t, token, "private.txt", 5)

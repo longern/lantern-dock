@@ -64,7 +64,8 @@ export function linkMetadata(value) {
     !integer(value.maxTotalBytes, value.maxFileBytes) ||
     !integer(value.maxFiles, 1) ||
     !integer(value.usedBytes) ||
-    !integer(value.usedFiles)
+    !integer(value.usedFiles) ||
+    (value.shareable !== undefined && typeof value.shareable !== "boolean")
   )
     throw invalidResponse();
   const {
@@ -88,6 +89,9 @@ export function linkMetadata(value) {
     revoked,
     usedBytes,
     usedFiles,
+    ...(typeof value.shareable === "boolean"
+      ? { shareable: value.shareable }
+      : {}),
     ...(integer(value.receivedFiles)
       ? { receivedFiles: value.receivedFiles }
       : {}),
@@ -386,9 +390,27 @@ export class AdminClient {
       });
       const value = await metadataJSON(response, signal);
       const link = linkMetadata(value?.link);
-      // Validate before exposing a URL. This result lives only in the creation dialog.
+      // Validate before exposing a URL. Credentials live only in the share dialog.
       const url = uploadLinkURL(value.token);
       return { link, url };
+    }, signal);
+  }
+  share(id, signal) {
+    return this.metadata(async (signal) => {
+      const response = await this.response(
+        `${itemPath(ADMIN_LINKS, id)}/share`,
+        "links:write",
+        { signal },
+      );
+      const value = await metadataJSON(response, signal);
+      const link = linkMetadata(value?.link);
+      if (
+        link.id !== id ||
+        link.shareable !== true ||
+        linkState(link) !== "active"
+      )
+        throw invalidResponse();
+      return { link, url: uploadLinkURL(value.token) };
     }, signal);
   }
   revoke(id, signal) {
