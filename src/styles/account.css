@@ -6,7 +6,6 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  padding-top: env(safe-area-inset-top);
   border-bottom: 1px solid var(--line);
   background: var(--surface);
 }
@@ -19,23 +18,9 @@
   margin: 0 auto;
   padding-inline: 16px;
 }
-.account-bar {
-  display: grid;
-  grid-template-columns: var(--topbar-button-size) minmax(0, 1fr) var(
-      --topbar-button-size
-    );
-  align-items: center;
-  min-height: var(--topbar-height);
-}
-.account-bar .icon-button {
-  width: var(--topbar-button-size);
-  height: var(--topbar-button-size);
-}
-.account-bar h1 {
-  margin: 0;
-  text-align: center;
-  font-size: 16px;
-  font-weight: 600;
+.page-header.account-bar {
+  --page-header-background: var(--surface);
+  border-bottom: 0;
 }
 .account-content {
   display: grid;

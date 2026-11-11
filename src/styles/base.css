@@ -41,6 +41,20 @@
 body {
   margin: 0;
 }
+.route-status-page {
+  min-height: 100svh;
+  background: var(--surface-subtle);
+}
+.route-status-page > .page-header {
+  --page-header-background: var(--surface);
+}
+.route-status-content {
+  max-width: 480px;
+  margin: auto;
+  padding: 48px 24px;
+  color: var(--muted);
+  text-align: center;
+}
 html {
   scrollbar-gutter: stable;
 }

@@ -5,6 +5,7 @@ import { AdminEntry } from "./AdminEntry.jsx";
 import { useSession } from "../hooks/useSession.jsx";
 import { useRouter } from "../hooks/useRouter.jsx";
 import { PageDialog } from "./PageDialog.jsx";
+import { PageHeader } from "./PageHeader.jsx";
 
 export function AccountPage({
   mobile,
@@ -307,18 +308,22 @@ export function AccountPage({
     </PageDialog>
   ) : (
     <main class="account-page">
-      <header class="account-header">
-        <div class="account-bar">
-          <a
-            class="icon-button edge-start"
-            href={returnTo}
-            aria-label={backLabel}
-          >
-            <Icon name="chevron-left" />
-          </a>
-          <h1 id="account-title">{title}</h1>
-        </div>
-      </header>
+      <div class="account-header">
+        <PageHeader
+          className="account-bar"
+          titleId="account-title"
+          title={title}
+          back={
+            <a
+              class="icon-button edge-start"
+              href={returnTo}
+              aria-label={backLabel}
+            >
+              <Icon name="chevron-left" />
+            </a>
+          }
+        />
+      </div>
       {content}
     </main>
   );

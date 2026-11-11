@@ -16,44 +16,7 @@
   display: none;
 }
 .page-dialog-header {
-  display: grid;
-  grid-template-columns: var(--topbar-button-size) minmax(0, 1fr) var(
-      --topbar-button-size
-    );
-  align-items: center;
   position: sticky;
   top: 0;
   z-index: 3;
-  height: calc(var(--topbar-height) + env(safe-area-inset-top));
-  padding: env(safe-area-inset-top) 16px 0;
-  border-bottom: 1px solid var(--line);
-  background: var(--canvas);
-}
-.page-dialog-header .icon-button {
-  width: var(--topbar-button-size);
-  height: var(--topbar-button-size);
-}
-.page-dialog-header .icon-button svg {
-  width: 24px;
-  height: 24px;
-}
-.page-dialog-header > .header-actions {
-  justify-self: end;
-}
-.page-dialog-header > h1 {
-  min-width: 0;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: center;
-  font-size: 16px;
-  font-weight: normal;
-}
-
-.page-dialog-header:has(.selection-actions) {
-  grid-template-columns: var(--topbar-button-size) minmax(0, 1fr);
-}
-.page-dialog-header:has(.selection-actions) > h1 {
-  display: none;
 }

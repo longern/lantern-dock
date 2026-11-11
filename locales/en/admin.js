@@ -116,6 +116,8 @@ export default {
   refreshLinks: "Refresh upload links",
   refreshInbox: "Refresh private inbox",
   loading: "Loading…",
+  loadFailed:
+    "Could not load administration. Check your connection and try again.",
   noLinks: "No upload links yet",
   noLinksDescription:
     "Create a link with an expiry and collection limits to start receiving files.",

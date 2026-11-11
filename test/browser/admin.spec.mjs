@@ -301,6 +301,15 @@ for (const language of ["zh-CN", "en"]) {
       await expect(
         page.getByRole("heading", { name: text.title, exact: true }),
       ).toBeVisible();
+      const header = page.locator(".admin-header");
+      await expect(header).toHaveClass(/page-header/);
+      await expect(header).toHaveCSS("height", "60px");
+      await expect(header.locator("h1")).toHaveCSS("font-size", "16px");
+      await expect(header.locator("h1")).toHaveCSS("font-weight", "400");
+      for (const button of await header.locator(".icon-button").all()) {
+        await expect(button).toHaveCSS("width", "48px");
+        await expect(button).toHaveCSS("height", "48px");
+      }
       await page.locator("#admin-create-link").click();
       const dialog = page.locator("#admin-create-dialog");
       await expect(dialog).toBeVisible();
@@ -538,6 +547,61 @@ test("reopened invitation reuses the link and presents copy, share and QR action
     state.requests.filter((request) => request.method === "POST"),
   ).toHaveLength(0);
 });
+
+for (const mode of ["created-link", "created-qr", "reopened-qr"]) {
+  test(`${mode} invitation keeps its content through the exit animation`, async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await install(page);
+    await page.goto("/admin/links");
+    const reopened = mode === "reopened-qr";
+    await page
+      .locator(reopened ? "#admin-share-link-one" : "#admin-create-link")
+      .click();
+    const dialog = page.locator("#admin-create-dialog");
+    if (!reopened) await dialog.locator("button[type=submit]").click();
+    const url = await dialog.locator("#admin-created-url").inputValue();
+    const title = await dialog.locator(".invite-result-info h3").innerText();
+    const qr = mode.endsWith("-qr");
+    if (qr) {
+      await dialog
+        .getByRole("button", { name: "显示二维码", exact: true })
+        .click();
+      await expect(dialog.locator("canvas")).toBeVisible();
+    }
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    await dialog.getByRole("button", { name: "复制链接", exact: true }).click();
+    await expect(dialog.locator(".toast")).toHaveText("链接已复制。");
+    await dialog.getByRole("button", { name: "完成", exact: true }).click();
+    await expect(dialog).toHaveAttribute("data-state", "closed");
+    await expect(dialog).toHaveAttribute("open", "");
+    await expect(dialog).toHaveAttribute("inert", "");
+    await page.clock.runFor(100);
+    await expect(dialog.locator(".invite-result-info h3")).toHaveText(title);
+    await expect(dialog.locator(".toast")).toHaveText("链接已复制。");
+    if (qr) {
+      await expect(dialog.locator("canvas")).toHaveCount(1);
+      await expect(
+        dialog.locator('[aria-controls="invite-presentation"]'),
+      ).toHaveAttribute("aria-expanded", "true");
+      await expect(dialog.locator("#admin-created-url")).toHaveCount(0);
+      await expect(dialog.locator(".invite-success")).toHaveCount(0);
+    } else {
+      await expect(dialog.locator("#admin-created-url")).toHaveValue(url);
+    }
+    await page.clock.runFor(150);
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator(".toast")).toHaveCount(0);
+    await expect(
+      page.locator(reopened ? "#admin-share-link-one" : "#admin-create-link"),
+    ).toBeFocused();
+    await expect(page.locator("body")).not.toContainText(token);
+    expect(
+      await page.evaluate(() => JSON.stringify([localStorage, sessionStorage])),
+    ).not.toContain(token);
+  });
+}
 
 test("share retrieval can retry read errors without creating an invitation", async ({
   page,
@@ -878,6 +942,279 @@ async function installIntake(page, options) {
   );
   return state;
 }
+
+test("administration loads only on entry and keeps ordinary anchor navigation", async ({
+  page,
+}) => {
+  await install(page);
+  const requested = [];
+  let sessions = 0;
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path === "/fixture/session") sessions++;
+    if (
+      ["/src/components/AdminPage.jsx", "/src/styles/admin.css"].includes(path)
+    )
+      requested.push(path);
+  });
+  const compact = isCompact(page);
+  const start = compact ? "/me" : "/account";
+  await page.goto(start);
+  const entry = page.locator(compact ? "#my-admin" : "#account-admin-entry");
+  await expect(entry).toBeVisible();
+  await expect(entry).toHaveAttribute("href", "/admin/links");
+  expect(await entry.getAttribute("target")).toBeNull();
+  expect(requested).toEqual([]);
+  await page.evaluate(() => {
+    window.documentMarker = "same document";
+  });
+  const sessionCount = sessions;
+  const module = Promise.withResolvers();
+  await page.route("**/src/components/AdminPage.jsx*", async (route) => {
+    await module.promise;
+    await route.continue();
+  });
+  try {
+    await entry.click();
+    await expect(page).toHaveURL(/\/admin\/links$/);
+    await expect(
+      page.locator(".route-status-page [role=status]"),
+    ).toBeVisible();
+    await expect(page.locator(".app-shell,.account-page")).toHaveCount(0);
+  } finally {
+    module.resolve();
+  }
+  await expect(page.locator("#admin-create-link")).toBeVisible();
+  expect(requested).toEqual([
+    "/src/components/AdminPage.jsx",
+    "/src/styles/admin.css",
+  ]);
+  expect(await page.evaluate(() => window.documentMarker)).toBe(
+    "same document",
+  );
+  expect(sessions).toBe(sessionCount);
+  await expect(page.locator(".admin-header")).toHaveCSS("height", "60px");
+  await expect(page.locator(".admin-header .page-header-title")).toHaveCSS(
+    "font-weight",
+    "400",
+  );
+  await page.goBack();
+  await expect(entry).toBeVisible();
+  await page.goForward();
+  await expect(page.locator("#admin-create-link")).toBeVisible();
+  expect(requested).toHaveLength(2);
+  expect(await page.evaluate(() => window.documentMarker)).toBe(
+    "same document",
+  );
+});
+
+test("entering administration disposes the library even while its module is pending", async ({
+  page,
+}) => {
+  await installIntake(page);
+  await page.route("**/src/lib/dav.js*", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      body:
+        (await response.text()) +
+        `
+      const fixtureList = DAVClient.prototype.list;
+      DAVClient.prototype.list = function (...args) {
+        window.fixtureLibrary = this;
+        return fixtureList.apply(this, args);
+      };
+    `,
+    });
+  });
+  await page.goto("/files/");
+  await expect(page.locator("#file-intake-trigger")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.fixtureLibrary?.directories.entries.size),
+    )
+    .toBeGreaterThan(0);
+  await page.evaluate(() => {
+    const library = window.fixtureLibrary;
+    library.images.previews.set("fixture", new Blob(["preview"]), 7);
+    const close = library.transport.close;
+    library.transport.close = function () {
+      this.fixtureClosed = true;
+      close.call(this);
+    };
+  });
+  const chooser = page.waitForEvent("filechooser");
+  await page.locator("#file-intake-trigger").click();
+  await page
+    .locator(".intake-actions")
+    .getByRole("button", { name: "选择文件上传" })
+    .click();
+  await (
+    await chooser
+  ).setFiles({
+    name: "photo.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("photo"),
+  });
+  const upload = page.getByRole("dialog", { name: "上传文件" });
+  await expect(upload.locator(".upload-result.complete")).toBeVisible();
+  await assertNoOverflow(page);
+  const module = Promise.withResolvers();
+  await page.route("**/src/components/AdminPage.jsx*", async (route) => {
+    await module.promise;
+    await route.continue();
+  });
+  try {
+    await upload.getByRole("link", { name: "查看收件" }).click();
+    await expect(page.locator(".route-status-page")).toBeVisible();
+    await expect(page.locator(".app-shell,.upload-dialog")).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const library = window.fixtureLibrary;
+          return {
+            directories: library.directories.bytes,
+            previews: library.images.previews.bytes,
+            imagesAborted: library.images.lifetime.signal.aborted,
+            transportClosed: library.transport.fixtureClosed,
+          };
+        }),
+      )
+      .toEqual({
+        directories: 0,
+        previews: 0,
+        imagesAborted: true,
+        transportClosed: true,
+      });
+  } finally {
+    module.resolve();
+  }
+  await expect(page.locator(".admin-inbox-file")).toHaveCount(1);
+  await page.goBack();
+  await expect(page.locator("#file-intake-trigger")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.fixtureLibrary.images.lifetime.signal.aborted),
+    )
+    .toBe(false);
+});
+
+test("a failed administration module offers a return and reload retry", async ({
+  page,
+}) => {
+  await install(page);
+  await page.route("**/src/components/AdminPage.jsx*", (route) =>
+    route.abort("failed"),
+  );
+  await page.goto("/admin/links");
+  await expect(page.getByRole("alert")).toHaveText(
+    "管理后台加载失败，请检查网络后重试。",
+  );
+  await expect(page.locator(".route-status-page a")).toHaveAttribute(
+    "href",
+    isCompact(page) ? "/me" : "/",
+  );
+  await page.unroute("**/src/components/AdminPage.jsx*");
+  await page.getByRole("button", { name: "重试", exact: true }).click();
+  await expect(page.locator("#admin-create-link")).toBeVisible();
+});
+
+test("leaving a pending administration import cannot revive its page", async ({
+  page,
+}) => {
+  const state = await install(page);
+  const module = Promise.withResolvers();
+  await page.route("**/src/components/AdminPage.jsx*", async (route) => {
+    await module.promise;
+    await route.continue();
+  });
+  await page.goto("/admin/links");
+  await expect(page.locator(".route-status-page")).toBeVisible();
+  const response = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/src/components/AdminPage.jsx",
+  );
+  try {
+    await page.locator(".route-status-page a").click();
+    await expect(page.locator(".app-shell")).toBeVisible();
+  } finally {
+    module.resolve();
+  }
+  await response;
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator(".app-shell")).toBeVisible();
+  await expect(page.locator(".admin-page,.route-status-page")).toHaveCount(0);
+  expect(state.requests).toEqual([]);
+});
+
+test("an active personal upload asks before entering administration", async ({
+  page,
+}) => {
+  const pending = Promise.withResolvers();
+  const started = Promise.withResolvers();
+  await installIntake(page, {
+    async handle(route, url, request) {
+      if (!url.pathname.startsWith("/api/admin/uploads")) return false;
+      if (request.method() === "PUT") {
+        started.resolve();
+        await pending.promise;
+        await route.fulfill({
+          status: 201,
+          json: { id: "a".repeat(32), status: "complete" },
+        });
+        return true;
+      }
+      if (request.method() === "GET")
+        await route.fulfill({
+          json: { ...fixtureLink, usedFiles: 0, usedBytes: 0 },
+        });
+      else await route.fulfill({ status: 201, json: { id: "a".repeat(32) } });
+      return true;
+    },
+  });
+  await page.goto("/files/");
+  const chooser = page.waitForEvent("filechooser");
+  await page.locator("#file-intake-trigger").click();
+  await page
+    .locator(".intake-actions")
+    .getByRole("button", { name: "选择文件上传" })
+    .click();
+  await (
+    await chooser
+  ).setFiles({
+    name: "photo.jpg",
+    mimeType: "image/jpeg",
+    buffer: Buffer.from("photo"),
+  });
+  await started.promise;
+  // The upload footer is hidden while working. A fixture anchor exercises the
+  // navigation guard without changing the production upload controls.
+  await page.locator(".upload-panel").evaluate((node) => {
+    const anchor = document.createElement("a");
+    anchor.id = "fixture-admin-entry";
+    anchor.href = "/admin/inbox";
+    anchor.textContent = "Administration";
+    node.append(anchor);
+  });
+  const entry = page.locator("#fixture-admin-entry");
+  try {
+    page.once("dialog", async (dialog) => {
+      expect(dialog.type()).toBe("confirm");
+      expect(dialog.message()).toContain("会中断正在进行的上传或下载");
+      await dialog.dismiss();
+    });
+    await entry.click();
+    await expect(page).toHaveURL(/\/files\/$/);
+    await expect(page.locator(".upload-panel[data-working]")).toBeVisible();
+    page.once("dialog", (dialog) => dialog.accept());
+    await entry.click();
+    await expect(page.locator(".admin-inbox-file")).toHaveCount(1);
+    await expect(page.locator(".upload-dialog,.app-shell")).toHaveCount(0);
+  } finally {
+    page.removeAllListeners("dialog");
+    pending.resolve();
+  }
+});
 
 test("file intake offers a local QR and a separate authenticated personal upload", async ({
   page,
@@ -1576,6 +1913,15 @@ test.describe("upload invitation form", () => {
       "11月11日的文件收集",
     );
     await expect(dialog.locator(".invite-topbar")).toHaveCSS("height", "60px");
+    await expect(dialog.locator(".invite-topbar")).toHaveClass(/page-header/);
+    await expect(dialog.locator("#admin-create-title")).toHaveCSS(
+      "font-size",
+      "16px",
+    );
+    await expect(dialog.locator("#admin-create-title")).toHaveCSS(
+      "font-weight",
+      "400",
+    );
     await expect(dialog.locator(".invite-topbar")).toHaveCSS(
       "border-bottom-width",
       "0px",

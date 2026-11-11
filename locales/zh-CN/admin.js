@@ -107,6 +107,7 @@ export default {
   refreshLinks: "刷新收件链接",
   refreshInbox: "刷新私有收件",
   loading: "正在加载…",
+  loadFailed: "管理后台加载失败，请检查网络后重试。",
   noLinks: "还没有收件链接",
   noLinksDescription: "创建链接并设置有效期和收集额度，即可开始接收文件。",
   noFiles: "还没有收到文件",

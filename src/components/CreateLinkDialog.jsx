@@ -6,6 +6,7 @@ import { Dialog } from "./Dialog.jsx";
 import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 import { Icon } from "./Icon.jsx";
 import { Toast } from "./Toast.jsx";
+import { PageHeader } from "./PageHeader.jsx";
 
 const MiB = 1024 * 1024;
 const capacityOptions = (values) =>
@@ -205,14 +206,12 @@ export function CreateLinkDialog({
     );
   };
   const close = () => {
-    if (request.current && !invitation) return;
-    request.current?.abort();
+    if (!current.current || (request.current && !invitation)) return;
     current.current = false;
-    // Clear capability-bearing content as soon as dismissal starts.
-    setResult((value) => value && { ...value, url: "" });
-    setShowQR(false);
+    request.current?.abort();
+    // Keep the last frame through the exit animation. Unmounting in onExited
+    // releases the link and presentation state without a visible reset.
     clearTimeout(toastTimer.current);
-    setFeedback(null);
     setOpen(false);
   };
   const submit = async (event) => {
@@ -304,28 +303,34 @@ export function CreateLinkDialog({
       class="settings-dialog admin-dialog invite-dialog"
       id="admin-create-dialog"
       open={open}
+      inert={!open}
       onClose={close}
       onExited={onExit}
       fallbackFocus={fallbackFocus}
       aria-labelledby="admin-create-title"
     >
-      <header class="invite-topbar" {...dialogHeadingFocus}>
-        <button
-          class="icon-button"
-          disabled={busy && !invitation}
-          aria-label={t(result || invitation ? "admin.close" : "admin.cancel")}
-          onClick={close}
-        >
-          <Icon name="chevron-left" />
-        </button>
-        <h2 id="admin-create-title">
-          {t(
-            result || invitation
-              ? "admin.invitationLink"
-              : "admin.inviteUpload",
-          )}
-        </h2>
-      </header>
+      <PageHeader
+        className="invite-topbar"
+        titleId="admin-create-title"
+        titleTag="h2"
+        title={t(
+          result || invitation ? "admin.invitationLink" : "admin.inviteUpload",
+        )}
+        back={
+          <button
+            type="button"
+            class="icon-button edge-start"
+            disabled={busy && !invitation}
+            aria-label={t(
+              result || invitation ? "admin.close" : "admin.cancel",
+            )}
+            onClick={close}
+          >
+            <Icon name="chevron-left" />
+          </button>
+        }
+        {...dialogHeadingFocus}
+      />
       {result ? (
         <div class="invite-result" data-reopened={invitation ? "" : undefined}>
           <div class="invite-result-content">

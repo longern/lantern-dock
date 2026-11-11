@@ -16,9 +16,11 @@ import { Dialog } from "./Dialog.jsx";
 import { CreateLinkDialog } from "./CreateLinkDialog.jsx";
 import { TransferCenter } from "./TransferCenter.jsx";
 import { Icon } from "./Icon.jsx";
+import { PageHeader } from "./PageHeader.jsx";
 import { useRouter } from "../hooks/useRouter.jsx";
 import { accountHref } from "../../shared/routes.js";
 import { siteTitle } from "../lib/site-title.js";
+import "../styles/admin.css";
 
 const ignore = () => {};
 
@@ -55,25 +57,28 @@ export function AdminPage() {
     <main
       class={`admin-page${ready ? " admin-ready" : ""}${detail ? " admin-detail" : ""}`}
     >
-      <header class="admin-header">
-        <a
-          class="admin-back"
-          aria-label={backLabel}
-          href={detail ? "/admin/users" : mobile ? "/me" : "/"}
-        >
-          <Icon name="chevron-left" />
-          <span>{backLabel}</span>
-        </a>
-        {ready && <h1 class="admin-mobile-title">{t(heading)}</h1>}
-        <a
-          class="admin-account-link"
-          aria-label={t("account.myAccount")}
-          href={accountHref(location.pathname + location.search)}
-        >
-          <Icon name="user" />
-          <span>{t("account.myAccount")}</span>
-        </a>
-      </header>
+      <PageHeader
+        className="admin-header"
+        title={ready ? t(heading) : null}
+        back={
+          <a
+            class="icon-button edge-start admin-back"
+            aria-label={backLabel}
+            href={detail ? "/admin/users" : mobile ? "/me" : "/"}
+          >
+            <Icon name="chevron-left" />
+          </a>
+        }
+        actions={
+          <a
+            class="icon-button edge-end admin-account-link"
+            aria-label={t("account.myAccount")}
+            href={accountHref(location.pathname + location.search)}
+          >
+            <Icon name="user" />
+          </a>
+        }
+      />
       {!ready && (
         <div class="admin-heading">
           <span class="admin-eyebrow">

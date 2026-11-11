@@ -59,9 +59,16 @@ function SheetHandle({ onDismiss }) {
   );
 }
 
-function PersonalUploadDialog({ createClient, files, direct, onExit }) {
+function PersonalUploadDialog({
+  createClient,
+  files,
+  direct,
+  onExit,
+  onWorkingChange,
+}) {
   const [open, setOpen] = useState(true);
   const [working, setWorking] = useState(false);
+  useEffect(() => () => onWorkingChange?.(false), [onWorkingChange]);
   const close = () => {
     if (!working) setOpen(false);
   };
@@ -78,7 +85,10 @@ function PersonalUploadDialog({ createClient, files, direct, onExit }) {
         personalClient={createClient}
         initialFiles={files}
         direct={direct}
-        onWorking={setWorking}
+        onWorking={(value) => {
+          setWorking(value);
+          onWorkingChange?.(value);
+        }}
         onClose={close}
         footer={
           <>
@@ -121,7 +131,12 @@ function UploadPermissionIndicator({ checking }) {
   );
 }
 
-export function FileIntakeActions({ client, mobile, suspended }) {
+export function FileIntakeActions({
+  client,
+  mobile,
+  suspended,
+  onWorkingChange,
+}) {
   const router = useRouter();
   const { identity, nas, ensureNAS, refreshIdentity, refreshNAS } =
     useSession();
@@ -389,6 +404,7 @@ export function FileIntakeActions({ client, mobile, suspended }) {
           files={files.current}
           direct={direct}
           onExit={close}
+          onWorkingChange={onWorkingChange}
         />
       )}
     </>

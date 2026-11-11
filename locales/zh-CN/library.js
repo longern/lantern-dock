@@ -5,6 +5,7 @@ export default {
   albumContinuousView: "连续排列",
 
   transfers: "传输列表",
+  leaveForAdmin: "进入管理后台会中断正在进行的上传或下载，仍要继续吗？",
   openTransfers: "打开传输列表",
   collapseTransfers: "收起传输列表",
   clearFinishedTransfers: "清除已结束",

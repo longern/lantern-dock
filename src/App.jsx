@@ -17,7 +17,7 @@ import { Toast } from "./components/Toast.jsx";
 import { SetupWizard } from "./components/SetupWizard.jsx";
 import { UploadPage } from "./components/UploadPage.jsx";
 import { AccountPage } from "./components/AccountPage.jsx";
-import { AdminPage } from "./components/AdminPage.jsx";
+import { AdminRoute } from "./components/AdminRoute.jsx";
 import { MyPage } from "./components/MyPage.jsx";
 import { Favorites } from "./components/Favorites.jsx";
 import { PageDialog } from "./components/PageDialog.jsx";
@@ -32,6 +32,7 @@ import { useLibraryRoute } from "./hooks/useLibraryRoute.js";
 import { useLibrary } from "./hooks/useLibrary.js";
 import { useRecords } from "./hooks/useRecords.js";
 import { useDownload } from "./hooks/useDownload.js";
+import { useAdminNavigationGuard } from "./hooks/useAdminNavigationGuard.js";
 import { useTransferPanel } from "./hooks/useTransferPanel.js";
 import { RouteScope, useRouter } from "./hooks/useRouter.jsx";
 import {
@@ -154,6 +155,8 @@ function LibraryApp() {
   }, [library.error, toast]);
   const records = useRecords(library.key, toast);
   const transfer = useDownload(library.connection, records.rememberMany, toast);
+  const [intakeWorking, setIntakeWorking] = useState(false);
+  useAdminNavigationGuard(!!transfer.progress || intakeWorking);
   const transferPanel = useTransferPanel(transfer, mobile);
   const [touchSelections, setTouchSelections] = useState(() => new Set());
   const [desktopSelections, setDesktopSelections] = useState(() => new Map());
@@ -566,6 +569,7 @@ function LibraryApp() {
         client={library.connection.client}
         mobile={mobile}
         suspended={!!touchSelections.size}
+        onWorkingChange={setIntakeWorking}
       />
     );
   const feedback = (
@@ -825,7 +829,7 @@ function LibraryApp() {
 
 function RoutedPage({ route }) {
   return route.page === "admin" ? (
-    <AdminPage />
+    <AdminRoute />
   ) : route.page === "upload" ? (
     <UploadPage key={route.token} token={route.token} />
   ) : route.page === "not-found" ? (

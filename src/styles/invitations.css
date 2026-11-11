@@ -11,33 +11,9 @@
   display: flex;
   flex-direction: column;
 }
-.invite-topbar {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) 48px;
-  align-items: center;
-  flex-shrink: 0;
-  height: 60px;
-  padding: 0 16px;
-  outline: none;
-}
-.invite-topbar .icon-button {
-  width: 48px;
-  height: 48px;
-  margin-left: -12px;
-}
-.invite-topbar h2 {
-  min-width: 0;
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  text-align: center;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.invite-topbar .icon-button svg {
-  width: 24px;
-  height: 24px;
+.page-header.invite-topbar {
+  --page-header-safe-top: 0px;
+  border-bottom: 0;
 }
 .invite-form,
 .invite-result {
@@ -218,33 +194,6 @@
   margin-top: 16px;
   overflow-wrap: anywhere;
 }
-.admin-link-actions .admin-invitation-share {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 10px 16px;
-  border-radius: var(--radius-control);
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-size: 14px;
-  font-weight: 500;
-}
-.admin-invitation-share svg {
-  width: 18px;
-  height: 18px;
-}
-.admin-link-actions .secondary-button {
-  border: 0;
-  background: var(--surface-subtle);
-}
-.admin-invitation-compat {
-  margin: 12px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.7;
-}
 .invite-result-info p {
   margin: 4px 0;
   color: var(--muted);
@@ -350,9 +299,8 @@
     border-radius: 0;
     --invite-padding: 20px;
   }
-  .invite-topbar {
-    height: calc(60px + env(safe-area-inset-top));
-    padding-top: env(safe-area-inset-top);
+  .page-header.invite-topbar {
+    --page-header-safe-top: env(safe-area-inset-top);
   }
 }
 @media (max-width: 360px) {

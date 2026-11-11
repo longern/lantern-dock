@@ -1,5 +1,6 @@
 import { Dialog } from "./Dialog.jsx";
 import { Icon } from "./Icon.jsx";
+import { PageHeader } from "./PageHeader.jsx";
 import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 
 // Full-screen mobile subpages share one native-modal lifecycle and app bar.
@@ -33,21 +34,24 @@ export function PageDialog({
       returnTarget={returnTarget}
       aria-labelledby={titleId}
     >
-      <header
-        class={`page-dialog-header ${headerClassName}`}
+      <PageHeader
+        className={`page-dialog-header ${headerClassName}`}
+        title={title}
+        titleId={titleId}
+        back={
+          <button
+            id={backId}
+            type="button"
+            class="icon-button edge-start"
+            onClick={onClose}
+            aria-label={backLabel}
+          >
+            <Icon name="chevron-left" />
+          </button>
+        }
+        actions={actions}
         {...dialogHeadingFocus}
-      >
-        <button
-          id={backId}
-          class="icon-button edge-start"
-          onClick={onClose}
-          aria-label={backLabel}
-        >
-          <Icon name="chevron-left" />
-        </button>
-        <h1 id={titleId}>{title}</h1>
-        {actions && <div class="header-actions">{actions}</div>}
-      </header>
+      />
       {children}
     </Dialog>
   );

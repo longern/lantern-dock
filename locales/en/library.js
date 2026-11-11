@@ -5,6 +5,8 @@ export default {
   albumContinuousView: "Continuous grid",
 
   transfers: "Transfers",
+  leaveForAdmin:
+    "Opening administration will interrupt active uploads or downloads. Continue?",
   openTransfers: "Open transfers",
   collapseTransfers: "Collapse transfers",
   clearFinishedTransfers: "Clear finished",

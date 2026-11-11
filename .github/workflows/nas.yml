@@ -1,0 +1,139 @@
+name: NAS image
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths:
+      - "server/**"
+      - "compose.nas.yaml"
+      - "compose.nas.build.yaml"
+      - "scripts/smoke-nas-image.sh"
+      - "test/fixtures/**"
+      - ".github/workflows/nas.yml"
+  pull_request:
+    paths:
+      - "server/**"
+      - "compose.nas.yaml"
+      - "compose.nas.build.yaml"
+      - "scripts/smoke-nas-image.sh"
+      - "test/fixtures/**"
+      - ".github/workflows/nas.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  nas:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+          cache-dependency-path: server/go.sum
+      - run: test -z "$(gofmt -l .)"
+      - name: Test with the NAS image's Alpine media dependencies
+        run: docker build --target test --build-context test-fixtures=../test/fixtures --progress=plain -t lantern-dock-server:test .
+      - name: Cross-compile NAS binaries
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /tmp/lantern-dock-amd64 ./cmd/lantern-dock
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o /tmp/lantern-dock-arm64 ./cmd/lantern-dock
+      - name: Build and smoke-test the NAS container
+        run: |
+          docker build -t lantern-dock-server:ci .
+          bash ../scripts/smoke-nas-image.sh lantern-dock-server:ci
+      - name: Validate Compose configuration
+        working-directory: .
+        env:
+          PUBLIC_DIR: /tmp/public
+          SITE_ORIGIN: https://files.example.com
+          CERT_WEBHOOK_URL: https://files.example.com/api/certificates/ci-placeholder
+          SECRET_KEY: ci-only-nas-secret-key-not-for-production
+        run: |
+          docker compose -f compose.nas.yaml config --quiet
+          docker compose -f compose.nas.yaml -f compose.nas.build.yaml config --quiet
+  publish:
+    name: Publish NAS image
+    needs: nas
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.image }}
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Image name
+        id: image
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+        with:
+          images: ${{ steps.image.outputs.image }}
+          flavor: latest=false
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=semver,pattern={{version}}
+            type=sha,format=long
+          labels: |
+            org.opencontainers.image.title=LanternDock NAS server
+            org.opencontainers.image.description=Read-only WebDAV, private file drops and OIDC identities for your NAS
+      - name: Build and publish amd64 and arm64
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: ./server
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          cache-from: type=gha,scope=nas-image
+          cache-to: type=gha,scope=nas-image,mode=max
+  verify-image:
+    name: Verify published image (${{ matrix.platform }})
+    needs: publish
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Pull and smoke-test the published digest
+        env:
+          NAS_IMAGE: ${{ needs.publish.outputs.image }}@${{ needs.publish.outputs.digest }}
+          EXPECTED_PLATFORM: ${{ matrix.platform }}
+        run: |
+          docker pull --platform "$EXPECTED_PLATFORM" "$NAS_IMAGE"
+          actual_platform=$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$NAS_IMAGE")
+          test "$actual_platform" = "$EXPECTED_PLATFORM"
+          bash scripts/smoke-nas-image.sh "$NAS_IMAGE"
