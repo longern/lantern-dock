@@ -4,6 +4,8 @@ import { Icon } from "./Icon.jsx";
 import { UploadClient, uploadBatchKey } from "../lib/uploads.js";
 import { bytes, date } from "../lib/format.js";
 import { siteTitle } from "../lib/site-title.js";
+import { kindFor } from "../lib/dav.js";
+import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 
 function savedBatch(key) {
   try {
@@ -42,17 +44,15 @@ function restoredRow(task) {
 export function UploadPage({ token }) {
   return (
     <main class="setup-page upload-page">
-      <a class="setup-brand" href="/">
-        <span class="brand-symbol">
-          <Icon name="portal" />
-        </span>
-        <span>{siteTitle}</span>
-      </a>
       <section class="setup-card" aria-labelledby="upload-title">
-        <UploadPanel token={token} />
-        <a class="upload-back" href="/">
-          {t("account.backToPublicFiles")}
-        </a>
+        <UploadPanel
+          token={token}
+          footer={
+            <a class="upload-back" href="/">
+              {t("account.backToPublicFiles")}
+            </a>
+          }
+        />
       </section>
     </main>
   );
@@ -64,15 +64,22 @@ export function UploadPanel({
   onWorking,
   initialFiles,
   direct = false,
+  onClose,
+  footer,
 }) {
   const [link, setLink] = useState(null);
   const [error, setError] = useState("");
   const [rows, setRows] = useState([]);
   const [working, setWorking] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [revision, setRevision] = useState(0);
   const client = useRef(null);
   const active = useRef(null);
   const running = useRef(false);
+  const stopQueue = useRef(false);
+  const pendingQueue = useRef(null);
+  const skipped = useRef(new Set());
+  const pendingCancellation = useRef(null);
   const mounted = useRef(false);
   const selection = useRef(initialFiles);
   const batchKey = useRef(null);
@@ -81,7 +88,7 @@ export function UploadPanel({
     mounted.current = true;
     const controller = new AbortController();
     const stop = () => {
-      active.current?.abort();
+      active.current?.controller.abort();
       client.current?.close();
     };
     const reopen = (event) => {
@@ -150,7 +157,7 @@ export function UploadPanel({
       window.removeEventListener("pagehide", stop);
       window.removeEventListener("pageshow", reopen);
       controller.abort();
-      active.current?.abort();
+      active.current?.controller.abort();
       client.current?.close();
       client.current = null;
     };
@@ -162,7 +169,12 @@ export function UploadPanel({
       );
   };
   const receive = async (files, resumed) => {
-    if (running.current || !client.current || !link || !files.length) return;
+    if (!client.current || !link || !files.length) return;
+    if (
+      running.current &&
+      (resumed || !pendingQueue.current || stopQueue.current)
+    )
+      return;
     const connection = client.current;
     const resumable = !!batchKey.current;
     if (resumable && !batchID.current) {
@@ -178,14 +190,27 @@ export function UploadPanel({
           loaded: 0,
         }));
     if (!resumed) setRows((current) => [...current, ...batch]);
+    if (running.current) {
+      pendingQueue.current.push(...batch);
+      return;
+    }
+    pendingQueue.current = batch;
+    pendingCancellation.current = null;
     setWorking(true);
     onWorking?.(true);
     running.current = true;
+    stopQueue.current = false;
     try {
       for (const row of batch) {
-        if (!mounted.current || client.current !== connection) break;
+        if (
+          !mounted.current ||
+          client.current !== connection ||
+          stopQueue.current
+        )
+          break;
+        if (skipped.current.has(row.id)) continue;
         const controller = new AbortController();
-        active.current = controller;
+        active.current = { id: row.id, controller };
         update(row.id, { status: "uploading", error: "" });
         let task = row.task;
         let confirmed = row.loaded;
@@ -232,7 +257,12 @@ export function UploadPanel({
           }
           update(row.id, {
             status,
-            loaded: status === "complete" ? row.file.size : confirmed,
+            loaded:
+              status === "complete"
+                ? row.file.size
+                : status === "cancelled"
+                  ? 0
+                  : confirmed,
             error: message,
           });
         }
@@ -251,11 +281,70 @@ export function UploadPanel({
       }
     } finally {
       active.current = null;
+      pendingQueue.current = null;
+      if (pendingCancellation.current) {
+        await pendingCancellation.current;
+        try {
+          const info = await connection.info(AbortSignal.timeout(5000));
+          if (mounted.current && client.current === connection) setLink(info);
+        } catch (err) {
+          if (mounted.current && client.current === connection)
+            setError(err.message);
+        }
+        pendingCancellation.current = null;
+      }
+      skipped.current.clear();
       running.current = false;
       if (mounted.current) {
         setWorking(false);
+        setCancelling(false);
         onWorking?.(false);
       }
+    }
+  };
+  const cancelUploads = () => {
+    if (!running.current || stopQueue.current) return;
+    // Stop the queue synchronously, including cancellation between two requests.
+    stopQueue.current = true;
+    setCancelling(true);
+    setRows((current) =>
+      current.map((row) =>
+        row.status === "queued"
+          ? { ...row, status: "cancelled", loaded: 0, error: "" }
+          : row,
+      ),
+    );
+    const connection = client.current;
+    const paused = rows.filter((row) => row.status === "paused" && row.task);
+    if (paused.length) {
+      pendingCancellation.current = Promise.all(
+        paused.map(async (row) => {
+          try {
+            const status = await connection.cancelResumable(
+              batchID.current,
+              row.task.id,
+            );
+            update(row.id, {
+              status,
+              loaded: status === "complete" ? row.file.size : 0,
+              error: "",
+            });
+          } catch (err) {
+            update(row.id, { error: err.message });
+          }
+        }),
+      );
+    }
+    active.current?.controller.abort();
+  };
+  const cancelRow = (row) => {
+    if (active.current?.id === row.id) {
+      active.current.controller.abort();
+    } else if (row.status === "queued") {
+      skipped.current.add(row.id);
+      update(row.id, { status: "cancelled", loaded: 0, error: "" });
+    } else if (row.status === "paused") {
+      void cancelPaused(row);
     }
   };
   const cancelPaused = async (row) => {
@@ -263,12 +352,18 @@ export function UploadPanel({
     if (running.current || !connection) return;
     running.current = true;
     setWorking(true);
+    setCancelling(true);
+    onWorking?.(true);
     try {
       const status = await connection.cancelResumable(
         batchID.current,
         row.task.id,
       );
-      update(row.id, { status, error: "" });
+      update(row.id, {
+        status,
+        loaded: status === "complete" ? row.file.size : 0,
+        error: "",
+      });
       const info = await connection.info(AbortSignal.timeout(5000));
       if (mounted.current && client.current === connection) setLink(info);
     } catch (err) {
@@ -276,7 +371,11 @@ export function UploadPanel({
         setError(err.message);
     } finally {
       running.current = false;
-      if (mounted.current) setWorking(false);
+      if (mounted.current) {
+        setWorking(false);
+        setCancelling(false);
+        onWorking?.(false);
+      }
     }
   };
   const remaining = link ? Math.max(0, link.maxTotalBytes - link.usedBytes) : 0;
@@ -292,181 +391,335 @@ export function UploadPanel({
     selection.current = null;
     void receive(files);
   }, [available]);
+  const total = rows.reduce((sum, row) => sum + row.file.size, 0);
+  const loaded = rows.reduce(
+    (sum, row) => sum + Math.max(0, Math.min(row.loaded, row.file.size)),
+    0,
+  );
+  const completed = rows.filter((row) => row.status === "complete").length;
+  const percent =
+    completed === rows.length
+      ? 100
+      : total
+        ? Math.min(99, Math.floor((loaded / total) * 100))
+        : 0;
+  const priority = {
+    uploading: 0,
+    queued: 1,
+    paused: 2,
+    failed: 2,
+    complete: 3,
+    cancelled: 4,
+  };
+  const orderedRows = [...rows].sort(
+    (a, b) => priority[a.status] - priority[b.status],
+  );
+  const Heading = personalClient ? "h2" : "h1";
+  const chooseFiles = (event) => {
+    const files = event.currentTarget.files;
+    if (files?.length) void receive(files);
+    event.currentTarget.value = "";
+  };
   return (
-    <>
-      {personalClient ? (
-        <p class="dialog-intro">
-          {t(
-            direct
-              ? "admin.directUploadDescription"
-              : "admin.personalUploadDescription",
-          )}
-        </p>
-      ) : (
-        <div class="setup-intro">
-          <span class="setup-eyebrow">{t("account.temporaryInbox")}</span>
-          <h1 id="upload-title">{link?.title || t("account.receiveFiles")}</h1>
-          <p>{t("account.uploadPrivacy")}</p>
+    <div
+      class="upload-panel"
+      data-working={working ? "" : undefined}
+      data-has-files={rows.length ? "" : undefined}
+    >
+      <header class="upload-header">
+        <div class="upload-brand">
+          <Icon name="portal" />
+          <span>{siteTitle}</span>
         </div>
-      )}
-      {!link && !error && (
-        <p class="upload-message" role="status">
-          {t("account.connectingInbox")}
-        </p>
-      )}
-      {link && !personalClient && (
-        <dl class="upload-limits">
-          <div>
-            <dt>{t("account.fileSizeLimit")}</dt>
-            <dd>{bytes(link.maxFileBytes)}</dd>
-          </div>
-          <div>
-            <dt>{t("account.remainingCapacity")}</dt>
-            <dd>{bytes(remaining)}</dd>
-          </div>
-          <div>
-            <dt>{t("account.remainingFiles")}</dt>
-            <dd>
-              {Math.max(0, link.maxFiles - link.usedFiles).toLocaleString(
-                locale,
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt>{t("account.expiresAt")}</dt>
-            <dd>{date(link.expiresAt, true)}</dd>
-          </div>
-        </dl>
-      )}
-      {error && (
-        <div class="upload-message" role="alert">
-          <p>{error}</p>
-          <button
-            class="secondary-button"
-            disabled={working}
-            onClick={() => setRevision((value) => value + 1)}
-          >
-            {t("account.checkAgain")}
-          </button>
-        </div>
-      )}
-      {link && !error && (
-        <label
-          class={`upload-drop${working || !available ? " disabled" : ""}`}
-          onDragOver={(event) => event.preventDefault()}
-          onDrop={(event) => {
-            event.preventDefault();
-            if (available) void receive(event.dataTransfer.files);
-          }}
+        <div
+          class="upload-heading"
+          {...(personalClient ? dialogHeadingFocus : {})}
         >
-          <Icon name="upload" />
-          <strong>
-            {working
-              ? t("account.uploadingFiles")
-              : available
-                ? t("account.chooseOrDropFiles")
-                : t("account.inboxUnavailable")}
-          </strong>
-          <span>
-            {working
-              ? t("account.keepPageOpen")
-              : t("account.multipleFilesHelp")}
-          </span>
-          <input
-            type="file"
-            multiple
-            disabled={working || !available}
-            aria-label={t("account.chooseUploadFiles")}
-            onChange={(event) => {
-              const files = event.currentTarget.files;
-              if (files?.length) void receive(files);
-              event.currentTarget.value = "";
-            }}
-          />
-        </label>
-      )}
+          <Heading
+            id={personalClient ? "personal-upload-title" : "upload-title"}
+          >
+            {t("admin.uploadFiles")}
+          </Heading>
+          {onClose && (
+            <button
+              class="icon-button"
+              aria-label={t("admin.close")}
+              disabled={working}
+              onClick={onClose}
+            >
+              <Icon name="x" />
+            </button>
+          )}
+        </div>
+        <p class="upload-subtitle">
+          {rows.length
+            ? t("account.uploadFileSummary", {
+                count: rows.length,
+                size: bytes(total),
+              })
+            : personalClient
+              ? t(
+                  direct
+                    ? "admin.directUploadDescription"
+                    : "admin.personalUploadDescription",
+                )
+              : link?.title || t("account.uploadPrivacy")}
+        </p>
+      </header>
       {!!rows.length && (
-        <ul class="upload-results" aria-label={t("account.currentUploads")}>
-          {rows.map((row) => (
-            <li key={row.id}>
-              <div class="upload-file-heading">
-                <strong>{row.file.name}</strong>
-                <span>{bytes(row.file.size)}</span>
-              </div>
-              {row.status === "uploading" && (
-                <>
-                  <progress
-                    value={row.loaded}
-                    max={row.file.size || 1}
-                    aria-label={t("account.uploadProgress", {
-                      name: row.file.name,
-                    })}
+        <section
+          class="upload-summary"
+          aria-label={t("account.totalUploadProgress")}
+        >
+          <div class="upload-summary-values">
+            <span>
+              {t("account.uploadBytes", {
+                loaded: bytes(loaded),
+                total: bytes(total),
+              })}
+            </span>
+            <strong>{percent}%</strong>
+          </div>
+          <progress
+            value={percent}
+            max="100"
+            aria-label={t("account.totalUploadProgress")}
+          />
+          <p>
+            {t("account.uploadCompletedCount", {
+              completed,
+              total: rows.length,
+            })}
+          </p>
+        </section>
+      )}
+      {working && (
+        <aside class="upload-foreground-note">
+          <Icon name="info" />
+          <p>
+            <span>{t("account.keepUploadForeground")}</span>
+            <span>{t("account.uploadBackgroundWarning")}</span>
+          </p>
+        </aside>
+      )}
+      <div class="upload-content">
+        {error && (
+          <div class="upload-message" role="alert">
+            <p>{error}</p>
+            <button
+              class="secondary-button"
+              disabled={working}
+              onClick={() => setRevision((value) => value + 1)}
+            >
+              {t("account.checkAgain")}
+            </button>
+          </div>
+        )}
+        {!!rows.length ? (
+          <>
+            <div class="upload-queue-heading">
+              <h3>{t("account.uploadFileList")}</h3>
+              {available && !cancelling && (
+                <label class="upload-add text-button">
+                  <Icon name="plus" />
+                  {t("account.addUploadFiles")}
+                  <input
+                    type="file"
+                    multiple
+                    aria-label={t("account.chooseUploadFiles")}
+                    onChange={chooseFiles}
                   />
-                  <div class="upload-file-status">
+                </label>
+              )}
+            </div>
+            <ul
+              class="upload-results"
+              aria-label={t("account.currentUploads")}
+              tabIndex="0"
+            >
+              {orderedRows.map((row) => (
+                <li key={row.id} class={`upload-file ${row.status}`}>
+                  <span class="upload-file-icon">
+                    <Icon name={kindFor(row.file.name, false)} />
+                  </span>
+                  <div class="upload-file-info">
+                    <strong title={row.file.name}>{row.file.name}</strong>
                     <span>
-                      {row.loaded >= row.file.size
-                        ? t("account.confirmingReceipt")
-                        : t("account.uploadBytes", {
+                      {["uploading", "paused"].includes(row.status)
+                        ? t("account.uploadBytes", {
                             loaded: bytes(row.loaded),
                             total: bytes(row.file.size),
-                          })}
+                          })
+                        : bytes(row.file.size)}
                     </span>
-                    <button
-                      class="text-button"
-                      onClick={() => active.current?.abort()}
+                    <span
+                      class={`upload-result ${row.status}`}
+                      role={
+                        row.status === "uploading" ? "progressbar" : "status"
+                      }
+                      aria-label={
+                        row.status === "uploading"
+                          ? t("account.uploadProgress", { name: row.file.name })
+                          : undefined
+                      }
+                      aria-valuemin={row.status === "uploading" ? 0 : undefined}
+                      aria-valuemax={
+                        row.status === "uploading" ? 100 : undefined
+                      }
+                      aria-valuenow={
+                        row.status === "uploading"
+                          ? Math.min(
+                              100,
+                              Math.floor(
+                                (row.loaded / (row.file.size || 1)) * 100,
+                              ),
+                            )
+                          : undefined
+                      }
                     >
-                      {t("account.cancelUpload")}
-                    </button>
+                      {row.status === "complete"
+                        ? t("account.received")
+                        : row.status === "queued"
+                          ? t("account.queuedUpload")
+                          : row.status === "cancelled"
+                            ? t("account.cancelledUpload")
+                            : row.status === "failed"
+                              ? t("account.uploadFailed")
+                              : row.status === "paused"
+                                ? t("account.uploadPaused")
+                                : row.loaded >= row.file.size
+                                  ? t("account.confirmingReceipt")
+                                  : t("account.uploadingPercent", {
+                                      percent: Math.floor(
+                                        (row.loaded / (row.file.size || 1)) *
+                                          100,
+                                      ),
+                                    })}
+                    </span>
                   </div>
-                </>
-              )}
-              {row.status === "paused" && (
-                <div class="upload-file-status upload-resume-actions">
-                  <span>
-                    {t("account.uploadBytes", {
-                      loaded: bytes(row.loaded),
-                      total: bytes(row.file.size),
-                    })}
-                  </span>
-                  <label class="text-button upload-resume-picker">
-                    {t("account.resumeUpload")}
-                    <input
-                      type="file"
-                      disabled={working || !!error}
-                      aria-label={t("account.resumeUpload")}
-                      onChange={(event) => {
-                        const file = event.currentTarget.files?.[0];
-                        if (file) void receive([file], row);
-                        event.currentTarget.value = "";
-                      }}
-                    />
-                  </label>
-                  <button
-                    class="text-button"
-                    disabled={working}
-                    onClick={() => void cancelPaused(row)}
-                  >
-                    {t("account.cancelUpload")}
-                  </button>
-                </div>
-              )}
-              <span class={`upload-result ${row.status}`} role="status">
-                {row.status === "complete"
-                  ? t("account.received")
-                  : row.status === "queued"
-                    ? t("account.queuedUpload")
-                    : row.status === "cancelled"
-                      ? t("account.cancelledUpload")
-                      : row.status === "failed"
-                        ? row.error
-                        : row.status === "paused"
-                          ? row.error || t("account.uploadPaused")
-                          : t("account.uploading")}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </>
+                  {["uploading", "queued", "paused"].includes(row.status) && (
+                    <button
+                      class="icon-button upload-file-cancel"
+                      aria-label={t("account.cancelUploadNamed", {
+                        name: row.file.name,
+                      })}
+                      title={t("account.cancelUpload")}
+                      disabled={
+                        cancelling || (row.status === "paused" && working)
+                      }
+                      onClick={() => cancelRow(row)}
+                    >
+                      <Icon name="x" />
+                    </button>
+                  )}
+                  {["failed", "paused"].includes(row.status) && row.error && (
+                    <p class="upload-file-error">{row.error}</p>
+                  )}
+                  {row.status === "paused" && (
+                    <div class="upload-resume-actions">
+                      <label class="text-button upload-resume-picker">
+                        {t("account.resumeUpload")}
+                        <input
+                          type="file"
+                          disabled={working || !!error}
+                          aria-label={t("account.resumeUpload")}
+                          onChange={(event) => {
+                            const file = event.currentTarget.files?.[0];
+                            if (file) void receive([file], row);
+                            event.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <div class="upload-empty">
+            {!link && !error && (
+              <p class="upload-message" role="status">
+                {t("account.connectingInbox")}
+              </p>
+            )}
+            {link && !error && (
+              <>
+                <label
+                  class={`upload-drop${!available ? " disabled" : ""}`}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => {
+                    event.preventDefault();
+                    if (available) void receive(event.dataTransfer.files);
+                  }}
+                >
+                  <Icon name="upload" />
+                  <strong>
+                    {available
+                      ? t("admin.selectUploadFiles")
+                      : t("account.inboxUnavailable")}
+                  </strong>
+                  <span>{t("account.multipleFilesHelp")}</span>
+                  <input
+                    type="file"
+                    multiple
+                    disabled={!available}
+                    aria-label={t("account.chooseUploadFiles")}
+                    onChange={chooseFiles}
+                  />
+                </label>
+                <p class="upload-selection-note">
+                  {t("account.uploadStartsImmediately")}
+                </p>
+                {!personalClient && (
+                  <dl class="upload-limits">
+                    <div>
+                      <dt>{t("account.fileSizeLimit")}</dt>
+                      <dd>{bytes(link.maxFileBytes)}</dd>
+                    </div>
+                    <div>
+                      <dt>{t("account.remainingCapacity")}</dt>
+                      <dd>{bytes(remaining)}</dd>
+                    </div>
+                    <div>
+                      <dt>{t("account.remainingFiles")}</dt>
+                      <dd>
+                        {Math.max(
+                          0,
+                          link.maxFiles - link.usedFiles,
+                        ).toLocaleString(locale)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>{t("account.expiresAt")}</dt>
+                      <dd>{date(link.expiresAt, true)}</dd>
+                    </div>
+                  </dl>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+      <footer class="upload-actions">
+        {working ? (
+          <button
+            class="secondary-button upload-cancel"
+            disabled={cancelling}
+            onClick={cancelUploads}
+          >
+            {t(
+              cancelling
+                ? "account.cancellingUpload"
+                : rows.length > 1
+                  ? "account.cancelAllUploads"
+                  : "account.cancelUpload",
+            )}
+          </button>
+        ) : (
+          footer
+        )}
+      </footer>
+    </div>
   );
 }

@@ -67,40 +67,32 @@ function PersonalUploadDialog({ createClient, files, direct, onExit }) {
   };
   return (
     <Dialog
-      class="settings-dialog admin-dialog"
+      class="settings-dialog admin-dialog upload-dialog"
       open={open}
       onClose={close}
       onExited={onExit}
       fallbackFocus="#file-intake-trigger"
       aria-labelledby="personal-upload-title"
     >
-      <div class="dialog-heading" {...dialogHeadingFocus}>
-        <h2 id="personal-upload-title">{t("admin.uploadFiles")}</h2>
-        <button
-          class="icon-button"
-          aria-label={t("admin.close")}
-          disabled={working}
-          onClick={close}
-        >
-          <Icon name="x" />
-        </button>
-      </div>
       <UploadPanel
         personalClient={createClient}
         initialFiles={files}
         direct={direct}
         onWorking={setWorking}
+        onClose={close}
+        footer={
+          <>
+            {!direct && (
+              <a class="secondary-button" href="/admin/inbox">
+                {t("admin.viewInbox")}
+              </a>
+            )}
+            <button class="primary-button" onClick={close}>
+              {t("admin.done")}
+            </button>
+          </>
+        }
       />
-      <div class="dialog-actions">
-        {working || direct ? null : (
-          <a class="secondary-button" href="/admin/inbox">
-            {t("admin.viewInbox")}
-          </a>
-        )}
-        <button class="primary-button" disabled={working} onClick={close}>
-          {t("admin.done")}
-        </button>
-      </div>
     </Dialog>
   );
 }
