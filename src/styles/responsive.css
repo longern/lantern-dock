@@ -180,9 +180,27 @@
   .preview-content {
     min-height: 240px;
   }
-  .preview-content img,
-  .preview-content video {
-    max-height: 48dvh;
+  .preview-media {
+    display: flex;
+    overflow: hidden;
+  }
+  .preview-media .preview-content {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    border-radius: 0;
+    background: var(--surface);
+  }
+  .preview-media .preview-content > img,
+  .preview-media .preview-content > video {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-height: none;
+    object-fit: contain;
+    object-position: center;
   }
   .file-details {
     font-size: 13px;
@@ -192,10 +210,7 @@
     grid-template-columns: 96px minmax(0, 1fr);
   }
   .preview-actions {
-    padding: 14px 16px max(14px, env(safe-area-inset-bottom));
-  }
-  .preview-actions button {
-    height: 48px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
   .dialog-actions .primary-button {
     min-width: 100px;

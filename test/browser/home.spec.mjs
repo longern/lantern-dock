@@ -410,14 +410,12 @@ test("mobile headers keep page titles and listing actions without a navigation d
   }
 });
 
-test("desktop avatar opens a keyboard-accessible account and settings menu", async ({
+test("desktop account entry opens a keyboard-accessible account and settings menu", async ({
   page,
 }) => {
   test.skip(isCompact(page), "Desktop sidebar account entry");
-  const trigger = page
-    .locator("#sidebar")
-    .getByRole("button", { name: "我的账户", exact: true });
-  const menu = page.getByRole("menu", { name: "我的账户", exact: true });
+  const trigger = page.locator("#account-menu-trigger");
+  const menu = page.getByRole("menu", { name: /^我的账户(?: · .+)?$/ });
   const account = menu.getByRole("menuitem", {
     name: "我的账户",
     exact: true,

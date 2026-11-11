@@ -127,18 +127,6 @@
     transform: translateY(100%);
   }
 }
-.intake-sheet-handle {
-  display: grid;
-  place-items: center;
-  height: 24px;
-  touch-action: none;
-}
-.intake-sheet-handle span {
-  width: 32px;
-  height: 4px;
-  background: var(--line);
-  border-radius: 2px;
-}
 .intake-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

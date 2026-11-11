@@ -3,6 +3,19 @@
 dialog {
   border: 0;
 }
+.sheet-handle {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  height: 24px;
+  touch-action: none;
+}
+.sheet-handle span {
+  width: 32px;
+  height: 4px;
+  background: var(--line);
+  border-radius: 2px;
+}
 
 /* Keep each native modal and its backdrop in the top layer through the exit. */
 .settings-dialog:not([open]),

@@ -6,21 +6,17 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface);
+  background: var(--canvas);
 }
-.account-page .account-dialog-header {
-  background: var(--surface);
+.account-page .page-header {
+  --page-header-background: var(--canvas);
+  border-bottom: 0;
 }
 .account-bar,
 .account-content {
   max-width: 620px;
   margin: 0 auto;
   padding-inline: 16px;
-}
-.page-header.account-bar {
-  --page-header-background: var(--surface);
-  border-bottom: 0;
 }
 .account-content {
   display: grid;

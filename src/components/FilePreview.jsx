@@ -1,11 +1,13 @@
 import { t } from "../../shared/i18n.js";
-import { useEffect, useState } from "preact/hooks";
+import { useEffect, useId, useLayoutEffect, useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { limitedBytes } from "../lib/dav.js";
 import { bytes, date } from "../lib/format.js";
-import { useBreakpointDown } from "../hooks/useMediaQuery.js";
+import { useBreakpointDown, useCompactLayout } from "../hooks/useMediaQuery.js";
 import { Dialog } from "./Dialog.jsx";
 import { VideoPreview } from "./VideoPreview.jsx";
+import { PageHeader } from "./PageHeader.jsx";
+import { SheetHandle } from "./SheetHandle.jsx";
 import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 
 export function FilePreview({
@@ -24,9 +26,20 @@ export function FilePreview({
   feedback,
 }) {
   const modal = useBreakpointDown("lg");
+  const compact = useCompactLayout();
   const [content, setContent] = useState(null);
   const [error, setError] = useState("");
   const [dimensions, setDimensions] = useState("");
+  const [details, setDetails] = useState(false);
+  const detailsId = useId();
+  const [drawerMounted, setDrawerMounted] = useState(false);
+  useLayoutEffect(() => {
+    if (compact && details && open) setDrawerMounted(true);
+    else if (!compact) {
+      setDetails(false);
+      setDrawerMounted(false);
+    }
+  }, [compact, details, open]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -115,26 +128,10 @@ export function FilePreview({
           <Icon name={modal ? "chevron-left" : "x"} />
         </button>
         <strong id="preview-name">{item.name}</strong>
-        <button
-          class="icon-button"
-          aria-label={t("library.copyLink")}
-          onClick={() => onCopyLink(item)}
-        >
-          <Icon name="copy" />
-        </button>
-        <button
-          class="icon-button edge-end"
-          aria-label={
-            favorite ? t("library.unfavoriteFile") : t("library.favoriteFile")
-          }
-          aria-pressed={favorite}
-          style={{ color: favorite ? "#a58b41" : undefined }}
-          onClick={() => onFavorite(item)}
-        >
-          <Icon name={favorite ? "star-filled" : "star"} />
-        </button>
       </div>
-      <div class="preview-scroll">
+      <div
+        class={`preview-scroll${item.kind === "image" || item.kind === "video" ? " preview-media" : ""}`}
+      >
         <div class="preview-content">
           {error || !content ? (
             <div class="preview-placeholder">
@@ -169,34 +166,113 @@ export function FilePreview({
             />
           )}
         </div>
-        <dl class="file-details">
-          <div>
-            <dt>{t("library.type")}</dt>
-            <dd>{item.mime || item.name.split(".").pop().toUpperCase()}</dd>
-          </div>
-          <div>
-            <dt>{t("library.size")}</dt>
-            <dd>{bytes(item.size)}</dd>
-          </div>
-          {dimensions && (
-            <div>
-              <dt>{t("library.dimensions")}</dt>
-              <dd>{dimensions}</dd>
-            </div>
-          )}
-          <div>
-            <dt>{t("library.modifiedAt")}</dt>
-            <dd>{date(item.modified, true)}</dd>
-          </div>
-        </dl>
+        {!compact && (
+          <section
+            id={detailsId}
+            class="preview-details"
+            aria-label={t("library.mediaDetails")}
+          >
+            <PreviewMetadata item={item} dimensions={dimensions} />
+          </section>
+        )}
       </div>
-      <div class="preview-actions">
-        <button class="primary-button" onClick={() => onDownload(item)}>
-          <Icon name="download" />
-          {t("library.download")}
+      <footer class="preview-actions">
+        <button
+          class="preview-action"
+          aria-label={t("library.copyLink")}
+          onClick={() => onCopyLink(item)}
+        >
+          <Icon name="copy" />
+          <span>{t("library.copyLink")}</span>
         </button>
-      </div>
+        <button
+          class="preview-action"
+          aria-label={
+            favorite ? t("library.unfavoriteFile") : t("library.favoriteFile")
+          }
+          aria-pressed={favorite}
+          onClick={() => onFavorite(item)}
+        >
+          <Icon name={favorite ? "star-filled" : "star"} />
+          <span>
+            {t(favorite ? "library.removeFavorites" : "library.addFavorites")}
+          </span>
+        </button>
+        <button class="preview-action" onClick={() => onDownload(item)}>
+          <Icon name="download" />
+          <span>{t("library.download")}</span>
+        </button>
+        {compact && (
+          <button
+            class="preview-action"
+            aria-label={t("library.mediaDetails")}
+            aria-expanded={details}
+            aria-controls={detailsId}
+            onClick={() => setDetails((value) => !value)}
+          >
+            <Icon name="info" />
+            <span>{t("library.info")}</span>
+          </button>
+        )}
+      </footer>
+      {compact && drawerMounted && (
+        <Dialog
+          id={detailsId}
+          class="settings-dialog file-info-drawer"
+          open={details && open}
+          onClose={() => setDetails(false)}
+          onExited={() => setDrawerMounted(false)}
+          aria-labelledby={`${detailsId}-title`}
+          fallbackFocus=".preview-action[aria-controls]"
+        >
+          <SheetHandle onDismiss={() => setDetails(false)} />
+          <PageHeader
+            className="file-info-header"
+            title={t("library.mediaDetails")}
+            titleId={`${detailsId}-title`}
+            titleTag="h2"
+            actions={
+              <button
+                class="icon-button edge-end"
+                aria-label={t("library.closeDetails")}
+                onClick={() => setDetails(false)}
+              >
+                <Icon name="x" />
+              </button>
+            }
+            {...dialogHeadingFocus}
+          />
+          <div class="file-info-body">
+            <PreviewMetadata item={item} dimensions={dimensions} />
+          </div>
+        </Dialog>
+      )}
       {feedback}
     </Dialog>
+  );
+}
+
+function PreviewMetadata({ item, dimensions }) {
+  return (
+    <dl class="file-details">
+      <div>
+        <dt>{t("library.type")}</dt>
+        <dd>{item.mime || item.name.split(".").pop().toUpperCase()}</dd>
+      </div>
+      <div>
+        <dt>{t("library.size")}</dt>
+        <dd>{bytes(item.size)}</dd>
+      </div>
+      {dimensions && (
+        <div>
+          <dt>{t("library.dimensions")}</dt>
+          <dd>{dimensions}</dd>
+        </div>
+      )}
+      <div>
+        <dt>{t("library.modifiedAt")}</dt>
+        <dd>{date(item.modified, true)}</dd>
+      </div>
+    </dl>
   );
 }

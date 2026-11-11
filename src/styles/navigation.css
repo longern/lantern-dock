@@ -73,9 +73,37 @@
   flex: 1;
 }
 .sidebar-bottom {
-  display: flex;
   border-top: 1px solid var(--line);
-  padding: 12px 8px 0;
+  padding-top: 12px;
+}
+.sidebar-bottom > .listing-options {
+  width: 100%;
+  min-width: 0;
+}
+.sidebar-account-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-account-chevron {
+  width: 16px;
+  height: 16px;
+  transform: rotate(180deg);
+}
+.sidebar-account-trigger[aria-expanded="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.sidebar-account-trigger[aria-expanded="true"] .sidebar-account-chevron {
+  transform: none;
+}
+.sidebar-account-identity {
+  margin-bottom: 4px;
+  padding: 10px 10px 12px;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
 }
 .mini-chip {
   font-size: 11px;

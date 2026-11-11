@@ -168,6 +168,7 @@ export default {
   zoomIn: "放大",
   zoomOut: "缩小",
   mediaDetails: "文件详情",
+  info: "信息",
   albumIndexing: "正在整理照片…",
   albumIndexError: "部分目录未能完成索引，请尝试刷新。",
   albumPartialResults: "当前服务器仅返回了部分照片。",

@@ -4,15 +4,16 @@ import { t } from "../../shared/i18n.js";
 import { useCompactLayout } from "../hooks/useMediaQuery.js";
 import { PageHeader } from "./PageHeader.jsx";
 import { Icon } from "./Icon.jsx";
+import { PageLoading } from "./PageLoading.jsx";
 
 const AdminPage = lazy(() =>
   import("./AdminPage.jsx").then((module) => ({ default: module.AdminPage })),
 );
 
-function AdminStatus({ failed = false }) {
+function AdminLoadError() {
   const compact = useCompactLayout();
   return (
-    <main class="route-status-page" aria-busy={!failed}>
+    <main class="route-status-page">
       <PageHeader
         title={t("admin.title")}
         back={
@@ -28,14 +29,10 @@ function AdminStatus({ failed = false }) {
         }
       />
       <div class="route-status-content">
-        <p role={failed ? "alert" : "status"}>
-          {t(failed ? "admin.loadFailed" : "admin.loading")}
-        </p>
-        {failed && (
-          <button class="primary-button" onClick={() => location.reload()}>
-            {t("library.retry")}
-          </button>
-        )}
+        <p role="alert">{t("admin.loadFailed")}</p>
+        <button class="primary-button" onClick={() => location.reload()}>
+          {t("library.retry")}
+        </button>
       </div>
     </main>
   );
@@ -44,9 +41,9 @@ function AdminStatus({ failed = false }) {
 export function AdminRoute() {
   const [error] = useErrorBoundary();
   return error ? (
-    <AdminStatus failed />
+    <AdminLoadError />
   ) : (
-    <Suspense fallback={<AdminStatus />}>
+    <Suspense fallback={<PageLoading label={t("admin.loading")} />}>
       <AdminPage />
     </Suspense>
   );

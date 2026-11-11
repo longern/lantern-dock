@@ -230,6 +230,96 @@ async function assertNoOverflow(page) {
     ).toBe(true);
 }
 
+async function assertPageLoading(page, label) {
+  const loading = page.locator(".page-loading");
+  await expect(loading).toBeVisible();
+  await expect(loading).toHaveAttribute("aria-busy", "true");
+  await expect(loading.getByRole("status")).toHaveText(label);
+  await expect(loading.locator(".visually-hidden")).toHaveCSS(
+    "position",
+    "absolute",
+  );
+  await expect(
+    page.locator(".page-header,.admin-heading,.admin-gate,.admin-workspace"),
+  ).toHaveCount(0);
+  await expect(loading.locator("a,button")).toHaveCount(0);
+  const spinner = loading.locator(".page-loading-spinner");
+  await expect(spinner).toHaveCSS("width", "28px");
+  await expect(spinner).toHaveCSS("height", "28px");
+  const placement = await spinner.evaluate((node) => {
+    const bounds = node.getBoundingClientRect();
+    const page = node.closest("main").getBoundingClientRect();
+    return {
+      x: Math.abs(bounds.x + bounds.width / 2 - page.x - page.width / 2),
+      y: Math.abs(bounds.y + bounds.height / 2 - page.y - page.height / 2),
+    };
+  });
+  expect(placement.x).toBeLessThanOrEqual(1);
+  expect(placement.y).toBeLessThanOrEqual(1);
+}
+
+for (const [outcome, options, heading] of [
+  ["allowed", {}, null],
+  ["denied", { role: "user" }, "需要管理员权限"],
+  ["unavailable", { accountStatus: 503 }, "暂时无法验证 NAS 权限"],
+]) {
+  test(`administration shows only a spinner while checking identity and NAS access: ${outcome}`, async ({
+    page,
+  }, info) => {
+    const state = await install(page, options);
+    const identity = Promise.withResolvers();
+    const nas = Promise.withResolvers();
+    const nasRequested = Promise.withResolvers();
+    await page.route("**/fixture/session", async (route) => {
+      await identity.promise;
+      await route.fallback();
+    });
+    await page.route("**/fixture/account", async (route) => {
+      nasRequested.resolve();
+      await nas.promise;
+      await route.fallback();
+    });
+    const module = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/src/components/AdminPage.jsx",
+    );
+    try {
+      await page.goto("/admin/links");
+      await module;
+      await assertPageLoading(page, "正在检查权限…");
+      identity.resolve();
+      await nasRequested.promise;
+      await assertPageLoading(page, "正在检查权限…");
+      expect(state.requests).toEqual([]);
+      if (outcome === "allowed") {
+        await expect(page.locator(".page-loading-spinner")).toHaveCSS(
+          "animation-name",
+          "spin",
+        );
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        await expect(page.locator(".page-loading-spinner")).toHaveCSS(
+          "animation-name",
+          "none",
+        );
+        await page.screenshot({
+          path: info.outputPath("permission-loading.png"),
+        });
+      }
+    } finally {
+      identity.resolve();
+      nas.resolve();
+    }
+    await expect(page.locator(".page-loading")).toHaveCount(0);
+    await expect(page.locator(".admin-header")).toBeVisible();
+    if (heading) {
+      await expect(
+        page.getByRole("heading", { name: heading, exact: true }),
+      ).toBeVisible();
+      expect(state.requests).toEqual([]);
+    } else await expect(page.locator("#admin-create-link")).toBeVisible();
+  });
+}
+
 for (const legacy of [false, true]) {
   test(`${legacy ? "older" : "current"} NAS administrators find the entry between favorites and settings`, async ({
     page,
@@ -977,9 +1067,7 @@ test("administration loads only on entry and keeps ordinary anchor navigation", 
   try {
     await entry.click();
     await expect(page).toHaveURL(/\/admin\/links$/);
-    await expect(
-      page.locator(".route-status-page [role=status]"),
-    ).toBeVisible();
+    await assertPageLoading(page, "正在加载…");
     await expect(page.locator(".app-shell,.account-page")).toHaveCount(0);
   } finally {
     module.resolve();
@@ -1128,21 +1216,25 @@ test("leaving a pending administration import cannot revive its page", async ({
     await module.promise;
     await route.continue();
   });
-  await page.goto("/admin/links");
-  await expect(page.locator(".route-status-page")).toBeVisible();
+  await page.goto(isCompact(page) ? "/me" : "/account");
+  const entry = page.locator(
+    isCompact(page) ? "#my-admin" : "#account-admin-entry",
+  );
+  await entry.click();
+  await assertPageLoading(page, "正在加载…");
   const response = page.waitForResponse(
     (response) =>
       new URL(response.url()).pathname === "/src/components/AdminPage.jsx",
   );
   try {
-    await page.locator(".route-status-page a").click();
-    await expect(page.locator(".app-shell")).toBeVisible();
+    await page.goBack();
+    await expect(entry).toBeVisible();
   } finally {
     module.resolve();
   }
   await response;
   await page.waitForLoadState("networkidle");
-  await expect(page.locator(".app-shell")).toBeVisible();
+  await expect(entry).toBeVisible();
   await expect(page.locator(".admin-page,.route-status-page")).toHaveCount(0);
   expect(state.requests).toEqual([]);
 });

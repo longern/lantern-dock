@@ -4,6 +4,7 @@ import { t } from "../../shared/i18n.js";
 import { Icon } from "./Icon.jsx";
 import { Menu } from "./Menu.jsx";
 import { useCompactLayout } from "../hooks/useMediaQuery.js";
+import { useSession } from "../hooks/useSession.jsx";
 import { accountHref } from "../../shared/routes.js";
 import { siteTitle } from "../lib/site-title.js";
 
@@ -21,6 +22,13 @@ const kinds = [
 ];
 
 export function Sidebar({ library, onSettings }) {
+  const { identity } = useSession();
+  const accountName =
+    identity.status === "authenticated" ? identity.user.name?.trim() : "";
+  const accountLabel = t("library.myAccount");
+  const accountTitle =
+    accountName ||
+    (identity.status === "signed-out" ? t("account.guest") : accountLabel);
   const content = (
     <>
       <div class="sidebar-heading">
@@ -71,8 +79,29 @@ export function Sidebar({ library, onSettings }) {
       <div class="sidebar-bottom">
         <Menu
           triggerId="account-menu-trigger"
-          triggerIcon="user"
-          label={t("library.myAccount")}
+          label={
+            accountTitle === accountLabel
+              ? accountLabel
+              : `${accountLabel} · ${accountTitle}`
+          }
+          triggerClassName="nav-item sidebar-account-trigger"
+          triggerContent={
+            <>
+              <Icon name="user" />
+              <span
+                class="sidebar-account-name"
+                title={accountName || undefined}
+              >
+                {accountTitle}
+              </span>
+              <Icon name="chevron-down" class="sidebar-account-chevron" />
+            </>
+          }
+          header={
+            accountName && (
+              <div class="sidebar-account-identity">{accountName}</div>
+            )
+          }
           actions={[
             {
               key: "account",

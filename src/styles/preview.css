@@ -16,7 +16,10 @@
   flex-direction: column;
 }
 .preview-header {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--topbar-button-size) minmax(0, 1fr) var(
+      --topbar-button-size
+    );
   align-items: center;
   gap: 8px;
   height: var(--topbar-height);
@@ -34,7 +37,7 @@
   height: 24px;
 }
 .preview-header strong {
-  flex: 1;
+  min-width: 0;
   font-size: 13px;
   font-weight: 600;
   overflow: hidden;
@@ -113,10 +116,106 @@
   overflow-wrap: anywhere;
 }
 .preview-actions {
-  padding: 18px 20px max(18px, env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  flex-shrink: 0;
+  height: calc(64px + env(safe-area-inset-bottom));
+  padding: 5px 16px calc(5px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
 }
-.preview-actions button {
+.preview-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 3px 2px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.preview-action svg {
+  width: 24px;
+  height: 24px;
+}
+.preview-action span {
+  max-width: 100%;
+  white-space: nowrap;
+}
+@media (hover: hover) {
+  .preview-action:hover {
+    background: var(--surface-subtle);
+    color: var(--accent);
+  }
+}
+.preview-action:active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.preview-action[aria-pressed="true"] {
+  color: #a58b41;
+}
+.preview-action[aria-expanded="true"] {
+  color: var(--accent);
+}
+.settings-dialog.file-info-drawer {
+  inset: auto 0 0;
+  margin: 0;
   width: 100%;
-  min-height: 42px;
+  max-width: none;
+  max-height: 85dvh;
+  padding: 0;
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+  background: var(--surface);
+  overflow: hidden;
+  translate: 0 var(--sheet-drag, 0px);
+}
+.settings-dialog.file-info-drawer[open] {
+  display: flex;
+  flex-direction: column;
+  animation-name: file-info-in;
+}
+.settings-dialog.file-info-drawer[open][data-state="closed"] {
+  animation-name: file-info-out;
+}
+.page-header.file-info-header {
+  --page-header-safe-top: 0px;
+  --page-header-background: var(--surface);
+  border-bottom: 0;
+}
+.file-info-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 20px max(20px, env(safe-area-inset-bottom));
+}
+.file-info-body .file-details {
+  margin: 0;
+}
+@keyframes file-info-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes file-info-out {
+  from {
+    transform: none;
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .preview-action {
+    transition: none;
+  }
 }

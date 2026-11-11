@@ -177,6 +177,7 @@ export default {
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",
   mediaDetails: "File details",
+  info: "Info",
   albumIndexing: "Organizing photos…",
   albumIndexError: "Some folders could not be indexed. Try refreshing.",
   albumPartialResults:

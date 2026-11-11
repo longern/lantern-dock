@@ -45,6 +45,24 @@ body {
   min-height: 100svh;
   background: var(--surface-subtle);
 }
+.page-loading {
+  display: grid;
+  place-items: center;
+}
+.page-loading-spinner {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border: 2.5px solid var(--accent-soft);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 850ms linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-loading-spinner {
+    animation: none;
+  }
+}
 .route-status-page > .page-header {
   --page-header-background: var(--surface);
 }

@@ -13,6 +13,9 @@ export function Menu({
   label,
   triggerId,
   triggerIcon = "ellipsis",
+  triggerClassName,
+  triggerContent,
+  header,
   showLabel = false,
   edge = false,
   contextMenu,
@@ -265,7 +268,7 @@ export function Menu({
           ref={trigger}
           id={triggerId}
           type="button"
-          class={`${showLabel ? "primary-button" : "icon-button listing-options-trigger"}${edge === "start" || edge === "end" ? ` edge-${edge}` : ""}`}
+          class={`${triggerClassName || (showLabel ? "primary-button" : "icon-button listing-options-trigger")}${edge === "start" || edge === "end" ? ` edge-${edge}` : ""}`}
           aria-label={label}
           aria-haspopup="menu"
           aria-expanded={open}
@@ -281,8 +284,12 @@ export function Menu({
             }
           }}
         >
-          <Icon name={triggerIcon} />
-          {showLabel && label}
+          {triggerContent ?? (
+            <>
+              <Icon name={triggerIcon} />
+              {showLabel && label}
+            </>
+          )}
         </button>
       )}
       {present && (
@@ -299,6 +306,7 @@ export function Menu({
           inert={!open}
         >
           <div ref={surface} class="listing-options-surface">
+            {header}
             {groups.map((group) => (
               <div
                 key={group.key}

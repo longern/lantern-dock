@@ -87,7 +87,27 @@ test("preview switches between panel and modal at viewport boundaries", async ({
   await openItem(trigger);
   await expect(page.locator(".preview-content img")).toBeVisible();
   await expect(page.locator("#preview-dialog .preview-header")).toBeFocused();
-  await expect(page.locator(".file-details")).toContainText("1200 × 800");
+  await expect(page.locator(".preview-header button")).toHaveCount(1);
+  if (isCompact(page)) {
+    await expect(page.locator(".preview-actions > button")).toHaveCount(4);
+    await expect(
+      page.locator(".preview-details,.file-info-drawer"),
+    ).toHaveCount(0);
+    const info = page
+      .locator(".preview-actions")
+      .getByRole("button", { name: "文件详情", exact: true });
+    await info.click();
+    await expect(info).toHaveAttribute("aria-expanded", "true");
+    await expect(page.locator(".file-details")).toContainText("1200 × 800");
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".file-info-drawer")).toHaveCount(0);
+    await expect(page.locator("#preview-dialog")).toBeVisible();
+    await expect(info).toBeFocused();
+  } else {
+    await expect(page.locator(".preview-actions > button")).toHaveCount(3);
+    await expect(page.locator(".preview-details")).toBeVisible();
+    await expect(page.locator(".file-details")).toContainText("1200 × 800");
+  }
   for (const width of [
     1440,
     breakpoints.values.lg,
@@ -101,6 +121,12 @@ test("preview switches between panel and modal at viewport boundaries", async ({
     320,
   ]) {
     await page.setViewportSize({ width, height: 900 });
+    await expect(page.locator(".preview-actions > button")).toHaveCount(
+      width < breakpoints.values.md ? 4 : 3,
+    );
+    await expect(page.locator(".preview-details")).toHaveCount(
+      width < breakpoints.values.md ? 0 : 1,
+    );
     await expect
       .poll(() =>
         page

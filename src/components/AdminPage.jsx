@@ -17,6 +17,7 @@ import { CreateLinkDialog } from "./CreateLinkDialog.jsx";
 import { TransferCenter } from "./TransferCenter.jsx";
 import { Icon } from "./Icon.jsx";
 import { PageHeader } from "./PageHeader.jsx";
+import { PageLoading } from "./PageLoading.jsx";
 import { useRouter } from "../hooks/useRouter.jsx";
 import { accountHref } from "../../shared/routes.js";
 import { siteTitle } from "../lib/site-title.js";
@@ -33,6 +34,8 @@ export function AdminPage() {
     if (identity.status === "authenticated") void ensureNAS();
   }, [identity.status, ensureNAS]);
   const access = adminAccess(identity, nas);
+  if (access === "checking")
+    return <PageLoading label={t("admin.gate.checking.title")} />;
   const ready = access === "ready";
   const capabilities = nas.account?.capabilities;
   const detail = ready && capabilities.adminUsers && route.member;
@@ -97,11 +100,7 @@ export function AdminPage() {
           refreshIdentity={refreshIdentity}
         />
       ) : (
-        <section
-          class="admin-gate"
-          aria-live="polite"
-          aria-busy={access === "checking"}
-        >
+        <section class="admin-gate" aria-live="polite">
           <span class="admin-gate-icon">
             <Icon name={access === "nas-error" ? "cloud-off" : "lock"} />
           </span>
@@ -115,19 +114,17 @@ export function AdminPage() {
               {t("account.signIn")}
             </a>
           ) : (
-            access !== "checking" && (
-              <button
-                class="secondary-button"
-                onClick={() =>
-                  void (access === "identity-error"
-                    ? refreshIdentity()
-                    : refreshNAS())
-                }
-              >
-                <Icon name="refresh" />
-                {t("account.checkAgain")}
-              </button>
-            )
+            <button
+              class="secondary-button"
+              onClick={() =>
+                void (access === "identity-error"
+                  ? refreshIdentity()
+                  : refreshNAS())
+              }
+            >
+              <Icon name="refresh" />
+              {t("account.checkAgain")}
+            </button>
           )}
         </section>
       )}
