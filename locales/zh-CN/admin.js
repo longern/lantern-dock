@@ -39,7 +39,15 @@ export default {
   uploadAccessTitle: "如何获得上传权限",
   uploadInvitationRequired: "需要上传邀请",
   uploadPermissionRequired: "需要上传权限",
-  uploadGuestHelp: "请向收件人索取上传链接，或当面扫描对方提供的上传二维码。",
+  uploadGuestStatus: "您当前是游客，暂无上传权限",
+  uploadMemberStatus: "您当前的账号暂无上传权限",
+  uploadGuestHelp:
+    "请登录有上传权限的账号，或通过即时通信软件联系管理员获取上传链接。",
+  uploadClipboardHint: "复制收到的上传链接后，点击「检测剪贴板」即可继续。",
+  uploadSignIn: "立即登录",
+  uploadCheckClipboard: "检测剪贴板",
+  uploadLinkNotFound: "未检测到上传链接",
+  uploadClipboardUnavailable: "无法读取剪贴板，请允许访问后重试",
   uploadMemberHelp:
     "请向管理员索取上传链接，或请管理员为你的账户开通直接上传权限。",
   inviteUpload: "邀请上传",

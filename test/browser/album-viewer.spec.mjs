@@ -436,6 +436,8 @@ test("focus stays modal, details dismiss independently, Back closes and cached i
     "opacity",
     "1",
   );
+  await expect(page.locator("#album-viewer-title")).toBeFocused();
+  await page.keyboard.press("Tab");
   await expect(button(page, "关闭预览")).toBeFocused();
   await button(page, "文件详情").click();
   await expect(page.locator("#album-viewer-details")).toContainText(

@@ -11,6 +11,8 @@ import { selectPaths } from "../lib/selection.js";
 const empty = () => ({ paths: new Set(), anchor: null, mode: null });
 const holdDelay = 450;
 const moveTolerance = 10;
+const clickHandoff = 1000;
+const isTouchPointer = (type) => type === "touch" || type === "pen";
 
 export function useFileSelection(
   entries,
@@ -18,6 +20,7 @@ export function useFileSelection(
   onTouchSelection,
   onCopyLinks,
   onContextMenu,
+  { openOnClick = false } = {},
 ) {
   const [state, setState] = useState(empty);
   const list = useRef(null);
@@ -49,6 +52,7 @@ export function useFileSelection(
   };
   useLayoutEffect(() => {
     cancelPress();
+    lastPointer.current = null;
     suppressed.current = null;
     setState(empty());
   }, [scope, cancelPress]);
@@ -75,6 +79,7 @@ export function useFileSelection(
   }, [onTouchSelection, state.mode === "touch"]);
   useEffect(() => {
     const down = (event) => {
+      lastPointer.current = null;
       if (press.current && event.pointerId !== press.current.pointerId)
         cancelPress();
     };
@@ -88,27 +93,39 @@ export function useFileSelection(
       )
         cancelPress();
     };
+    const end = (event) => {
+      const pointer = lastPointer.current;
+      if (pointer?.id === event.pointerId) {
+        if (event.type === "pointercancel") lastPointer.current = null;
+        else pointer.releasedAt = event.timeStamp;
+      }
+      cancelPress();
+    };
+    const blur = () => {
+      lastPointer.current = null;
+      cancelPress();
+    };
     const visibility = () => {
-      if (document.hidden) cancelPress();
+      if (document.hidden) blur();
     };
     window.addEventListener("pointermove", move, { passive: true });
     window.addEventListener("pointerdown", down, true);
-    window.addEventListener("pointerup", cancelPress);
-    window.addEventListener("pointercancel", cancelPress);
+    window.addEventListener("pointerup", end, true);
+    window.addEventListener("pointercancel", end, true);
     window.addEventListener("scroll", cancelPress, {
       capture: true,
       passive: true,
     });
-    window.addEventListener("blur", cancelPress);
+    window.addEventListener("blur", blur);
     document.addEventListener("visibilitychange", visibility);
     return () => {
       cancelPress();
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerdown", down, true);
-      window.removeEventListener("pointerup", cancelPress);
-      window.removeEventListener("pointercancel", cancelPress);
+      window.removeEventListener("pointerup", end, true);
+      window.removeEventListener("pointercancel", end, true);
       window.removeEventListener("scroll", cancelPress, true);
-      window.removeEventListener("blur", cancelPress);
+      window.removeEventListener("blur", blur);
       document.removeEventListener("visibilitychange", visibility);
     };
   }, [cancelPress]);
@@ -124,11 +141,12 @@ export function useFileSelection(
     }));
   const contextMenu = (event, item, keyboard = false) => {
     if (!item) return;
+    const pointer = lastPointer.current;
     if (
       !keyboard &&
       (press.current ||
-        ["touch", "pen"].includes(
-          event.pointerType || lastPointer.current?.type,
+        isTouchPointer(
+          (pointer?.path === item.path && pointer.type) || event.pointerType,
         ))
     ) {
       event.preventDefault();
@@ -265,9 +283,13 @@ export function useFileSelection(
           cancelPress();
           suppressed.current = null;
           lastFocus.current = item.path;
-          lastPointer.current = { path: item.path, type: event.pointerType };
+          lastPointer.current = {
+            path: item.path,
+            id: event.pointerId,
+            type: event.pointerType,
+          };
           if (
-            !["touch", "pen"].includes(event.pointerType) ||
+            !isTouchPointer(event.pointerType) ||
             event.isPrimary === false ||
             event.button > 0 ||
             state.mode === "touch"
@@ -287,20 +309,24 @@ export function useFileSelection(
           press.current = current;
         },
         onClick(event) {
+          const pointer = lastPointer.current;
+          lastPointer.current = null;
           if (suppressed.current === item.path) {
             suppressed.current = null;
             event.preventDefault();
             return;
           }
           cancelPress();
-          // Older mobile browsers expose click as MouseEvent, after touch
-          // PointerEvents. Keep the gesture's input type for that release click.
-          const pointerType =
-            event.pointerType ||
-            (lastPointer.current?.path === item.path
-              ? lastPointer.current.type
-              : undefined);
-          const touch = ["touch", "pen"].includes(pointerType);
+          // Safari can report a touch-generated click as a mouse click.
+          const sinceRelease = event.timeStamp - pointer?.releasedAt;
+          const matchingGesture =
+            event.detail !== 0 &&
+            pointer?.path === item.path &&
+            sinceRelease >= 0 &&
+            sinceRelease <= clickHandoff;
+          const touch = isTouchPointer(
+            matchingGesture ? pointer.type : event.pointerType,
+          );
           if (state.mode === "touch")
             select(item.path, { toggle: true, mode: "touch" });
           else if (!touch && (event.ctrlKey || event.metaKey || event.shiftKey))
@@ -308,13 +334,14 @@ export function useFileSelection(
               toggle: event.ctrlKey || event.metaKey,
               range: event.shiftKey,
             });
-          else if (touch || event.detail === 0) {
+          else if (openOnClick || touch || event.detail === 0) {
             clear(false);
             open(item);
           } else if (event.detail === 1) select(item.path);
         },
         onDblClick(event) {
           if (
+            openOnClick ||
             state.mode === "touch" ||
             event.ctrlKey ||
             event.metaKey ||

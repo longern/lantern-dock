@@ -4,6 +4,11 @@ import { t } from "../../shared/i18n.js";
 import { bytes } from "../lib/format.js";
 import { Icon } from "./Icon.jsx";
 import { PageDialog } from "./PageDialog.jsx";
+import {
+  overlayFocusSelector,
+  overlayFocusTarget,
+  restoreOverlayFocus,
+} from "../lib/overlay-focus.js";
 
 const pending = (task) =>
   ["queued", "preparing", "running"].includes(task.status);
@@ -68,21 +73,18 @@ export function TransferCenter({ transfer, mobile, open, onOpen, onClose }) {
           opener.current?.id === "transfers-button" ||
           opener.current?.closest(".transfer-summary")
         )
-          node.querySelector("button")?.focus();
+          node
+            .querySelector(overlayFocusSelector)
+            ?.focus({ preventScroll: true });
       }
       return;
     }
     if (!node.matches(":popover-open")) return;
-    const restore = node.contains(document.activeElement);
     const timer = setTimeout(
       () => {
+        const restore = node.contains(document.activeElement);
         node.hidePopover();
-        if (restore) {
-          const target = opener.current?.isConnected
-            ? opener.current
-            : document.getElementById("transfers-button");
-          target?.focus({ preventScroll: true });
-        }
+        if (restore) restoreOverlayFocus(opener.current, "#transfers-button");
       },
       matchMedia(mediaQueries.reducedMotion).matches ? 0 : 200,
     );
@@ -214,7 +216,7 @@ export function TransferCenter({ transfer, mobile, open, onOpen, onClose }) {
             }
           }}
         >
-          <header class="transfer-header">
+          <header class="transfer-header" {...overlayFocusTarget}>
             <h2>{t("library.transfers")}</h2>
             <button
               class="icon-button"

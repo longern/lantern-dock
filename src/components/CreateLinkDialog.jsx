@@ -3,6 +3,7 @@ import { t } from "../../shared/i18n.js";
 import { createLinkInput, localDateTime } from "../lib/admin.js";
 import { date } from "../lib/format.js";
 import { Dialog } from "./Dialog.jsx";
+import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 import { Icon } from "./Icon.jsx";
 
 function UploadQR({ url }) {
@@ -148,7 +149,7 @@ export function CreateLinkDialog({
       fallbackFocus={quick ? "#file-intake-trigger" : "#admin-create-link"}
       aria-labelledby="admin-create-title"
     >
-      <div class="dialog-heading">
+      <div class="dialog-heading" {...dialogHeadingFocus}>
         <h2 id="admin-create-title">
           {t(
             result

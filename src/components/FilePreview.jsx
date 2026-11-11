@@ -6,6 +6,7 @@ import { bytes, date } from "../lib/format.js";
 import { useBreakpointDown } from "../hooks/useMediaQuery.js";
 import { Dialog } from "./Dialog.jsx";
 import { VideoPreview } from "./VideoPreview.jsx";
+import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 
 export function FilePreview({
   item,
@@ -18,6 +19,7 @@ export function FilePreview({
   onClose,
   onEntered,
   onExited,
+  returnTarget,
   open,
   feedback,
 }) {
@@ -98,11 +100,13 @@ export function FilePreview({
       onClose={onClose}
       onEntered={onEntered}
       onExited={onExited}
+      returnTarget={returnTarget}
+      fallbackFocus=".main-area #file-list"
       id="preview-dialog"
       class="preview-dialog"
       aria-labelledby="preview-name"
     >
-      <div class="preview-header">
+      <div class="preview-header" {...dialogHeadingFocus}>
         <button
           class="icon-button edge-start"
           aria-label={t("library.closePreview")}

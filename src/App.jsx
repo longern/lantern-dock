@@ -298,11 +298,6 @@ function LibraryApp() {
       if (router.route.file) closePreview();
       setSelected(null);
       setPreviewOpen(false);
-      requestAnimationFrame(() =>
-        document
-          .getElementById(route === "album" ? "album-back" : "favorites-back")
-          ?.focus({ preventScroll: true }),
-      );
     }
     previousRoute.current = route;
     previousMobile.current = mobile;
@@ -393,28 +388,14 @@ function LibraryApp() {
     source.error,
     source.entries,
   ]);
-  const finishPreview = ({ restoreFocus }) => {
-    const path = selected?.path;
+  const previewReturnTarget = (scope) =>
+    [...scope.querySelectorAll(".file-open")].find(
+      (node) => node.dataset.path === selected?.path,
+    );
+  const finishPreview = () => {
     setRecentSnapshot(null);
     setSelected(null);
     setGallery(null);
-    if (!restoreFocus) return;
-    const active = document.activeElement;
-    requestAnimationFrame(() => {
-      if (
-        document.activeElement !== active &&
-        document.activeElement !== document.body
-      )
-        return;
-      const scope =
-        [...document.querySelectorAll("dialog:modal")].at(-1) || document;
-      (
-        [...scope.querySelectorAll(".file-open")].find(
-          (node) => node.dataset.path === path,
-        ) ||
-        document.getElementById(albumPresent ? "album-back" : "favorites-back")
-      )?.focus();
-    });
   };
   useLayoutEffect(() => {
     const keyboard = (event) => {
@@ -732,7 +713,6 @@ function LibraryApp() {
           backLabel={t("library.backToHome")}
           open={albumOpen}
           animateEntry={!router.initial}
-          focusHeader
           onClose={navigation.closeAlbum}
           onExited={() => setAlbumMounted(false)}
           fallbackFocus=".category-album"
@@ -764,15 +744,7 @@ function LibraryApp() {
             listingActions(favoritesLibrary, records, mobile),
           )}
           onClose={() => navigation.closeFavorites(true)}
-          onExited={() => {
-            setFavoritesMounted(false);
-            requestAnimationFrame(() =>
-              (route === "me"
-                ? document.getElementById("my-favorites")
-                : document.querySelector(".mobile-tabs [aria-current='page']")
-              )?.focus({ preventScroll: true }),
-            );
-          }}
+          onExited={() => setFavoritesMounted(false)}
         >
           <FileBrowser
             onGalleryItems={onGalleryItems}
@@ -801,6 +773,7 @@ function LibraryApp() {
           onCopyLink={copyLink}
           onClose={closePreview}
           onExited={finishPreview}
+          returnTarget={previewReturnTarget}
           feedback={feedback}
         />
       )}
@@ -818,21 +791,14 @@ function LibraryApp() {
           open={previewOpen}
           onEntered={() => setRecentSnapshot(null)}
           onExited={finishPreview}
+          returnTarget={previewReturnTarget}
           feedback={settings ? null : feedback}
         />
       )}
       {settings && (
         <ConnectionDialog
           open={settings === "open"}
-          fallbackFocus={
-            albumPresent
-              ? "#album-back"
-              : favoritesOpen
-                ? "#favorites-back"
-                : myPage
-                  ? "#my-settings"
-                  : undefined
-          }
+          fallbackFocus={myPage && !favoritesOpen ? "#my-settings" : undefined}
           onExited={() => setSettings(null)}
           backend={library.backend}
           gatewayTokenRequired={library.gatewayTokenRequired}

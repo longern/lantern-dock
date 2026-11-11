@@ -23,7 +23,8 @@ export function Favorites({
         open={open}
         onClose={onClose}
         onExited={onExited}
-        fallbackFocus="#my-favorites"
+        returnTarget={(scope) => scope.querySelector("#my-favorites")}
+        fallbackFocus=".mobile-tabs [aria-current='page']"
         actions={actions}
       >
         {children}

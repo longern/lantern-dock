@@ -199,6 +199,7 @@ export function FileBrowser({
     onTouchSelection,
     library.copyLinks,
     setContextMenu,
+    { openOnClick: album },
   );
   const actionsOwner = useRef(Symbol("desktop-selection"));
   // Publish meaningful selection changes, while the header reads fresh callbacks

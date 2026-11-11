@@ -3,6 +3,7 @@ import { t } from "../../shared/i18n.js";
 import { checkResponse } from "../lib/dav.js";
 import { bytes, date } from "../lib/format.js";
 import { Dialog } from "./Dialog.jsx";
+import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 import { Icon } from "./Icon.jsx";
 
 export function FileDetails({
@@ -66,7 +67,7 @@ export function FileDetails({
       fallbackFocus={fallbackFocus}
       onKeyDown={(event) => event.stopPropagation()}
     >
-      <div class="dialog-heading">
+      <div class="dialog-heading" {...dialogHeadingFocus}>
         <h2 id={id}>{t("library.mediaDetails")}</h2>
         <button
           class="icon-button edge-end"

@@ -33,9 +33,6 @@
   width: var(--topbar-button-size);
   height: var(--topbar-button-size);
 }
-.page-dialog-header[tabindex="-1"]:focus {
-  outline: none;
-}
 .page-dialog-header .icon-button svg {
   width: 24px;
   height: 24px;

@@ -41,8 +41,17 @@ export default {
   uploadAccessTitle: "How to get upload access",
   uploadInvitationRequired: "Upload invitation required",
   uploadPermissionRequired: "Upload permission required",
+  uploadGuestStatus: "You’re browsing as a guest without upload permission",
+  uploadMemberStatus: "Your account doesn’t have upload permission yet",
   uploadGuestHelp:
-    "Ask the recipient for an upload link, or scan their upload QR code in person.",
+    "Sign in with an account that has upload permission, or contact an administrator through a messaging app for an upload link.",
+  uploadClipboardHint:
+    "Copy the upload link you received, then select “Check clipboard” to continue.",
+  uploadSignIn: "Sign in now",
+  uploadCheckClipboard: "Check clipboard",
+  uploadLinkNotFound: "No upload link found",
+  uploadClipboardUnavailable:
+    "Couldn’t read the clipboard. Allow access and try again.",
   uploadMemberHelp:
     "Ask an administrator for an upload link or permission to upload directly from your account.",
   inviteUpload: "Invite uploads",

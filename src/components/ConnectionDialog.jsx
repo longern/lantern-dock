@@ -2,6 +2,7 @@ import { t } from "../../shared/i18n.js";
 import { useState } from "preact/hooks";
 import { Icon } from "./Icon.jsx";
 import { Dialog } from "./Dialog.jsx";
+import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 import { useCompactLayout } from "../hooks/useMediaQuery.js";
 
 export function ConnectionDialog({
@@ -61,7 +62,7 @@ export function ConnectionDialog({
           });
         }}
       >
-        <div class="dialog-heading">
+        <div class="dialog-heading" {...dialogHeadingFocus}>
           <h2 id="settings-title">{t("library.connectionSettings")}</h2>
           <button
             type="button"

@@ -299,10 +299,9 @@ export function AccountPage({
       headerClassName="account-dialog-header"
       open={open}
       animateEntry={animateEntry}
-      focusHeader
       onClose={onClose}
       onExited={onExited}
-      fallbackFocus="#my-account-link, #my-guest-button, .admin-account-link"
+      fallbackFocus="#my-account-link, #my-guest-button, .admin-account-link, .mobile-tabs [aria-current='page']"
     >
       {content}
     </PageDialog>

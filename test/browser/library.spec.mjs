@@ -86,6 +86,7 @@ test("preview switches between panel and modal at viewport boundaries", async ({
   });
   await openItem(trigger);
   await expect(page.locator(".preview-content img")).toBeVisible();
+  await expect(page.locator("#preview-dialog .preview-header")).toBeFocused();
   await expect(page.locator(".file-details")).toContainText("1200 × 800");
   for (const width of [
     1440,
@@ -313,5 +314,16 @@ test("notifications fade out before removal and respect reduced motion", async (
     ).toBe(true);
     await page.clock.runFor(200);
     await expect(notification).toHaveCount(0);
+    // The failed download opens a desktop transfer window over the preview.
+    // Collapse it before exercising the next notification.
+    const collapse = page.getByRole("button", {
+      name: "收起传输列表",
+      exact: true,
+    });
+    if (await collapse.isVisible()) {
+      await collapse.click();
+      await page.clock.runFor(250);
+      await expect(page.locator("#transfer-window")).toBeHidden();
+    }
   }
 });

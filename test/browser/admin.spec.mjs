@@ -92,7 +92,7 @@ async function install(page, options = {}) {
     export async function accountConnection(signal) { const data = await result(await fetch('/fixture/account', { signal })); return { ...data, backend: { transport: 'http', endpoint: location.origin }, transport: { close() {} } }; }
     export async function requestNASGrant(signal, scope) { return result(await fetch('/fixture/grant?scope=' + encodeURIComponent(scope), { signal })); }
     export async function identityProof() { return 'fixture-proof'; }
-    export async function beginLogin() {}
+    export async function beginLogin(signal) { const data = await result(await fetch('/fixture/login', { signal })); signal?.throwIfAborted(); location.assign(data.url); }
     export async function endLogin() { return result(await fetch('/fixture/logout', { method: 'POST' })); }
   `,
     }),
@@ -342,9 +342,12 @@ for (const language of ["zh-CN", "en"]) {
       await expect(
         dialog.getByRole("heading", { name: text.revokeTitle, exact: true }),
       ).toBeVisible();
-      await dialog
-        .getByRole("button", { name: text.cancel, exact: true })
-        .click();
+      const cancel = dialog.getByRole("button", {
+        name: text.cancel,
+        exact: true,
+      });
+      await expect(cancel).toBeFocused();
+      await cancel.click();
       await expect(dialog).toHaveCount(0);
       expect(
         state.requests.filter((request) => request.method === "DELETE"),
@@ -852,30 +855,367 @@ for (const slow of [false, true]) {
   });
 }
 
-test("file intake explains upload permission to members", async ({ page }) => {
+test("file intake explains upload permission to members without a title or login button", async ({
+  page,
+}, info) => {
   const state = await installIntake(page, { role: "member" });
-  await page.goto("/files/");
-  await page.locator("#file-intake-trigger").click();
-  const guide = page.getByRole("dialog", { name: "如何获得上传权限" });
-  await expect(guide.getByRole("status")).toHaveText("需要上传权限");
-  await expect(guide).toContainText("为你的账户开通直接上传权限");
-  expect(state.scopes).toHaveLength(0);
-});
-
-test("file intake guides guests to invitations", async ({ page }) => {
-  await installIntake(page, { signedOut: true });
+  await page.addInitScript(() => {
+    navigator.clipboard.readText = async () => "";
+  });
   await page.goto("/files/");
   const trigger = page.locator("#file-intake-trigger");
   await trigger.click();
-  const guide = page.getByRole("dialog", { name: "如何获得上传权限" });
-  await expect(guide.getByRole("status")).toHaveText("需要上传邀请");
-  await expect(guide).toContainText("扫描对方提供的上传二维码");
+  const guide = page.getByRole("dialog", { name: "上传文件", exact: true });
+  await expect(guide.getByRole("heading")).toHaveCount(0);
+  await expect(guide).toContainText("您当前的账号暂无上传权限");
+  await expect(guide).toContainText("为你的账户开通直接上传权限");
+  await expect(
+    guide.getByRole("button", { name: "立即登录", exact: true }),
+  ).toHaveCount(0);
+  const check = guide.getByRole("button", { name: "检测剪贴板", exact: true });
+  await expect(check).toHaveClass(/primary-button/);
+  await guide.screenshot({ path: info.outputPath("member-upload.png") });
+  const button = await check.boundingBox();
+  expect(button.height).toBeGreaterThanOrEqual(44);
+  expect(
+    await guide.evaluate((node) => node.scrollWidth <= node.clientWidth),
+  ).toBe(true);
+  await check.click();
+  await expect(guide.locator(".toast-center")).toHaveText("未检测到上传链接");
+  await guide.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  await expect(guide).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  expect(state.scopes).toHaveLength(0);
+});
+
+test("file intake guides guests without a title and keeps both actions comfortable", async ({
+  page,
+}, info) => {
+  await installIntake(page, { signedOut: true });
+  let clipboardReads = 0;
+  await page.exposeFunction("recordClipboardRead", () => clipboardReads++);
+  await page.addInitScript(() => {
+    navigator.clipboard.readText = () => window.recordClipboardRead();
+  });
+  await page.goto("/files/");
+  const trigger = page.locator("#file-intake-trigger");
+  await trigger.click();
+  const guide = page.getByRole("dialog", { name: "上传文件", exact: true });
+  await expect(guide.getByRole("heading")).toHaveCount(0);
+  await expect(guide).toContainText("您当前是游客，暂无上传权限");
+  await expect(guide).toContainText("联系管理员获取上传链接");
+  await expect(guide).toContainText("复制收到的上传链接后");
+  await expect(guide.locator(".intake-guest-heading")).toBeFocused();
+  const login = guide.getByRole("button", { name: "立即登录", exact: true });
+  const clipboard = guide.getByRole("button", {
+    name: "检测剪贴板",
+    exact: true,
+  });
+  const screenshot = await guide.screenshot({
+    path: info.outputPath("guest-upload.png"),
+  });
+  const first = await login.boundingBox(),
+    second = await clipboard.boundingBox();
+  expect(first.height).toBeGreaterThanOrEqual(44);
+  expect(second.height).toBeGreaterThanOrEqual(44);
+  expect(first.y).toBe(second.y);
+  expect(first.width).toBeGreaterThanOrEqual(120);
+  expect(
+    await guide.evaluate((node) => node.scrollWidth <= node.clientWidth),
+  ).toBe(true);
+  expect(clipboardReads).toBe(0);
   await expect(guide.locator(".intake-sheet-handle")).toHaveCount(
     isCompact(page) ? 1 : 0,
   );
+  await info.attach("guest-upload-layout", {
+    body: screenshot,
+    contentType: "image/png",
+  });
   await guide.getByRole("button", { name: "关闭" }).click();
   await expect(guide).toHaveCount(0);
   await expect(trigger).toBeFocused();
+});
+
+for (const signedOut of [true, false]) {
+  test(`${signedOut ? "guest" : "member"} clipboard feedback stays centered without moving the upload dialog or buttons`, async ({
+    page,
+  }, info) => {
+    await installIntake(page, { signedOut, role: "member" });
+    await page.addInitScript(() => {
+      window.clipboardReads = 0;
+      navigator.clipboard.readText = () => {
+        window.clipboardReads++;
+        return new Promise((resolve) => {
+          window.releaseClipboard = resolve;
+        });
+      };
+    });
+    await page.goto("/files/");
+    await page.locator("#file-intake-trigger").click();
+    const guide = page.getByRole("dialog", { name: "上传文件", exact: true });
+    const check = guide.getByRole("button", {
+      name: "检测剪贴板",
+      exact: true,
+    });
+    await guide.evaluate((node) =>
+      Promise.all(node.getAnimations().map((animation) => animation.finished)),
+    );
+    const layout = () =>
+      guide.evaluate((node) =>
+        [node, ...node.querySelectorAll(".intake-guest-actions button")].map(
+          (element) => {
+            const { x, y, width, height } = element.getBoundingClientRect();
+            return { x, y, width, height };
+          },
+        ),
+      );
+    const original = await layout();
+    await page.clock.install();
+    await page.clock.pauseAt(new Date(Date.now() + 1000));
+    await check.click();
+    await expect(check).toBeDisabled();
+    await expect(check).toHaveText("检测剪贴板");
+    await expect(check).toHaveAttribute("aria-busy", "true");
+    await expect(check).toHaveCSS("opacity", "1");
+    if (signedOut)
+      await expect(
+        guide.getByRole("button", { name: "立即登录", exact: true }),
+      ).toHaveCSS("opacity", "1");
+    const spinner = check.locator(".intake-clipboard-spinner");
+    await page.clock.runFor(100);
+    await expect(spinner).toHaveCSS("opacity", "0");
+    await page.clock.runFor(150);
+    await expect(spinner).toHaveCSS("opacity", "1");
+    expect(await layout()).toEqual(original);
+    await check.evaluate((node) => node.click());
+    expect(await page.evaluate(() => window.clipboardReads)).toBe(1);
+    await page.evaluate(() => window.releaseClipboard(""));
+    const notification = guide.locator(".toast-center");
+    await expect(notification).toHaveText("未检测到上传链接");
+    await expect(notification).toHaveAttribute("role", "status");
+    await expect(notification).toHaveCSS(
+      "background-color",
+      "rgba(20, 20, 24, 0.88)",
+    );
+    await expect(notification).toHaveCSS("color", "rgb(255, 255, 255)");
+    expect(
+      await notification.evaluate((node) => node.matches(":popover-open")),
+    ).toBe(true);
+    const offset = await notification.evaluate((node) => {
+      const box = node.getBoundingClientRect();
+      return [
+        Math.abs(box.x + box.width / 2 - innerWidth / 2),
+        Math.abs(box.y + box.height / 2 - innerHeight / 2),
+      ];
+    });
+    expect(offset.every((value) => value < 1)).toBe(true);
+    await expect(check).toBeEnabled();
+    await expect(spinner).toHaveCSS("opacity", "0");
+    expect(await layout()).toEqual(original);
+    await page.screenshot({
+      path: info.outputPath("clipboard-centered-toast.png"),
+      animations: "disabled",
+    });
+    await page.clock.runFor(1900);
+    await expect(notification).not.toHaveClass(/leaving/);
+    await page.clock.runFor(100);
+    await expect(notification).toHaveClass(/leaving/);
+    await page.clock.runFor(200);
+    await expect(notification).toHaveCount(0);
+    expect(await layout()).toEqual(original);
+
+    await page.evaluate(() => {
+      navigator.clipboard.readText = async () => {
+        throw new DOMException("Denied", "NotAllowedError");
+      };
+    });
+    await check.click();
+    await expect(notification).toHaveText("无法读取剪贴板，请允许访问后重试");
+    await expect(notification).toHaveAttribute("role", "alert");
+    await expect(spinner).toHaveCSS("opacity", "0");
+    expect(await layout()).toEqual(original);
+    await page.clock.runFor(2900);
+    await expect(notification).not.toHaveClass(/leaving/);
+    await page.clock.runFor(100);
+    await expect(notification).toHaveClass(/leaving/);
+    await page.clock.runFor(200);
+    await expect(notification).toHaveCount(0);
+    expect(await layout()).toEqual(original);
+    await page.clock.resume();
+    await guide
+      .getByRole("button", { name: "关闭对话框", exact: true })
+      .click();
+    await expect(guide).toHaveCount(0);
+  });
+
+  test(`${signedOut ? "guest" : "member"} upload checks the clipboard on demand and opens a matching upload invitation`, async ({
+    page,
+  }) => {
+    await installIntake(page, { signedOut, role: "member" });
+    await page.addInitScript(() => {
+      window.clipboardText = "";
+      navigator.clipboard.readText = async () => window.clipboardText;
+    });
+    await page.route("**/api/uploads", (route) =>
+      route.fulfill({ json: fixtureLink }),
+    );
+    await page.goto("/files/");
+    await page.locator("#file-intake-trigger").click();
+    const guide = page.getByRole("dialog", { name: "上传文件", exact: true });
+    const check = guide.getByRole("button", {
+      name: "检测剪贴板",
+      exact: true,
+    });
+    await check.click();
+    await expect(guide.locator(".toast-center")).toHaveText("未检测到上传链接");
+    await page.evaluate(() => {
+      window.clipboardText =
+        "https://other.example/upload#token=" + "A".repeat(43);
+    });
+    await check.click();
+    await expect(page).toHaveURL(/\/files\/$/);
+    await expect(check).toBeEnabled();
+    await page.evaluate(() => {
+      window.clipboardText =
+        "请上传到：" +
+        location.origin +
+        "/upload#token=" +
+        "A".repeat(43) +
+        "。";
+    });
+    await check.click();
+    await expect(page).toHaveURL(new RegExp("/upload#token=" + token + "$"));
+    await expect(guide).toHaveCount(0);
+    await expect(page.locator(".upload-page")).toBeVisible();
+  });
+}
+
+test("guest upload explains denied clipboard access and ignores a read completed after dismissal", async ({
+  page,
+}) => {
+  await installIntake(page, { signedOut: true });
+  await page.addInitScript(() => {
+    navigator.clipboard.readText = async () => {
+      throw new DOMException("Denied", "NotAllowedError");
+    };
+  });
+  await page.goto("/files/");
+  const trigger = page.locator("#file-intake-trigger");
+  await trigger.click();
+  const guide = page.getByRole("dialog", { name: "上传文件", exact: true });
+  await guide.getByRole("button", { name: "检测剪贴板", exact: true }).click();
+  await expect(guide.getByRole("alert")).toContainText("无法读取剪贴板");
+  await page.evaluate(() => {
+    navigator.clipboard.readText = () =>
+      new Promise((resolve) => {
+        window.releaseClipboard = resolve;
+      });
+  });
+  await guide.getByRole("button", { name: "检测剪贴板", exact: true }).click();
+  await guide.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  await page.evaluate(() =>
+    window.releaseClipboard(
+      location.origin + "/upload#token=" + "A".repeat(43),
+    ),
+  );
+  await expect(guide).toHaveCount(0);
+  await expect(page).toHaveURL(/\/files\/$/);
+  await trigger.click();
+  await expect(
+    guide.getByRole("button", { name: "检测剪贴板", exact: true }),
+  ).toBeEnabled();
+  await expect(guide.getByRole("alert")).toHaveCount(0);
+});
+
+test("guest upload signs in directly, permits retry and cancels a dismissed login", async ({
+  page,
+}) => {
+  await installIntake(page, { signedOut: true });
+  let logins = 0;
+  const release = Promise.withResolvers();
+  await page.route("**/fixture/login", async (route) => {
+    logins++;
+    if (logins === 1)
+      return route.fulfill({ status: 503, json: { error: "登录暂不可用" } });
+    await release.promise;
+    await route.fulfill({ json: { url: "/files/?logged-in=1" } });
+  });
+  await page.goto("/files/");
+  await page.locator("#file-intake-trigger").click();
+  const guide = page.getByRole("dialog", { name: "上传文件", exact: true });
+  const login = guide.getByRole("button", { name: "立即登录", exact: true });
+  expect(logins).toBe(0);
+  await login.click();
+  await expect(guide.getByRole("alert")).toHaveText("登录暂不可用");
+  await expect(login).toBeEnabled();
+  await login.click();
+  await expect(
+    guide.getByRole("button", { name: "正在前往登录…" }),
+  ).toBeDisabled();
+  await expect.poll(() => logins).toBe(2);
+  await guide.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  release.resolve();
+  await expect(guide).toHaveCount(0);
+  await expect(page).toHaveURL(/\/files\/$/);
+});
+
+test.describe("English guest upload guidance", () => {
+  test.use({ locale: "en-US" });
+  test("keeps the title hidden and both actions within the dialog", async ({
+    page,
+  }, info) => {
+    await installIntake(page, { signedOut: true });
+    await page.goto("/files/");
+    await page.locator("#file-intake-trigger").click();
+    const guide = page.getByRole("dialog", {
+      name: "Upload files",
+      exact: true,
+    });
+    await expect(guide.getByRole("heading")).toHaveCount(0);
+    await expect(guide).toContainText("You’re browsing as a guest");
+    await expect(
+      guide.getByRole("button", { name: "Sign in now", exact: true }),
+    ).toBeEnabled();
+    await expect(
+      guide.getByRole("button", { name: "Check clipboard", exact: true }),
+    ).toBeEnabled();
+    await guide.screenshot({ path: info.outputPath("guest-upload-en.png") });
+    expect(
+      await guide.evaluate((node) => node.scrollWidth <= node.clientWidth),
+    ).toBe(true);
+  });
+  test("file intake shows signed-in members one clipboard action without a title", async ({
+    page,
+  }, info) => {
+    await installIntake(page, { role: "member" });
+    await page.goto("/files/");
+    await page.locator("#file-intake-trigger").click();
+    const guide = page.getByRole("dialog", {
+      name: "Upload files",
+      exact: true,
+    });
+    await expect(guide.getByRole("heading")).toHaveCount(0);
+    await expect(guide).toContainText(
+      "Your account doesn’t have upload permission yet",
+    );
+    await expect(guide).toContainText(
+      "permission to upload directly from your account",
+    );
+    await expect(
+      guide.getByRole("button", { name: "Sign in now", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      guide.getByRole("button", { name: "Check clipboard", exact: true }),
+    ).toBeEnabled();
+    await guide.screenshot({ path: info.outputPath("member-upload-en.png") });
+    expect(
+      await guide.evaluate((node) => node.scrollWidth <= node.clientWidth),
+    ).toBe(true);
+    await guide
+      .getByRole("button", { name: "Close dialog", exact: true })
+      .click();
+    await expect(guide).toHaveCount(0);
+  });
 });
 
 test("file intake stays hidden for guests on plain WebDAV", async ({

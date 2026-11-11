@@ -87,7 +87,9 @@ test("mobile favorites have a 60px header with a centered regular title and a 48
   expect(backBounds.x).toBeCloseTo(bounds.x + 4, 1);
   expect(backBounds.width).toBe(48);
   expect(backBounds.height).toBe(48);
-  await back.focus();
+  await expect(header).toBeFocused();
+  await expect(back).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await page.keyboard.press("Tab");
   await expect(back).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(dialog).toHaveCount(0);
@@ -293,9 +295,7 @@ test("Escape closes only the nested preview and removing the final favorite keep
   await expect(
     dialog.getByRole("heading", { name: "暂无收藏", exact: true }),
   ).toBeVisible();
-  await expect(
-    dialog.getByRole("button", { name: "返回我的", exact: true }),
-  ).toBeFocused();
+  await expect(dialog.locator(":scope > .page-dialog-header")).toBeFocused();
   await expectSingleListing(page);
   await closeFavorites(page);
   await expect(page.locator("#my-favorites")).toBeFocused();
@@ -502,9 +502,7 @@ test("settings recovery inside favorites returns focus to the surviving favorite
   await expect(
     dialog.getByRole("heading", { name: "暂无收藏", exact: true }),
   ).toBeVisible();
-  await expect(
-    dialog.getByRole("button", { name: "返回我的", exact: true }),
-  ).toBeFocused();
+  await expect(dialog.locator(":scope > .page-dialog-header")).toBeFocused();
   expect(
     await dialog.evaluate((node) => node.contains(document.activeElement)),
   ).toBe(true);

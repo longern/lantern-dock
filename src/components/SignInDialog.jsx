@@ -2,6 +2,7 @@ import { t } from "../../shared/i18n.js";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { useSession } from "../hooks/useSession.jsx";
 import { Dialog } from "./Dialog.jsx";
+import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 import { Icon } from "./Icon.jsx";
 
 export function SignInDialog({ open, onClose }) {
@@ -73,7 +74,7 @@ export function SignInDialog({ open, onClose }) {
       aria-labelledby="sign-in-title"
       aria-describedby="sign-in-description"
     >
-      <div class="dialog-heading">
+      <div class="dialog-heading" {...dialogHeadingFocus}>
         <h2 id="sign-in-title">{t("account.signInTitle")}</h2>
         <button
           id="sign-in-close"

@@ -16,6 +16,7 @@ import { AlbumMedia } from "./AlbumMedia.jsx";
 import { Dialog } from "./Dialog.jsx";
 import { Icon } from "./Icon.jsx";
 import { useLiveMedia } from "../hooks/useLiveMedia.js";
+import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 
 export function AlbumViewer({
   gallery,
@@ -29,6 +30,7 @@ export function AlbumViewer({
   onCopyLink,
   onClose,
   onExited,
+  returnTarget,
   feedback,
 }) {
   const [container, setContainer] = useState(null);
@@ -187,12 +189,20 @@ export function AlbumViewer({
       class="album-viewer"
       open={open}
       modal
-      aria-label={t("library.album")}
-      aria-labelledby="album-viewer-name"
+      aria-labelledby="album-viewer-title"
       onClose={close}
       onExited={onExited}
+      returnTarget={returnTarget}
+      fallbackFocus=".main-area #file-list"
       onKeyDownCapture={keyboard}
     >
+      <h2
+        id="album-viewer-title"
+        class="visually-hidden"
+        {...dialogHeadingFocus}
+      >
+        {item.name}
+      </h2>
       <div ref={setContainer} class="album-viewer-host" />
       {container && (
         <PhotoSlider
@@ -252,11 +262,9 @@ function AlbumControls({
   onLive,
 }) {
   const root = useRef(null);
-  const closeButton = useRef(null);
   useLayoutEffect(() => {
     // Native Dialog owns modal semantics, focus containment and background inertness.
     root.current.closest(".PhotoView-Portal")?.removeAttribute("role");
-    closeButton.current?.focus({ preventScroll: true });
   }, []);
   return (
     <div
@@ -266,7 +274,6 @@ function AlbumControls({
     >
       <header class="album-viewer-header">
         <button
-          ref={closeButton}
           class="icon-button edge-start"
           onClick={params.onClose}
           aria-label={t("library.closePreview")}

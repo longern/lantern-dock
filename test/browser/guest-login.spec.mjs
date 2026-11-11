@@ -164,11 +164,7 @@ for (const language of ["zh-CN", "en"]) {
         for (const dismiss of ["button", "escape", "backdrop"]) {
           if (dismiss !== "button") await trigger.click();
           await expect(dialog).toBeVisible();
-          expect(
-            await dialog.evaluate((node) =>
-              node.contains(document.activeElement),
-            ),
-          ).toBe(true);
+          await expect(dialog.locator(".dialog-heading")).toBeFocused();
           const close = dialog.getByRole("button", {
             name: copy.close,
             exact: true,

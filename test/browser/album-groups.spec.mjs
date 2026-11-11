@@ -657,7 +657,7 @@ test("changing the album view preserves the selected files", async ({
   const first = scope.locator(".album-preview").first();
   const path = await first.getAttribute("data-path");
   if (isCompact(page)) await holdItem(page, first);
-  else await first.click();
+  else await first.click({ modifiers: ["ControlOrMeta"] });
   await expect(scope.locator(".album-item[data-selected=true]")).toHaveCount(1);
   await chooseAlbumView(scope, "连续排列");
   await expect(scope.locator(".album-item[data-selected=true]")).toHaveCount(1);

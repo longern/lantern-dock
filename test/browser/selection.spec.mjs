@@ -254,30 +254,44 @@ test("touch scrolling cancels pending long press and ordinary taps still open fo
   await cdp.detach();
 });
 
-test("a legacy mobile MouseEvent click still opens after a touch pointer gesture", async ({
-  page,
-}) => {
-  test.skip(!touch(page), "Legacy mobile click compatibility");
-  const item = page.getByRole("button", {
-    name: "打开文件夹 照片",
-    exact: true,
+for (const legacy of [true, false]) {
+  test(`a touch gesture opens a file row with a ${legacy ? "legacy" : "Safari"} click`, async ({
+    page,
+  }) => {
+    test.skip(!touch(page), "Touch click compatibility");
+    const item = page.getByRole("button", {
+      name: "打开文件夹 照片",
+      exact: true,
+    });
+    const pointer = {
+      pointerType: "touch",
+      pointerId: 9,
+      isPrimary: true,
+      button: 0,
+    };
+    await item.dispatchEvent("pointerdown", pointer);
+    await item.dispatchEvent("pointerup", pointer);
+    await item.evaluate((node, legacy) => {
+      const options = { detail: 1, bubbles: true, cancelable: true };
+      node.dispatchEvent(
+        legacy
+          ? new MouseEvent("click", options)
+          : new PointerEvent("click", {
+              ...options,
+              pointerId: 1,
+              pointerType: "mouse",
+            }),
+      );
+    }, legacy);
+    await expect(page).not.toHaveURL(/\/files\/$/);
+    await expect(panel(page)).toHaveCount(0);
+
+    await page.goBack();
+    await item.click();
+    await expect(selected(page)).toHaveCount(1);
+    await expect(page).toHaveURL(/\/files\/$/);
   });
-  await item.dispatchEvent("pointerdown", {
-    pointerType: "touch",
-    pointerId: 9,
-    isPrimary: true,
-    button: 0,
-  });
-  await item.dispatchEvent("pointerup", {
-    pointerType: "touch",
-    pointerId: 9,
-    isPrimary: true,
-    button: 0,
-  });
-  await item.dispatchEvent("click", { detail: 1 });
-  await expect(page).not.toHaveURL(/\/files\/$/);
-  await expect(panel(page)).toHaveCount(0);
-});
+}
 
 test("removing the last selected favorites keeps focus inside the surviving list", async ({
   page,

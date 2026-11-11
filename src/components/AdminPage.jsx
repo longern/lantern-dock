@@ -1195,7 +1195,12 @@ function RevokeDialog({ client, link, onExit, onRevoked, onError }) {
         </p>
       )}
       <div class="dialog-actions">
-        <button class="secondary-button" disabled={busy} onClick={close}>
+        <button
+          autofocus
+          class="secondary-button"
+          disabled={busy}
+          onClick={close}
+        >
           {t("admin.cancel")}
         </button>
         <button

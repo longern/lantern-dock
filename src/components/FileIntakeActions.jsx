@@ -7,6 +7,7 @@ import {
 } from "preact/hooks";
 import { t } from "../../shared/i18n.js";
 import { useSession } from "../hooks/useSession.jsx";
+import { useRouter } from "../hooks/useRouter.jsx";
 import {
   AdminClient,
   adminAccess,
@@ -14,6 +15,8 @@ import {
 } from "../lib/admin.js";
 import { CreateLinkDialog } from "./CreateLinkDialog.jsx";
 import { Dialog } from "./Dialog.jsx";
+import { GuestUploadGuide } from "./GuestUploadGuide.jsx";
+import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 import { Icon } from "./Icon.jsx";
 import { Menu } from "./Menu.jsx";
 import { UploadPanel } from "./UploadPage.jsx";
@@ -72,7 +75,7 @@ function PersonalUploadDialog({ createClient, files, direct, onExit }) {
       fallbackFocus="#file-intake-trigger"
       aria-labelledby="personal-upload-title"
     >
-      <div class="dialog-heading">
+      <div class="dialog-heading" {...dialogHeadingFocus}>
         <h2 id="personal-upload-title">{t("admin.uploadFiles")}</h2>
         <button
           class="icon-button"
@@ -115,7 +118,7 @@ function UploadPermissionIndicator({ checking }) {
   }, [checking]);
   return (
     <>
-      <span class="intake-check-status" role={checking ? "status" : undefined}>
+      <span class="visually-hidden" role={checking ? "status" : undefined}>
         {checking && t("admin.checkingUploadPermission")}
       </span>
       <span
@@ -128,6 +131,7 @@ function UploadPermissionIndicator({ checking }) {
 }
 
 export function FileIntakeActions({ client, mobile, suspended }) {
+  const router = useRouter();
   const { identity, nas, ensureNAS, refreshIdentity, refreshNAS } =
     useSession();
   const [mode, setMode] = useState(null);
@@ -224,6 +228,11 @@ export function FileIntakeActions({ client, mobile, suspended }) {
   const entryLabel = canAct ? label : t("admin.uploadFiles");
   const guideTitle = t("admin.uploadAccessTitle");
   const checking = access === "checking";
+  const permissionGuide =
+    !checking &&
+    !canAct &&
+    (identity.status === "signed-out" ||
+      (identity.status === "authenticated" && nas.status === "ready"));
   const verificationFailed =
     !checking && identity.status !== "signed-out" && nas.status !== "ready";
   return (
@@ -268,18 +277,38 @@ export function FileIntakeActions({ client, mobile, suspended }) {
         ))}
       {entryPresent && (
         <Dialog
-          class={mobile ? "settings-dialog intake-sheet" : "settings-dialog"}
+          class={`settings-dialog${mobile ? " intake-sheet" : ""}${permissionGuide ? " intake-guest-dialog" : ""}`}
           open={entryOpen}
           onClose={() => closeEntry()}
-          onExited={() => setMode(afterEntry.current)}
+          onExited={() => {
+            const next = afterEntry.current;
+            afterEntry.current = null;
+            setMode(typeof next === "function" ? null : next);
+            if (typeof next === "function") next();
+          }}
           fallbackFocus="#file-intake-trigger"
-          aria-labelledby={checking ? undefined : "intake-entry-title"}
-          aria-label={checking ? t("admin.uploadFiles") : undefined}
+          aria-labelledby={
+            checking || permissionGuide ? undefined : "intake-entry-title"
+          }
+          aria-label={
+            checking || permissionGuide ? t("admin.uploadFiles") : undefined
+          }
+          aria-describedby={
+            permissionGuide
+              ? "intake-guest-status intake-guest-description"
+              : undefined
+          }
         >
           {mobile && <SheetHandle onDismiss={() => closeEntry()} />}
           {filePicker}
-          <div class="dialog-heading intake-entry-heading">
-            {!checking && (
+          <div
+            class={`dialog-heading intake-entry-heading${permissionGuide ? " intake-guest-heading" : ""}`}
+            aria-label={
+              checking || permissionGuide ? t("admin.uploadFiles") : undefined
+            }
+            {...dialogHeadingFocus}
+          >
+            {!checking && !permissionGuide && (
               <h2 id="intake-entry-title">{canAct ? label : guideTitle}</h2>
             )}
             <button
@@ -311,6 +340,14 @@ export function FileIntakeActions({ client, mobile, suspended }) {
                     </li>
                   ))}
                 </ul>
+              ) : permissionGuide ? (
+                <GuestUploadGuide
+                  open={entryOpen && !suspended}
+                  signedIn={identity.status === "authenticated"}
+                  onUploadLink={(href) =>
+                    closeEntry(() => router.navigate(href))
+                  }
+                />
               ) : (
                 <div class="intake-guide">
                   <p role="status">

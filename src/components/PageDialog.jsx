@@ -1,5 +1,6 @@
 import { Dialog } from "./Dialog.jsx";
 import { Icon } from "./Icon.jsx";
+import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 
 // Full-screen mobile subpages share one native-modal lifecycle and app bar.
 // The owner supplies navigation and actions; the shell owns only presentation.
@@ -11,10 +12,10 @@ export function PageDialog({
   backLabel,
   open,
   animateEntry = true,
-  focusHeader = false,
   onClose,
   onExited,
   fallbackFocus,
+  returnTarget,
   actions,
   children,
   className = "",
@@ -29,12 +30,12 @@ export function PageDialog({
       onClose={onClose}
       onExited={onExited}
       fallbackFocus={fallbackFocus}
+      returnTarget={returnTarget}
       aria-labelledby={titleId}
     >
       <header
         class={`page-dialog-header ${headerClassName}`}
-        tabIndex={focusHeader ? -1 : undefined}
-        autofocus={focusHeader}
+        {...dialogHeadingFocus}
       >
         <button
           id={backId}

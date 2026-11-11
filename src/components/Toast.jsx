@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from "preact/hooks";
 
-export function Toast({ message }) {
+export function Toast({ message, position }) {
   const element = useRef(null);
   useLayoutEffect(() => {
     const node = element.current;
@@ -12,7 +12,7 @@ export function Toast({ message }) {
     <div
       ref={element}
       popover="manual"
-      class={`toast${message.leaving ? " leaving" : ""}`}
+      class={`toast${position === "center" ? " toast-center" : ""}${message.leaving ? " leaving" : ""}`}
       role={message.error ? "alert" : "status"}
     >
       {message.text}

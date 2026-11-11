@@ -1,6 +1,7 @@
 import { mediaQueries } from "../lib/breakpoints.js";
 import { useLayoutEffect, useRef } from "preact/hooks";
 import { afterOverlayEntry } from "../lib/overlay-entry.js";
+import { restoreOverlayFocus } from "../lib/overlay-focus.js";
 
 // Keep the native modal (focus containment, inert background and backdrop) open
 // through its exit animation. All dismiss paths use the same controlled state.
@@ -12,6 +13,7 @@ export function Dialog({
   onEntered,
   onExited,
   fallbackFocus,
+  returnTarget,
   children,
   ...props
 }) {
@@ -26,6 +28,7 @@ export function Dialog({
     onEntered,
     onExited,
     fallbackFocus,
+    returnTarget,
   };
   useLayoutEffect(() => {
     const node = element.current;
@@ -65,26 +68,11 @@ export function Dialog({
           modal || node.contains(active) || active === document.body;
         node.close();
         const trigger = returnFocus.current;
-        const topModal = [...document.querySelectorAll("dialog:modal")].at(-1);
-        const canFocus = (target) =>
-          restoreFocus &&
-          target &&
-          target !== document.body &&
-          target !== document.documentElement &&
-          target.isConnected &&
-          target.getClientRects().length &&
-          !target.closest("dialog:not([open]), [inert]") &&
-          (!topModal || topModal.contains(target));
-        if (canFocus(trigger)) {
-          trigger.focus({ preventScroll: true });
-        } else if (callbacks.current.fallbackFocus) {
-          const fallback = document.querySelector(
-            callbacks.current.fallbackFocus,
-          );
-          if (canFocus(fallback)) fallback.focus({ preventScroll: true });
-        }
         returnFocus.current = null;
-        callbacks.current.onExited?.({ restoreFocus });
+        const { onExited, fallbackFocus, returnTarget } = callbacks.current;
+        onExited?.();
+        if (restoreFocus)
+          restoreOverlayFocus(trigger, fallbackFocus, returnTarget);
       },
       duration ? duration + 20 : 0,
     );
