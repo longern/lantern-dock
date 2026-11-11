@@ -18,7 +18,6 @@ import { Dialog } from "./Dialog.jsx";
 import { GuestUploadGuide } from "./GuestUploadGuide.jsx";
 import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 import { Icon } from "./Icon.jsx";
-import { Menu } from "./Menu.jsx";
 import { UploadPanel } from "./UploadPage.jsx";
 
 function SheetHandle({ onDismiss }) {
@@ -218,14 +217,13 @@ export function FileIntakeActions({ client, mobile, suspended }) {
   };
   const choices = [
     ...(upload
-      ? [{ key: "upload", label: t("admin.uploadFiles"), icon: "upload" }]
+      ? [{ key: "upload", label: t("admin.selectUploadFiles"), icon: "upload" }]
       : []),
     ...(invite
       ? [{ key: "invite", label: t("admin.inviteUpload"), icon: "qr-code" }]
       : []),
   ];
-  const label = t("admin.newAction");
-  const entryLabel = canAct ? label : t("admin.uploadFiles");
+  const entryLabel = t("admin.uploadFiles");
   const guideTitle = t("admin.uploadAccessTitle");
   const checking = access === "checking";
   const permissionGuide =
@@ -251,28 +249,23 @@ export function FileIntakeActions({ client, mobile, suspended }) {
           >
             <Icon name="plus" />
           </button>
-        ) : choices.length > 1 ? (
-          <Menu
-            triggerId="file-intake-trigger"
-            triggerIcon="plus"
-            showLabel
-            label={label}
-            actions={choices.map((action) => ({
-              ...action,
-              onSelect: () => select(action.key),
-            }))}
-          />
         ) : (
           <button
             id="file-intake-trigger"
             class="primary-button"
             type="button"
             aria-haspopup="dialog"
-            aria-expanded={canAct ? undefined : entryPresent}
-            onClick={() => (canAct ? select(choices[0].key) : setMode("entry"))}
+            aria-expanded={
+              canAct && choices.length === 1 ? undefined : entryPresent
+            }
+            onClick={() =>
+              canAct && choices.length === 1
+                ? select(choices[0].key)
+                : setMode("entry")
+            }
           >
             <Icon name={choices[0]?.icon || "upload"} />
-            {choices[0]?.label || entryLabel}
+            {entryLabel}
           </button>
         ))}
       {entryPresent && (
@@ -309,7 +302,9 @@ export function FileIntakeActions({ client, mobile, suspended }) {
             {...dialogHeadingFocus}
           >
             {!checking && !permissionGuide && (
-              <h2 id="intake-entry-title">{canAct ? label : guideTitle}</h2>
+              <h2 id="intake-entry-title">
+                {canAct ? entryLabel : guideTitle}
+              </h2>
             )}
             <button
               class="icon-button"

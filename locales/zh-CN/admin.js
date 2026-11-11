@@ -33,8 +33,8 @@ export default {
   activeLinks: "有效链接",
   endedLinks: "已结束",
   receivedCount: "已收到 {{count}} 个文件",
-  newAction: "新建",
   uploadFiles: "上传文件",
+  selectUploadFiles: "选择文件上传",
   checkingUploadPermission: "正在检查上传权限…",
   uploadAccessTitle: "如何获得上传权限",
   uploadInvitationRequired: "需要上传邀请",
@@ -50,7 +50,7 @@ export default {
   uploadClipboardUnavailable: "无法读取剪贴板，请允许访问后重试",
   uploadMemberHelp:
     "请向管理员索取上传链接，或请管理员为你的账户开通直接上传权限。",
-  inviteUpload: "邀请上传",
+  inviteUpload: "邀请他人上传",
   personalInbox: "我的收件",
   personalUploadDescription: "文件将保存到你的私有收件箱。",
   optionalTitle: "备注（选填）",

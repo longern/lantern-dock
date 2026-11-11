@@ -682,7 +682,7 @@ async function installIntake(page, options) {
 
 test("file intake offers a local QR and a separate authenticated personal upload", async ({
   page,
-}) => {
+}, info) => {
   const state = await installIntake(page);
   await page.goto("/files/");
   const trigger = page.locator("#file-intake-trigger");
@@ -735,20 +735,26 @@ test("file intake offers a local QR and a separate authenticated personal upload
   } else {
     await expect(page.locator(".topbar").locator(trigger)).toBeVisible();
   }
+  let captured = false;
   const choose = async (label) => {
     await trigger.click();
+    const drawer = page.locator("dialog:has(.intake-actions)");
+    await expect(drawer).toHaveAccessibleName("上传文件");
+    await expect(drawer).toBeVisible();
     if (compact) {
-      const drawer = page.locator(".intake-sheet");
-      await expect(drawer).toBeVisible();
       expect(
         await drawer.evaluate((node) => node.getBoundingClientRect().width),
       ).toBe(await page.evaluate(() => innerWidth));
-      await drawer.getByRole("button", { name: label }).click();
-    } else {
-      await page.getByRole("menuitem", { name: label }).click();
     }
+    if (!captured) {
+      await drawer.screenshot({
+        path: info.outputPath("upload-action-cards.png"),
+      });
+      captured = true;
+    }
+    await drawer.getByRole("button", { name: label, exact: true }).click();
   };
-  await choose("邀请上传");
+  await choose("邀请他人上传");
   const invite = page.locator("#admin-create-dialog");
   await invite.getByRole("button", { name: /当面扫码/ }).click();
   const qr = invite.getByRole("img", { name: "扫码打开上传页面" });
@@ -779,7 +785,7 @@ test("file intake offers a local QR and a separate authenticated personal upload
   await expect(invite).toHaveCount(0);
   await expect(trigger).toBeFocused();
 
-  await choose("邀请上传");
+  await choose("邀请他人上传");
   await invite.getByRole("button", { name: /发给微信好友/ }).click();
   await expect(invite.locator("#admin-created-url")).toBeVisible();
   await expect(invite.locator("canvas")).toHaveCount(0);
@@ -793,7 +799,7 @@ test("file intake offers a local QR and a separate authenticated personal upload
   await expect(invite).toHaveCount(0);
 
   const chooser = page.waitForEvent("filechooser");
-  await choose("上传文件");
+  await choose("选择文件上传");
   const personal = page.getByRole("dialog", { name: "上传文件" });
   await (
     await chooser
@@ -847,9 +853,9 @@ for (const slow of [false, true]) {
       await expect(spinner).toHaveCSS("opacity", "1");
     }
     account.resolve();
-    await expect(dialog.getByRole("heading")).toHaveText("新建");
+    await expect(dialog.getByRole("heading")).toHaveText("上传文件");
     await expect(
-      dialog.getByRole("button", { name: "上传文件", exact: true }),
+      dialog.getByRole("button", { name: "选择文件上传", exact: true }),
     ).toBeEnabled();
     await expect(spinner).toHaveCSS("opacity", "0");
   });
@@ -1332,10 +1338,10 @@ test("an authorized ordinary user deposits from Files with their login proof", a
   await page.locator("#file-intake-trigger").click();
   if (isCompact(page)) {
     const sheet = page.locator(".intake-sheet");
-    await expect(sheet.getByRole("button", { name: "邀请上传" })).toHaveCount(
-      0,
-    );
-    await sheet.getByRole("button", { name: "上传文件" }).click();
+    await expect(
+      sheet.getByRole("button", { name: "邀请他人上传" }),
+    ).toHaveCount(0);
+    await sheet.getByRole("button", { name: "选择文件上传" }).click();
   }
   await (
     await chooser

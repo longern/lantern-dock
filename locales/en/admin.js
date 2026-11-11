@@ -35,8 +35,8 @@ export default {
   activeLinks: "Active links",
   endedLinks: "Ended",
   receivedCount: "{{count}} files received",
-  newAction: "New",
   uploadFiles: "Upload files",
+  selectUploadFiles: "Choose files",
   checkingUploadPermission: "Checking upload permission…",
   uploadAccessTitle: "How to get upload access",
   uploadInvitationRequired: "Upload invitation required",
@@ -54,7 +54,7 @@ export default {
     "Couldn’t read the clipboard. Allow access and try again.",
   uploadMemberHelp:
     "Ask an administrator for an upload link or permission to upload directly from your account.",
-  inviteUpload: "Invite uploads",
+  inviteUpload: "Invite others to upload",
   personalInbox: "My inbox",
   personalUploadDescription: "Files will be saved to your private inbox.",
   optionalTitle: "Note (optional)",
