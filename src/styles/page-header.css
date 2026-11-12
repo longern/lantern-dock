@@ -30,7 +30,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   text-align: center;
-  font-size: 16px;
+  font-size: var(--text-md);
   font-weight: 400;
 }
 .page-header > .header-actions {

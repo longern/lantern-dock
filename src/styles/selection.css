@@ -113,7 +113,7 @@
   padding: 8px;
   border-radius: var(--radius-control);
   color: var(--accent);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 .selection-command:active {
   background: var(--accent-soft);

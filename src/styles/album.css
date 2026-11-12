@@ -7,7 +7,7 @@
 }
 .album-heading h1 {
   margin: 0;
-  font-size: 36px;
+  font-size: var(--text-3xl);
   font-weight: 500;
   line-height: 1.3;
 }
@@ -19,12 +19,12 @@
   padding: 16px var(--album-padding);
   text-align: center;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-sm);
 }
 .album-index-status {
   padding: 0 var(--album-padding) 16px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-xs);
 }
 .album-index-status p {
   margin: 0;
@@ -38,7 +38,7 @@
 .album-date {
   margin: 0 0 12px;
   padding: 0 var(--album-padding);
-  font-size: 18px;
+  font-size: var(--text-md);
   font-weight: 500;
 }
 .file-grid.album-layout {
@@ -103,8 +103,8 @@
   border-radius: 4px;
   background: #0009;
   color: white;
-  font-size: 9px;
-  line-height: 12px;
+  font-size: var(--text-xs);
+  line-height: 1.25;
   pointer-events: none;
 }
 .album-live-indicator svg {

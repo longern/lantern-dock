@@ -1,0 +1,26 @@
+/* Shared shell geometry; component media queries live with their styles. */
+@media (--between-md-lg) {
+  :root {
+    --sidebar: 190px;
+    --inspector: 300px;
+  }
+}
+@media (--down-md) {
+  html {
+    scrollbar-gutter: auto;
+  }
+  .main-area,
+  .preview-open .main-area {
+    --browser-tools-height: 40px;
+    margin: 0;
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+  .main-area.home-page {
+    --browser-tools-height: 50px;
+  }
+}
+@media (--between-md-lg) {
+  .preview-open .main-area {
+    margin-right: 0;
+  }
+}

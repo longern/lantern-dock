@@ -7,7 +7,9 @@ import { Icon } from "./Icon.jsx";
 import { PageLoading } from "./PageLoading.jsx";
 
 const AdminPage = lazy(() =>
-  import("./AdminPage.jsx").then((module) => ({ default: module.AdminPage })),
+  import("../features/admin/AdminPage.jsx").then((module) => ({
+    default: module.AdminPage,
+  })),
 );
 
 function AdminLoadError() {

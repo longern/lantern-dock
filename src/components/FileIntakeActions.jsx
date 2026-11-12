@@ -18,7 +18,7 @@ import { Dialog } from "./Dialog.jsx";
 import { GuestUploadGuide } from "./GuestUploadGuide.jsx";
 import { dialogHeadingFocus } from "../lib/overlay-focus.js";
 import { Icon } from "./Icon.jsx";
-import { UploadPanel } from "./UploadPage.jsx";
+import { UploadPanel } from "../features/uploads/UploadPanel.jsx";
 import { SheetHandle } from "./SheetHandle.jsx";
 
 function PersonalUploadDialog({
@@ -36,7 +36,7 @@ function PersonalUploadDialog({
   };
   return (
     <Dialog
-      class="settings-dialog admin-dialog upload-dialog"
+      class="settings-dialog action-dialog upload-dialog"
       open={open}
       onClose={close}
       onExited={onExit}

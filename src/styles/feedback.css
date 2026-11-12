@@ -6,7 +6,7 @@ progress {
 .toast {
   position: fixed;
   z-index: 50;
-  font-size: 12px;
+  font-size: var(--text-xs);
   inset: 74dvh auto auto 50vw;
   transform: translate(-50%, -50%);
   margin: 0;

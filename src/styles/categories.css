@@ -15,7 +15,7 @@
   padding: 18px 24px;
   border-radius: var(--radius-panel);
   background: var(--surface);
-  font-size: 18px;
+  font-size: var(--text-lg);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -63,7 +63,7 @@
     padding: clamp(10px, 3vw, 12px);
     gap: 6px;
     border-radius: 14px;
-    font-size: clamp(14px, 4vw, 16px);
+    font-size: clamp(var(--text-sm), 4vw, var(--text-md));
   }
   .category-card svg {
     width: 26px;

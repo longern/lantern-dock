@@ -5,7 +5,7 @@ import { useSetupWizard } from "../hooks/useSetupWizard.js";
 import { SetupConnection } from "./SetupConnection.jsx";
 import { SetupExport } from "./SetupExport.jsx";
 import { SetupCertificates } from "./SetupCertificates.jsx";
-import { siteTitle } from "../lib/site-title.js";
+import { Brand } from "./Brand.jsx";
 
 const reasons = {
   "missing-backend": "account.missingBackendReason",
@@ -39,12 +39,7 @@ export function SetupWizard({ setup, checking, onRetry, onDemo, notify }) {
       : t("account.saveDeploymentDescription");
   return (
     <main class="setup-page">
-      <header class="setup-brand">
-        <span class="brand-symbol">
-          <Icon name="portal" />
-        </span>
-        <span>{siteTitle}</span>
-      </header>
+      <Brand as="header" className="setup-brand" />
       <section class="setup-card" aria-labelledby="setup-title">
         <div class="setup-intro">
           <span class="setup-eyebrow">{t("account.setupEyebrow")}</span>

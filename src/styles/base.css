@@ -10,7 +10,15 @@
   color: #252938;
   background: #fff;
   font-synthesis: none;
-  font-size: 14px;
+  font-size: 100%;
+  /* rem follows the browser's root size (normally 16px). */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 2rem;
   line-height: 1.5;
   --accent: #514dbb;
   --accent-hover: #4541aa;
@@ -40,6 +48,7 @@
 }
 body {
   margin: 0;
+  font-size: var(--text-sm);
 }
 .route-status-page {
   min-height: 100svh;
@@ -127,4 +136,16 @@ svg {
 }
 [hidden] {
   display: none !important;
+}
+
+small {
+  font-size: var(--text-xs);
+}
+@media (--down-md) {
+  /* Editable text stays legible and avoids focus zoom in mobile Safari. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: var(--text-md);
+  }
 }

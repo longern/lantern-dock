@@ -26,7 +26,7 @@
 }
 .text-button {
   color: var(--accent);
-  font-size: 13px;
+  font-size: var(--text-sm);
   padding: 8px 6px;
   border-radius: var(--radius-control);
 }
@@ -46,12 +46,12 @@
   justify-content: space-between;
 }
 .dialog-heading h2 {
-  font-size: 18px;
+  font-size: var(--text-lg);
   margin: 0;
 }
 .dialog-intro,
 .field-note {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--muted);
   line-height: 1.7;
 }
@@ -63,7 +63,7 @@
   background: #fafafd;
   border-radius: var(--radius-control);
   margin: 18px 0;
-  font-size: 12px;
+  font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }
 .endpoint-box strong {
@@ -76,7 +76,7 @@
   display: block;
   margin: 16px 0 8px;
   color: #545b70;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .settings-dialog input,
 .settings-dialog select {
@@ -113,10 +113,24 @@
 }
 .connection-help {
   margin-top: 18px;
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 .connection-help summary {
   cursor: pointer;
   padding: 4px 0;
+}
+
+@media (--down-md) {
+  .dialog-actions .primary-button {
+    min-width: 100px;
+  }
+  .settings-dialog {
+    padding: 20px;
+    max-height: calc(100dvh - 32px);
+  }
+  .settings-dialog input,
+  .settings-dialog select {
+    font-size: var(--text-md);
+  }
 }

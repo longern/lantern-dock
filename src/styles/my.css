@@ -38,13 +38,13 @@
 }
 .my-account-copy h2 {
   margin: 0;
-  font-size: 19px;
+  font-size: var(--text-xl);
   line-height: 1.4;
   font-weight: 650;
 }
 .my-account-copy p {
   margin: 6px 0 0;
-  font-size: 13px;
+  font-size: var(--text-sm);
   color: var(--muted);
   line-height: 1.7;
 }
@@ -63,7 +63,7 @@
   align-items: center;
   width: 100%;
   text-align: left;
-  font-size: 15px;
+  font-size: var(--text-sm);
   font-weight: 550;
 }
 .my-page .my-list-button {
@@ -113,7 +113,7 @@
 }
 .favorites-heading h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: var(--text-2xl);
   font-weight: 650;
 }
 .my-identity-control {
@@ -124,7 +124,7 @@
   border-radius: var(--radius-control);
 }
 .my-guest-title {
-  font-size: 19px;
+  font-size: var(--text-xl);
   line-height: 1.4;
   font-weight: 650;
 }

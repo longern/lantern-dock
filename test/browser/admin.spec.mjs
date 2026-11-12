@@ -281,7 +281,8 @@ for (const [outcome, options, heading] of [
     });
     const module = page.waitForResponse(
       (response) =>
-        new URL(response.url()).pathname === "/src/components/AdminPage.jsx",
+        new URL(response.url()).pathname ===
+        "/src/features/admin/AdminPage.jsx",
     );
     try {
       await page.goto("/admin/links");
@@ -1043,7 +1044,9 @@ test("administration loads only on entry and keeps ordinary anchor navigation", 
     const path = new URL(request.url()).pathname;
     if (path === "/fixture/session") sessions++;
     if (
-      ["/src/components/AdminPage.jsx", "/src/styles/admin.css"].includes(path)
+      ["/src/features/admin/AdminPage.jsx", "/src/styles/admin.css"].includes(
+        path,
+      )
     )
       requested.push(path);
   });
@@ -1060,7 +1063,7 @@ test("administration loads only on entry and keeps ordinary anchor navigation", 
   });
   const sessionCount = sessions;
   const module = Promise.withResolvers();
-  await page.route("**/src/components/AdminPage.jsx*", async (route) => {
+  await page.route("**/src/features/admin/AdminPage.jsx*", async (route) => {
     await module.promise;
     await route.continue();
   });
@@ -1074,7 +1077,7 @@ test("administration loads only on entry and keeps ordinary anchor navigation", 
   }
   await expect(page.locator("#admin-create-link")).toBeVisible();
   expect(requested).toEqual([
-    "/src/components/AdminPage.jsx",
+    "/src/features/admin/AdminPage.jsx",
     "/src/styles/admin.css",
   ]);
   expect(await page.evaluate(() => window.documentMarker)).toBe(
@@ -1148,7 +1151,7 @@ test("entering administration disposes the library even while its module is pend
   await expect(upload.locator(".upload-result.complete")).toBeVisible();
   await assertNoOverflow(page);
   const module = Promise.withResolvers();
-  await page.route("**/src/components/AdminPage.jsx*", async (route) => {
+  await page.route("**/src/features/admin/AdminPage.jsx*", async (route) => {
     await module.promise;
     await route.continue();
   });
@@ -1191,7 +1194,7 @@ test("a failed administration module offers a return and reload retry", async ({
   page,
 }) => {
   await install(page);
-  await page.route("**/src/components/AdminPage.jsx*", (route) =>
+  await page.route("**/src/features/admin/AdminPage.jsx*", (route) =>
     route.abort("failed"),
   );
   await page.goto("/admin/links");
@@ -1202,7 +1205,7 @@ test("a failed administration module offers a return and reload retry", async ({
     "href",
     isCompact(page) ? "/me" : "/",
   );
-  await page.unroute("**/src/components/AdminPage.jsx*");
+  await page.unroute("**/src/features/admin/AdminPage.jsx*");
   await page.getByRole("button", { name: "重试", exact: true }).click();
   await expect(page.locator("#admin-create-link")).toBeVisible();
 });
@@ -1212,7 +1215,7 @@ test("leaving a pending administration import cannot revive its page", async ({
 }) => {
   const state = await install(page);
   const module = Promise.withResolvers();
-  await page.route("**/src/components/AdminPage.jsx*", async (route) => {
+  await page.route("**/src/features/admin/AdminPage.jsx*", async (route) => {
     await module.promise;
     await route.continue();
   });
@@ -1224,7 +1227,7 @@ test("leaving a pending administration import cannot revive its page", async ({
   await assertPageLoading(page, "正在加载…");
   const response = page.waitForResponse(
     (response) =>
-      new URL(response.url()).pathname === "/src/components/AdminPage.jsx",
+      new URL(response.url()).pathname === "/src/features/admin/AdminPage.jsx",
   );
   try {
     await page.goBack();

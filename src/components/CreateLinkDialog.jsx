@@ -300,7 +300,7 @@ export function CreateLinkDialog({
   };
   return (
     <Dialog
-      class="settings-dialog admin-dialog invite-dialog"
+      class="settings-dialog action-dialog invite-dialog"
       id="admin-create-dialog"
       open={open}
       inert={!open}
@@ -439,7 +439,7 @@ export function CreateLinkDialog({
               <p role="status">{t("admin.loading")}</p>
             ) : (
               <>
-                <p class="admin-form-error" role="alert">
+                <p class="form-error" role="alert">
                   {error}
                 </p>
                 <button
@@ -534,12 +534,12 @@ export function CreateLinkDialog({
               <p class="invite-rule-hint">{t("admin.invitationLimitsHint")}</p>
             </fieldset>
             {error && (
-              <p class="admin-form-error" role="alert">
+              <p class="form-error" role="alert">
                 {error}
               </p>
             )}
             {uncertain && (
-              <p class="admin-form-error" role="alert">
+              <p class="form-error" role="alert">
                 {t("admin.createUncertain")}
               </p>
             )}

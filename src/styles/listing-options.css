@@ -74,7 +74,7 @@
 .listing-options-label {
   padding: 6px 10px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .listing-options-menu [role^="menuitem"] {
   display: flex;
@@ -84,7 +84,7 @@
   min-height: 40px;
   padding: 8px 10px;
   border-radius: var(--radius-control);
-  font-size: 13px;
+  font-size: var(--text-sm);
   text-align: left;
   overflow-wrap: anywhere;
 }

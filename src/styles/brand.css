@@ -1,0 +1,27 @@
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.site-brand .brand-symbol {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.site-brand .brand-symbol svg {
+  width: 24px;
+  height: 24px;
+  stroke-width: 1.9;
+}
+.site-brand .brand-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

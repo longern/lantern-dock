@@ -70,9 +70,13 @@ It checks gateway 407 versus backend 401, separate credentials, PROPFIND, encode
 ```text
 index.html                 HTML entry
 src/
-  App.jsx                  Application composition
-  components/              Navigation, file browser, previews, dialogs, notifications
-  hooks/                   Connections, listings, local records, downloads
+  App.jsx                  Root routes and account overlay composition
+  features/
+    library/               Public library composition, preview routing and selection
+    uploads/               Upload views, queue state and connection lifetime
+    admin/                 Lazy management page, collections and business panels
+  components/              Shared navigation, file browser, previews and dialogs
+  hooks/                   Shared connections, session, router, downloads and notifications
   lib/                     WebDAV, transports, HTTP framing, demo fixtures
   styles/                  Component styles and responsive layouts
 scripts/init.mjs           Persistent .env site-key initialization
@@ -89,7 +93,7 @@ wrangler.jsonc             Cloudflare Worker and static asset configuration
 
 ## Making changes
 
-Keep file access and protocol handling in `src/lib/`; components should consume those modules through the hooks. Desktop and mobile share the same components and state. Check the preview, connection dialog, and download cancellation on both layouts when changing their interactions.
+Keep page-specific composition and state in `src/features/`, shared UI in `src/components/`, and reusable lifecycle hooks in `src/hooks/`. File access and protocol handling belong in `src/lib/`; components should consume those modules through the hooks. Public library code is statically imported; `AdminRoute` alone imports the management feature and its stylesheet lazily. Public upload and invitation components must remain outside that management boundary. Component media queries live in their owning stylesheet; `shell.css` only coordinates shared shell geometry. Desktop and mobile share the same components and state. Check the preview, connection dialog, and download cancellation on both layouts when changing their interactions.
 
 Use `npm run check` and `npm test` for code changes, and run the browser or bridge suite when the change touches those paths. Documentation-only changes need link and content checks.
 
@@ -119,9 +123,9 @@ The Worker fixture leaves `SITE_ORIGIN` unset to exercise automatic HTTPS reques
 
 ## Administration checks
 
-`test/admin.test.mjs` checks permission gates, fixed endpoint paths, scope selection, secret-free list metadata, one-time upload URLs, validation, cancellation and bounded metadata requests. Metadata transactions have a 30-second deadline covering grant acquisition, headers and JSON bodies; file downloads retain user cancellation without a short whole-file deadline. An uncertain create request is never automatically retried. Worker tests exercise allowed/rejected scope requests; Go management tests enforce the scope plus the local role, validate inputs and quotas, and test private downloads, ranges and symlink denial.
+`test/admin.test.mjs` checks permission gates, fixed endpoint paths, scope selection, secret-free list metadata, explicit invitation creation/share URLs, validation, cancellation and bounded metadata requests. Metadata transactions have a 30-second deadline covering grant acquisition, headers and JSON bodies; file downloads retain user cancellation without a short whole-file deadline. An uncertain create request is never automatically retried. Worker tests exercise allowed/rejected scope requests; Go management tests enforce the scope plus the local role, validate inputs and quotas, and test private downloads, ranges and symlink denial.
 
-`test/browser/admin.spec.mjs` exercises responsive Chinese/English management flows, gate states, one-time secret handling, confirmation, navigation interruptions and timeouts through an explicit identity fixture. `test/integration/admin.spec.mjs` instead uses the production frontend, real workers-sso/Worker grants and NAS verification. It covers both WebTransport and direct HTTPS: administrator creation, an independent signed-out guest upload, byte-exact private downloads, revocation that retains completed files, and rejection after administrator removal. Direct HTTPS routing forwards signed requests unchanged to the local NAS; the WebTransport case uses the actual bridge. Run these with the browser/bridge commands above. Test discovery or syntax checks alone do not verify these browser flows.
+`test/browser/admin.spec.mjs` exercises responsive Chinese/English management flows, gate states, explicit authorized share retrieval and secret cleanup after dialog exit, confirmation, navigation interruptions and timeouts through an explicit identity fixture. `test/integration/admin.spec.mjs` instead uses the production frontend, real workers-sso/Worker grants and NAS verification. It covers both WebTransport and direct HTTPS: administrator creation, an independent signed-out guest upload, byte-exact private downloads, revocation that retains completed files, and rejection after administrator removal. Direct HTTPS routing forwards signed requests unchanged to the local NAS; the WebTransport case uses the actual bridge. Run these with the browser/bridge commands above. Test discovery or syntax checks alone do not verify these browser flows.
 
 ## NAS backend
 

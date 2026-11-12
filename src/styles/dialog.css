@@ -1,0 +1,37 @@
+.action-dialog .icon-button {
+  width: 44px;
+  height: 44px;
+}
+.action-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100svh - 40px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.action-dialog .dialog-heading {
+  margin-bottom: 18px;
+}
+.action-dialog .dialog-heading h2 {
+  padding-right: 10px;
+}
+.form-error {
+  background: #fbf1f1;
+  color: #963f3f;
+  padding: 12px;
+  border-radius: 9px;
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.action-dialog .dialog-actions {
+  flex-wrap: wrap;
+}
+@media (--down-sm) {
+  .action-dialog {
+    padding: 24px 20px;
+  }
+  .action-dialog .dialog-actions > button {
+    flex: 1;
+    justify-content: center;
+  }
+}

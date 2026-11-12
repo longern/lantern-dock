@@ -1,4 +1,11 @@
-.settings-dialog.admin-dialog.invite-dialog {
+.invite-qr {
+  text-align: center;
+}
+.invite-qr canvas {
+  width: min(100%, 216px);
+  height: auto;
+}
+.settings-dialog.action-dialog.invite-dialog {
   width: min(520px, calc(100vw - 48px));
   height: min(820px, calc(100dvh - 48px));
   max-height: calc(100dvh - 48px);
@@ -7,7 +14,7 @@
   overflow: hidden;
   --invite-padding: 24px;
 }
-.settings-dialog.admin-dialog.invite-dialog[open] {
+.settings-dialog.action-dialog.invite-dialog[open] {
   display: flex;
   flex-direction: column;
 }
@@ -33,7 +40,7 @@
 }
 .invite-intro {
   margin: 0 0 24px;
-  font-size: 14px;
+  font-size: var(--text-sm);
   line-height: 1.7;
   color: var(--muted);
 }
@@ -51,7 +58,7 @@
 .invite-group-title {
   margin: 24px 2px 10px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-xs);
   font-weight: 400;
 }
 .invite-row {
@@ -61,7 +68,7 @@
   gap: 12px;
   height: 60px;
   padding: 0 16px;
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 .invite-row > span {
   position: relative;
@@ -79,7 +86,7 @@
   border-radius: 0;
   background: transparent;
   color: #53586b;
-  font-size: 16px;
+  font-size: var(--text-md);
   text-align: right;
 }
 .invite-dialog .invite-title-row input {
@@ -123,7 +130,7 @@
   gap: 8px;
   padding: 4px 16px 16px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .invite-dialog .invite-custom-field input {
   min-width: 0;
@@ -131,18 +138,18 @@
   border: 0;
   background: var(--surface-subtle);
   border-radius: var(--radius-control);
-  font-size: 16px;
+  font-size: var(--text-md);
 }
 .invite-custom-field small {
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .invite-rule-hint {
   margin: 14px 2px 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.7;
 }
-.invite-form .admin-form-error {
+.invite-form .form-error {
   color: #964747;
   background: #fbf0f0;
   margin-bottom: 0;
@@ -155,7 +162,7 @@
   width: 100%;
   min-height: 48px;
   border-radius: var(--radius-control);
-  font-size: 15px;
+  font-size: var(--text-sm);
 }
 .invite-done {
   background: var(--line);
@@ -178,12 +185,12 @@
 }
 .invite-success h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 .invite-result-info h3 {
   margin: 0 0 12px;
-  font-size: 16px;
+  font-size: var(--text-md);
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -197,7 +204,7 @@
 .invite-result-info p {
   margin: 4px 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.7;
 }
 .invite-presentation {
@@ -207,7 +214,7 @@
   display: block;
   margin-bottom: 10px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-xs);
 }
 .invite-dialog #admin-created-url {
   display: block;
@@ -218,7 +225,7 @@
   resize: none;
   background: var(--surface);
   color: inherit;
-  font-size: 14px;
+  font-size: var(--text-sm);
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
@@ -232,7 +239,7 @@
 .invite-scan-caption {
   margin: 12px 0 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--text-sm);
   text-align: center;
 }
 .invite-save-note {
@@ -241,7 +248,7 @@
   gap: 8px;
   margin: 18px 0 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.7;
 }
 .invite-save-note svg {
@@ -268,7 +275,7 @@
   padding: 16px 6px;
   border-radius: 16px;
   background: var(--surface);
-  font-size: 14px;
+  font-size: var(--text-sm);
   line-height: 1.45;
 }
 .invite-share-actions svg {
@@ -289,7 +296,7 @@
   }
 }
 @media (--down-sm) {
-  .settings-dialog.admin-dialog.invite-dialog {
+  .settings-dialog.action-dialog.invite-dialog {
     inset: 0;
     margin: 0;
     width: 100%;
@@ -304,7 +311,7 @@
   }
 }
 @media (max-width: 360px) {
-  .settings-dialog.admin-dialog.invite-dialog {
+  .settings-dialog.action-dialog.invite-dialog {
     --invite-padding: 16px;
   }
   .invite-row {

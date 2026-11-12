@@ -7,16 +7,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  font-size: 21px;
-  font-weight: 700;
-  letter-spacing: -0.6px;
   margin: 0 auto 24px;
-  overflow-wrap: anywhere;
-}
-.setup-brand .brand-symbol svg {
-  width: 30px;
-  height: 32px;
 }
 .setup-card {
   max-width: 680px;
@@ -29,19 +20,19 @@
 }
 .setup-eyebrow {
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 600;
 }
 .setup-intro h1 {
-  font-size: 25px;
-  letter-spacing: -0.6px;
+  font-size: var(--text-2xl);
+  letter-spacing: -0.025em;
   line-height: 1.4;
   margin: 8px 0;
 }
 .setup-intro p,
 .setup-instructions {
   color: #747685;
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.8;
   overflow-wrap: anywhere;
 }
@@ -62,7 +53,7 @@
   align-items: center;
   gap: 8px;
   color: #9595a2;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .setup-steps li > span:first-child {
   display: flex;
@@ -88,14 +79,14 @@
   color: var(--accent);
 }
 .setup-card h2 {
-  font-size: 18px;
+  font-size: var(--text-lg);
   font-weight: 600;
   line-height: 1.5;
   margin: 0 0 16px;
   outline: none;
 }
 .setup-card h3 {
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 600;
   line-height: 1.6;
   margin: 0 0 8px;
@@ -125,11 +116,11 @@
   grid-row: span 2;
 }
 .setup-choice strong {
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 .setup-choice > span {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: #858593;
 }
 .setup-choice.selected {
@@ -190,7 +181,7 @@
   max-width: 100%;
 }
 .setup-targets button {
-  font-size: 12px;
+  font-size: var(--text-sm);
   padding: 8px 14px;
   color: #7c7d8b;
   border-radius: 6px;
@@ -208,7 +199,7 @@
 }
 .setup-card code {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.92em;
+  font-size: inherit;
   overflow-wrap: anywhere;
 }
 .setup-instructions {
@@ -221,7 +212,7 @@
   margin: 12px 0 8px;
   gap: 8px;
   color: #82838f;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .setup-code-heading > div {
   display: flex;
@@ -231,7 +222,7 @@
 }
 .setup-card .text-button {
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .setup-code {
   display: block;
@@ -244,7 +235,7 @@
   border-radius: 8px;
   padding: 12px;
   font:
-    11px/1.8 ui-monospace,
+    var(--text-xs)/1.8 ui-monospace,
     SFMono-Regular,
     Consolas,
     monospace;
@@ -264,7 +255,7 @@
 .setup-webhook-existing summary {
   cursor: pointer;
   color: #747383;
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.8;
 }
 .setup-advanced summary:focus-visible,
@@ -284,7 +275,7 @@
 }
 .setup-checklist {
   color: #7b7c8c;
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.8;
 }
 .setup-checklist ul {
@@ -300,7 +291,7 @@
   margin-top: 20px;
 }
 .setup-webhook p {
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.8;
   color: #858593;
   overflow-wrap: anywhere;
@@ -315,7 +306,7 @@
   margin-top: 12px;
 }
 .setup-webhook-actions .secondary-button {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 .setup-webhook-actions button:disabled {
   opacity: 0.5;
@@ -323,7 +314,7 @@
 }
 .setup-webhook-existing > code {
   display: block;
-  font-size: 11px;
+  font-size: var(--text-xs);
   line-height: 1.8;
   color: #656577;
 }
@@ -338,25 +329,25 @@
 }
 .setup-connection-summary span {
   color: #8b8c99;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 .setup-connection-summary strong {
   color: #555368;
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 .setup-certificate-tasks {
   padding-left: 22px;
   margin: 20px 0;
   color: #737484;
-  font-size: 13px;
+  font-size: var(--text-sm);
   line-height: 1.9;
 }
 .setup-certificate-tasks li + li {
   margin-top: 10px;
 }
 .setup-hint {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: #858591;
   line-height: 1.8;
   margin: 18px 0 0;
@@ -369,13 +360,13 @@
   justify-content: space-between;
   gap: 12px;
   color: #9b9ba7;
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 .setup-footer a {
   color: #858593;
 }
 .setup-footer .text-button {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 .demo-preview-note {
   display: flex;
@@ -386,7 +377,7 @@
   border-bottom: 1px solid var(--line);
   background: #f8f7ff;
   color: #807ba4;
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .demo-preview-note .text-button {
   color: var(--accent);
@@ -396,7 +387,6 @@
     padding: 16px;
   }
   .setup-brand {
-    font-size: 20px;
     margin-bottom: 16px;
   }
   .setup-card {
@@ -404,7 +394,7 @@
     border-radius: 12px;
   }
   .setup-intro h1 {
-    font-size: 23px;
+    font-size: var(--text-2xl);
   }
   .setup-steps {
     gap: 12px;
@@ -412,7 +402,7 @@
     padding: 16px 0;
   }
   .setup-steps li {
-    font-size: 11px;
+    font-size: var(--text-xs);
     gap: 6px;
   }
   .setup-choices {
@@ -427,10 +417,10 @@
     gap: 4px;
   }
   .setup-choice strong {
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
   .setup-choice > span {
-    font-size: 10px;
+    font-size: var(--text-xs);
   }
   .setup-choice > svg {
     width: 21px;
@@ -445,7 +435,7 @@
     padding-top: 16px;
   }
   .setup-actions button {
-    font-size: 12px;
+    font-size: var(--text-sm);
   }
   .setup-targets {
     width: 100%;
@@ -453,10 +443,10 @@
   .setup-targets button {
     flex: 1;
     padding: 8px 6px;
-    font-size: 11px;
+    font-size: var(--text-sm);
   }
   .setup-code {
-    font-size: 10px;
+    font-size: var(--text-xs);
   }
   .setup-code-heading > div {
     gap: 10px;
@@ -470,4 +460,15 @@
   .demo-preview-note {
     padding: 6px 16px;
   }
+}
+
+@media (--down-md) {
+  .setup-card input:not([type="checkbox"]),
+  .setup-card select {
+    font-size: var(--text-md);
+  }
+}
+
+.setup-page > h1 {
+  font-size: var(--text-2xl);
 }

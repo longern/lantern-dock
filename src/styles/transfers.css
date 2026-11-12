@@ -10,8 +10,8 @@
   border-radius: 12px;
   background: var(--accent);
   color: #fff;
-  font-size: 10px;
-  line-height: 16px;
+  font-size: var(--text-xs);
+  line-height: 1.5;
 }
 .transfer-window,
 .transfer-summary {
@@ -54,7 +54,7 @@
 }
 .transfer-header h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--text-md);
   font-weight: 600;
 }
 .transfer-tools {
@@ -65,7 +65,7 @@
   padding: 8px 20px;
   min-height: 44px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
   flex-shrink: 0;
 }
 .transfer-tools > span {
@@ -114,13 +114,13 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 .transfer-details p {
   margin: 4px 0 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
   overflow-wrap: anywhere;
 }
 .transfer-details progress {
@@ -159,7 +159,7 @@
 }
 .transfer-summary-open > span > span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 .transfer-summary progress {
   display: block;

@@ -6,7 +6,7 @@ import { Menu } from "./Menu.jsx";
 import { useCompactLayout } from "../hooks/useMediaQuery.js";
 import { useSession } from "../hooks/useSession.jsx";
 import { accountHref } from "../../shared/routes.js";
-import { siteTitle } from "../lib/site-title.js";
+import { Brand } from "./Brand.jsx";
 
 const modes = [
   ["home", "home", "library.home"],
@@ -32,19 +32,15 @@ export function Sidebar({ library, onSettings }) {
   const content = (
     <>
       <div class="sidebar-heading">
-        <a
+        <Brand
+          as="a"
           href="/"
-          class="brand"
+          className="brand"
           onClick={(event) => {
             event.preventDefault();
             library.selectMode("home");
           }}
-        >
-          <span class="brand-symbol">
-            <Icon name="portal" />
-          </span>
-          <span>{siteTitle}</span>
-        </a>
+        />
       </div>
       <nav class="main-nav" aria-label={t("library.resourceNavigation")}>
         {modes.map(([mode, icon, label]) => (
@@ -247,18 +243,20 @@ export function Topbar({
         class={`topbar${actions || transferAction ? " has-actions" : ""}`}
       >
         {mobileFiles ? (
-          <span class="mobile-brand">{t("library.files")}</span>
+          <span class="mobile-brand mobile-page-title">
+            {t("library.files")}
+          </span>
         ) : (
-          <a
+          <Brand
+            as="a"
+            icon={false}
             href="/"
-            class="mobile-brand"
+            className="mobile-brand"
             onClick={(event) => {
               event.preventDefault();
               library.selectMode("home");
             }}
-          >
-            {siteTitle}
-          </a>
+          />
         )}
         {!mobile && !home && breadcrumbs}
         <div class="topbar-right">

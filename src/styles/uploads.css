@@ -5,7 +5,7 @@
   padding: 24px;
 }
 .upload-page .setup-card,
-.settings-dialog.admin-dialog.upload-dialog {
+.settings-dialog.action-dialog.upload-dialog {
   width: min(560px, calc(100vw - 48px));
   max-width: 560px;
   height: min(820px, calc(100dvh - 48px));
@@ -27,17 +27,7 @@
 .upload-brand {
   display: flex;
   align-items: center;
-  gap: 10px;
   margin-bottom: 20px;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  overflow-wrap: anywhere;
-}
-.upload-brand svg {
-  width: 28px;
-  height: 30px;
-  color: var(--accent);
 }
 .upload-heading {
   display: flex;
@@ -49,10 +39,10 @@
 .upload-heading h1,
 .upload-heading h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: var(--text-2xl);
   font-weight: 650;
   line-height: 1.4;
-  letter-spacing: -0.4px;
+  letter-spacing: -0.03em;
 }
 .upload-heading .icon-button {
   margin-right: -10px;
@@ -60,7 +50,7 @@
 .upload-subtitle {
   margin: 8px 0 20px;
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--text-sm);
   line-height: 1.6;
   overflow-wrap: anywhere;
 }
@@ -70,7 +60,7 @@
   padding: 16px;
   background: var(--surface-subtle);
   border-radius: 10px;
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
 .upload-summary-values {
@@ -82,7 +72,7 @@
 }
 .upload-summary-values strong {
   color: var(--accent);
-  font-size: 16px;
+  font-size: var(--text-md);
 }
 .upload-summary progress {
   display: block;
@@ -118,7 +108,7 @@
   margin: 0 var(--upload-padding) 20px;
   padding: 4px 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-xs);
   line-height: 1.7;
 }
 .upload-foreground-note svg {
@@ -151,7 +141,7 @@
 }
 .upload-panel .upload-queue-heading h3 {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 .upload-add {
@@ -224,12 +214,12 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 600;
 }
 .upload-file-info > span,
 .upload-result {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--muted);
   overflow-wrap: anywhere;
 }
@@ -263,7 +253,7 @@
 .upload-resume-actions {
   grid-column: 2 / -1;
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-xs);
   line-height: 1.7;
   overflow-wrap: anywhere;
 }
@@ -331,12 +321,12 @@
   color: var(--accent);
 }
 .upload-drop strong {
-  font-size: 16px;
+  font-size: var(--text-md);
   font-weight: 600;
 }
 .upload-drop span {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-xs);
 }
 .upload-drop.disabled {
   cursor: default;
@@ -344,7 +334,7 @@
 .upload-selection-note {
   margin: 16px 0;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-xs);
   text-align: center;
 }
 .upload-limits {
@@ -358,18 +348,18 @@
 }
 .upload-limits dt {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
   margin-bottom: 4px;
 }
 .upload-limits dd {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
 .upload-message {
   margin: 0 0 16px;
   color: var(--muted);
-  font-size: 14px;
+  font-size: var(--text-sm);
   line-height: 1.7;
 }
 .upload-message[role="alert"] {
@@ -417,7 +407,7 @@
   width: 100%;
   padding: 12px;
   color: var(--accent);
-  font-size: 13px;
+  font-size: var(--text-sm);
   text-align: center;
 }
 @media (--down-sm) {
@@ -425,7 +415,7 @@
     padding: 16px;
   }
   .upload-page .setup-card,
-  .settings-dialog.admin-dialog.upload-dialog {
+  .settings-dialog.action-dialog.upload-dialog {
     width: calc(100vw - 32px);
     height: min(820px, calc(100dvh - 32px));
     max-height: calc(100dvh - 32px);
@@ -457,7 +447,7 @@
     padding: 8px 16px;
   }
   .upload-page .setup-card,
-  .settings-dialog.admin-dialog.upload-dialog {
+  .settings-dialog.action-dialog.upload-dialog {
     height: calc(100dvh - 16px);
     max-height: calc(100dvh - 16px);
   }
@@ -479,7 +469,7 @@
   }
   .upload-heading h1,
   .upload-heading h2 {
-    font-size: 20px;
+    font-size: var(--text-xl);
   }
   .upload-summary {
     display: grid;
@@ -496,12 +486,12 @@
     align-self: center;
   }
   .upload-summary p {
-    font-size: 12px;
+    font-size: var(--text-xs);
   }
   .upload-foreground-note {
     margin-bottom: 8px;
     padding: 2px 0;
-    font-size: 12px;
+    font-size: var(--text-xs);
     line-height: 1.5;
   }
   .upload-queue-heading {
@@ -516,7 +506,7 @@
 }
 @media (--up-md) {
   .upload-page .setup-card,
-  .settings-dialog.admin-dialog.upload-dialog {
+  .settings-dialog.action-dialog.upload-dialog {
     width: min(1000px, calc(100vw - 64px));
     max-width: 1000px;
     height: min(760px, calc(100dvh - 48px));
@@ -551,5 +541,15 @@
   .upload-actions {
     grid-area: actions;
     margin-top: 0;
+  }
+}
+
+@media (--down-md) {
+  .upload-panel[data-has-files] .upload-brand {
+    display: none;
+  }
+  .upload-panel[data-has-files] .upload-heading h1,
+  .upload-panel[data-has-files] .upload-heading h2 {
+    font-size: var(--text-xl);
   }
 }

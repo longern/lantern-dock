@@ -107,7 +107,7 @@ test("desktop favorites keep the existing subpage heading styles", async ({
     exact: true,
   });
   await expect(pageHeading).toHaveCSS("display", "flex");
-  await expect(title).toHaveCSS("font-size", "22px");
+  await expect(title).toHaveCSS("font-size", "24px");
   await expect(title).toHaveCSS("font-weight", "650");
   await expect(pageHeading.locator("#favorites-back")).toHaveCSS(
     "width",

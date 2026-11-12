@@ -4,7 +4,7 @@
 
 LanternDock can use workers-sso through OIDC Discovery and Client ID Metadata Documents (CIMD). Public files and temporary collection links remain accessible without signing in. The account page at `/account` shows the signed-in identity, a copyable `sub`, and the role verified by the NAS.
 
-This version recognizes administrators and ordinary users. Verified administrators can open `/admin/links` from **Me** on mobile or **My account** on desktop to create/list/revoke collection links and list/download completed private inbox files. The NAS checks its local administrator list and the required scope on every request. Signing in alone grants no management access; personal spaces and named-user permissions are not implemented. The CLI remains an optional administration path.
+This version recognizes administrators and ordinary users. Verified administrators can open `/admin/links` from **Me** on mobile or **My account** on desktop to create/list/revoke collection links and list/download completed private inbox files. The NAS checks its local administrator list and the required scope on every request. Administrators can also manage individual members’ direct-upload permissions and per-file/daily file-count limits under `/admin/users`. Signing in alone grants no management or upload permission. Uploaded files remain in the private inbox; isolated personal file spaces are not implemented. The CLI remains an optional administration path.
 
 ## Configure the Worker
 
