@@ -111,10 +111,16 @@ ul.file-grid {
 }
 .file-meta {
   display: flex;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 2px 6px;
   color: var(--muted);
   font-size: var(--text-xs);
   padding-top: 6px;
+  white-space: nowrap;
+}
+.file-meta-date {
+  display: flex;
+  column-gap: inherit;
 }
 .row-modified,
 .row-size {
@@ -308,6 +314,6 @@ ul.file-grid {
   }
   .list-layout .file-meta {
     display: flex;
-    gap: 5px;
+    column-gap: 5px;
   }
 }

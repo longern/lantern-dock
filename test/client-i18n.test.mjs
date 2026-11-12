@@ -75,9 +75,11 @@ function clientFor(language) {
     };
     await new UploadClient({ transport: 'http', endpoint: 'https://files.example' }, 'test').sendHTTP('/api/inbox/example', new Blob(['x']));
     const sampleDate = '2026-11-07T08:09:00Z';
+    const currentYear = new Date().getFullYear();
+    const compactDates = [currentYear, currentYear - 1].map(year => date(new Date(year, 10, 4, 12)));
     console.log(JSON.stringify({
       locale, labels: groups.map(group => group.label), dayLabels: dayGroups.map(group => group.label),
-      category: categoryLabel('album'), size: bytes(1536), date: date(sampleDate, true),
+      category: categoryLabel('album'), size: bytes(1536), date: date(sampleDate, true), compactDates, previousYear: currentYear - 1,
       expectedDate: new Intl.DateTimeFormat(locale, { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(sampleDate)),
       errors, generated, reset, emptyGenerated, emptyReset, custom,
       defaultName: defaultForm.name, explicitDefault, explicitDefaultReset, explicitOther, clearedName, staleFlag, unsupportedVideo, headers, xhrLanguage, bridgeHeaders,
@@ -132,6 +134,10 @@ for (const [language, locale] of [
       /private\.example|token=secret|\/private\/|personal note|secr/,
     );
     if (locale === "en") {
+      assert.deepEqual(client.compactDates, [
+        "11/04",
+        `11/04/${client.previousYear}`,
+      ]);
       assert.deepEqual(client.labels, [
         "January 1, 2027",
         "Today",
@@ -146,6 +152,10 @@ for (const [language, locale] of [
       );
       assert.match(client.errors[1].message, /sign-in/);
     } else {
+      assert.deepEqual(client.compactDates, [
+        "11/04",
+        `${client.previousYear}/11/04`,
+      ]);
       assert.deepEqual(client.labels, [
         "2027年1月1日",
         "今天",

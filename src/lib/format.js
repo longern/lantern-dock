@@ -35,6 +35,13 @@ export function date(value, full = false) {
           minute: "2-digit",
           hour12: false,
         }
-      : { month: "2-digit", day: "2-digit" },
+      : {
+          year:
+            parsed.getFullYear() === new Date().getFullYear()
+              ? undefined
+              : "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        },
   ).format(parsed);
 }

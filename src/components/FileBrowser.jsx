@@ -76,8 +76,10 @@ function FileItem({
             <span>
               {item.isDirectory ? t("library.folder") : bytes(item.size)}
             </span>
-            <span class="separator">·</span>
-            <span>{date(recent ? item.visitedAt : item.modified)}</span>
+            <span class="file-meta-date">
+              <span aria-hidden="true">·</span>
+              <span>{date(recent ? item.visitedAt : item.modified)}</span>
+            </span>
           </span>
         </span>
         <span class="row-modified">
