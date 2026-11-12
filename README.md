@@ -191,4 +191,4 @@ UI changes should also run the browser tests; transport changes should run the r
 
 ## License
 
-A project license has not yet been specified in this repository.
+LanternDock is licensed under the [MIT License](LICENSE).
