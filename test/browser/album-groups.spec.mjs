@@ -286,7 +286,7 @@ test("refreshed listings prune empty groups and preview closes back to the same 
   await replaceListing(page, []);
   await expect(page.locator(".album-group")).toHaveCount(0);
   await expect(
-    albumSurface(page).getByRole("heading", { name: "暂无文件", exact: true }),
+    albumSurface(page).getByRole("heading", { name: "暂无照片", exact: true }),
   ).toBeVisible();
   await expect(
     albumSurface(page).getByRole("searchbox", { includeHidden: true }),
@@ -456,7 +456,7 @@ test("video-only albums are not empty, while truly empty albums have no date gro
   await refreshAlbum(albumSurface(page));
   await expect(page.locator(".album-group,.album-item")).toHaveCount(0);
   await expect(
-    albumSurface(page).getByRole("heading", { name: "暂无文件", exact: true }),
+    albumSurface(page).getByRole("heading", { name: "暂无照片", exact: true }),
   ).toBeVisible();
 });
 
@@ -488,21 +488,22 @@ test("separate sidebar image and video filters do not mix file types", async ({
   }
 });
 
-test("a failed refresh does not leave stale date groups or fabricate an unknown group", async ({
+test("a failed refresh preserves the date groups and offers retry below them", async ({
   page,
 }) => {
+  const scope = albumSurface(page);
+  const groups = scope.locator(".album-date");
+  const dates = await groups.allTextContents();
   await page.route("**/dav/**", (route) => route.fulfill({ status: 503 }));
-  await refreshAlbum(albumSurface(page));
+  await refreshAlbum(scope);
+  const footer = scope.locator(".album-paging");
   await expect(
-    albumSurface(page).getByRole("heading", {
-      name: "无法读取文件",
-      exact: true,
-    }),
+    footer.getByText("暂时无法更新照片。", { exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".album-group,.album-item,.skeleton")).toHaveCount(
-    0,
-  );
-  await expect(page.locator("#file-list")).toHaveAttribute(
+  await expect(footer.getByRole("button", { name: "重试" })).toBeVisible();
+  await expect(groups).toHaveText(dates);
+  await expect(scope.locator(".album-item")).toHaveCount(14);
+  await expect(scope.locator("#file-list")).toHaveAttribute(
     "aria-busy",
     "false",
   );
@@ -630,7 +631,7 @@ test("refresh is a menu action and keyboard navigation skips it while loading", 
     await expect(menu).toHaveCount(0);
     menu = await openAlbumOptions(scope);
     await expect(
-      menu.getByRole("menuitem", { name: "刷新", exact: true }),
+      menu.getByRole("menuitem", { name: "正在查找新照片", exact: true }),
     ).toBeDisabled();
     await menu.press("End");
     await expect(

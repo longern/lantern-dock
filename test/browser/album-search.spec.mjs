@@ -3,7 +3,11 @@ import { readFile } from "node:fs/promises";
 import { openItem } from "../helpers/open-item.mjs";
 import { searchNamespace } from "../../src/lib/search.js";
 import { isCompact } from "../helpers/responsive.mjs";
-import { refreshAlbum } from "../helpers/album-options.mjs";
+import {
+  albumOptionsButton,
+  openAlbumOptions,
+  refreshAlbum,
+} from "../helpers/album-options.mjs";
 
 const test = base.extend({
   page: async ({ page }, use) => {
@@ -94,6 +98,8 @@ async function install(page, options = {}) {
           body: "SEARCH not allowed by bridge",
         });
       const cursor = /<l:cursor>([^<]+)<\/l:cursor>/.exec(body)?.[1] || "";
+      if (!cursor && state.searchUnavailable)
+        return route.fulfill({ status: 503 });
       if (cursor && state.gate) await state.gate;
       if (cursor && state.expire) {
         state.expire = false;
@@ -105,10 +111,9 @@ async function install(page, options = {}) {
         });
       }
       const offset = cursor ? Number(cursor.split("-").at(-1)) : 0;
-      const source =
-        state.status === "scanning" || state.status === "error"
-          ? []
-          : photos.filter((item) => item.path.startsWith(path));
+      const source = (
+        state.results ?? (state.status === "ready" ? photos : [])
+      ).filter((item) => item.path.startsWith(path));
       const items = source.slice(offset, offset + state.pageSize);
       const more = offset + state.pageSize < source.length;
       return route.fulfill({
@@ -220,13 +225,17 @@ test("the first index is polled until ready without reporting no photos", async 
 }, testInfo) => {
   const state = await install(page, { status: "scanning" });
   await page.goto("/album/");
-  await expect(page.getByText("正在整理照片…", { exact: true })).toBeVisible();
-  await expect(albumScope(page).locator(".empty-state")).toHaveCount(0);
+  const empty = albumScope(page).locator(".empty-state");
+  await expect(empty.getByText("正在查找照片", { exact: true })).toBeVisible();
+  await expect(
+    empty.getByText("找到的照片会自动显示。", { exact: true }),
+  ).toBeVisible();
+  await expect(empty.getByText("暂无照片", { exact: true })).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("album-indexing.png") });
   state.status = "ready";
   state.revision = "revision-ready";
   await expect(items(page)).toHaveCount(128, { timeout: 10000 });
-  await expect(page.getByText("正在整理照片…", { exact: true })).toHaveCount(0);
+  await expect(empty).toHaveCount(0);
 });
 
 test("an incomplete index error offers retry without claiming the library is empty", async ({
@@ -234,17 +243,93 @@ test("an incomplete index error offers retry without claiming the library is emp
 }) => {
   const state = await install(page, { status: "error" });
   await page.goto("/album/");
+  const empty = albumScope(page).locator(".empty-state");
   await expect(
-    page.getByText("部分目录未能完成索引，请尝试刷新。", { exact: true }),
+    empty.getByText("暂时无法读取相册", { exact: true }),
   ).toBeVisible();
-  await expect(albumScope(page).locator(".empty-state")).toHaveCount(0);
   state.status = "ready";
   state.revision = "recovered";
-  await page
-    .locator(".album-index-status")
-    .getByRole("button", { name: "重试", exact: true })
-    .click();
+  await empty.getByRole("button", { name: "重试", exact: true }).click();
   await expect(items(page)).toHaveCount(128);
+});
+
+test("a background index update is silent and anchors the visible photo across revisions", async ({
+  page,
+}) => {
+  const state = await install(page, { status: "scanning", results: photos });
+  const scope = albumScope(page);
+  await page.goto("/album/");
+  await page.addStyleTag({ content: "* { overflow-anchor: none !important }" });
+  await expect(items(page)).toHaveCount(128);
+  await items(page).last().scrollIntoViewIfNeeded();
+  await expect(items(page)).toHaveCount(180);
+  await items(page).nth(140).scrollIntoViewIfNeeded();
+  await expect(scope.getByText("正在查找照片", { exact: true })).toHaveCount(0);
+  await expect(albumOptionsButton(scope)).not.toHaveClass(/album-refreshing/);
+  const { path, top } = await scope.locator("#file-list").evaluate((list) => {
+    const header = list
+      .closest("dialog, .main-area")
+      .querySelector(".page-dialog-header, .browser-header");
+    const boundary = header.getBoundingClientRect().bottom;
+    const photo = [...list.querySelectorAll("button[data-path]")].find(
+      (node) => node.getBoundingClientRect().bottom > boundary,
+    );
+    return { path: photo.dataset.path, top: photo.getBoundingClientRect().top };
+  });
+  state.results = [
+    ...Array.from({ length: 18 }, (_, index) => ({
+      path: `/dav/new-${index}.jpg`,
+      modified: new Date(Date.UTC(2026, 10, 10)).toUTCString(),
+    })),
+    ...photos,
+  ];
+  state.status = "ready";
+  state.revision = "updated";
+  await expect(items(page)).toHaveCount(198, { timeout: 10000 });
+  const anchor = scope.locator(`button[data-path="${path}"]`);
+  const updatedTop = await anchor.evaluate(
+    (node) => node.getBoundingClientRect().top,
+  );
+  expect(Math.abs(updatedTop - top)).toBeLessThanOrEqual(1);
+});
+
+test("manual refresh stays in the header and a request failure leaves the grid in place", async ({
+  page,
+}) => {
+  const state = await install(page, { results: photos.slice(0, 20) });
+  const scope = albumScope(page);
+  await page.goto("/album/");
+  await expect(items(page)).toHaveCount(20);
+  const firstPhotoTop = () =>
+    items(page)
+      .first()
+      .evaluate((node) => node.getBoundingClientRect().top);
+  const top = await firstPhotoTop();
+  state.status = "scanning";
+  await refreshAlbum(scope);
+  await expect(albumOptionsButton(scope)).toHaveClass(/album-refreshing/);
+  const menu = await openAlbumOptions(scope);
+  await expect(
+    menu.getByRole("menuitem", { name: "正在查找新照片" }),
+  ).toBeDisabled();
+  await page.keyboard.press("Escape");
+  expect(await firstPhotoTop()).toBe(top);
+
+  state.searchUnavailable = true;
+  const footer = scope.locator(".album-paging");
+  await expect(
+    footer.getByText("暂时无法更新照片。", { exact: true }),
+  ).toBeVisible({ timeout: 10000 });
+  await expect(albumOptionsButton(scope)).not.toHaveClass(/album-refreshing/);
+  await expect(items(page)).toHaveCount(20);
+  expect(await firstPhotoTop()).toBe(top);
+
+  state.searchUnavailable = false;
+  state.status = "ready";
+  await footer.getByRole("button", { name: "重试", exact: true }).click();
+  await expect(footer).toHaveCount(0);
+  await expect(items(page)).toHaveCount(20);
+  expect(await firstPhotoTop()).toBe(top);
 });
 
 test("an older bridge that rejects SEARCH falls back without making the album unusable", async ({

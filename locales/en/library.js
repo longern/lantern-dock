@@ -178,8 +178,15 @@ export default {
   zoomOut: "Zoom out",
   mediaDetails: "File details",
   info: "Info",
-  albumIndexing: "Organizing photos…",
-  albumIndexError: "Some folders could not be indexed. Try refreshing.",
+  albumFinding: "Looking for photos",
+  albumFindingHint: "Photos will appear as they’re found.",
+  albumEmpty: "No photos yet",
+  albumEmptyHint: "This folder has no photos or videos yet.",
+  albumRefreshing: "Looking for new photos",
+  albumUnavailable: "Couldn’t load the album",
+  albumRetryHint: "Try again to see the photos in this folder.",
+  albumIndexError: "Some photos aren’t available yet.",
+  albumRefreshError: "Couldn’t update the photos.",
   albumPartialResults:
     "Only part of the library is available from this server.",
   albumCurrentFolderOnly:

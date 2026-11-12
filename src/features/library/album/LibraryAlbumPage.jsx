@@ -19,7 +19,7 @@ export function LibraryAlbumPage({
   const current = {
     ...library,
     ...source.album,
-    error: source.album.error || (!source.connection ? source.error : null),
+    error: !source.connection ? source.error : null,
     mode: "all",
     kind: "album",
     query: "",

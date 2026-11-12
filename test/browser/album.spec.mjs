@@ -83,7 +83,9 @@ for (const service of ["unavailable", "unsupported", "broken-image"]) {
       return route.fulfill({ contentType: "image/jpeg", body: "not an image" });
     });
     await page.route("**/dav/**", (route) => {
-      if (route.request().method() === "PROPFIND")
+      const method = route.request().method();
+      if (method === "OPTIONS") return route.fulfill({ status: 204 });
+      if (method === "PROPFIND")
         return route.fulfill({
           status: 207,
           contentType: "application/xml",

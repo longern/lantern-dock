@@ -7,10 +7,12 @@ const empty = Object.freeze({
   entries: [],
   loading: true,
   loadingMore: false,
+  refreshing: false,
   cursor: "",
+  pages: 0,
   indexState: null,
   revision: "",
-  error: null,
+  requestError: null,
   pageError: null,
 });
 export function useAlbum(connection, path, enabled) {
@@ -32,9 +34,21 @@ export function useAlbum(connection, path, enabled) {
       if (lifetime.signal.aborted) return;
       value = next;
       setState({ ...next, client, path });
-      if (next.error || next.pageError) storage.delete(path);
-      if (!next.error && !next.pageError && !next.loading && !next.loadingMore)
+      if (next.requestError || next.pageError) storage.delete(path);
+      else if (!next.loading && !next.loadingMore && !next.refreshing)
         storage.set(path, next, JSON.stringify(next.entries).length * 2 + 1024);
+    };
+    const nextPage = async (cursor, revision, used, signal) => {
+      const page = await searchAlbum(client, path, { cursor }, signal);
+      signal.throwIfAborted();
+      if (
+        page.revision !== revision ||
+        page.cursor === cursor ||
+        (page.cursor && used.has(page.cursor))
+      )
+        throw coreError("SEARCH_INVALID");
+      used.add(cursor);
+      return page;
     };
     const schedule = () => {
       clearTimeout(polling);
@@ -51,37 +65,91 @@ export function useAlbum(connection, path, enabled) {
       const controller = new AbortController();
       firstRequest = controller;
       const signal = AbortSignal.any([controller.signal, lifetime.signal]);
+      const current = keep ? value : empty;
       publish({
-        ...(keep ? value : empty),
+        ...current,
         loading: true,
         loadingMore: false,
-        error: null,
-        pageError: null,
+        refreshing: refresh || current.refreshing,
+        requestError: refresh ? null : current.requestError,
+        pageError: refresh ? null : current.pageError,
       });
+      let firstPage;
       try {
-        const page = await searchAlbum(client, path, { refresh }, signal);
-        if (signal.aborted) return;
-        // A status poll for the same index must not discard already loaded
-        // pages, change scroll position or invalidate a selection.
-        const same = keep && page.revision && page.revision === value.revision;
-        if (!same) seen = new Set();
+        firstPage = await searchAlbum(client, path, { refresh }, signal);
+        signal.throwIfAborted();
+        let page = firstPage;
+        let entries = firstPage.entries;
+        let pages = 1;
+        const same =
+          current.entries.length &&
+          page.revision &&
+          page.revision === current.revision &&
+          !(refresh && current.pageError);
+        if (same) {
+          // Keep the DOM and loaded pages intact for status-only changes.
+          entries = current.entries;
+          pages = current.pages;
+          page = {
+            ...page,
+            cursor: current.cursor,
+            partial: page.cursor ? current.partial : page.partial,
+          };
+        } else {
+          const used = new Set();
+          if (page.cursor && current.entries.length) {
+            // Load the previously browsed range before replacing the grid.
+            // Allow one extra page when new entries push existing photos back.
+            const previous = new Set(current.entries.map((item) => item.path));
+            const target =
+              current.entries.length +
+              entries.filter((item) => !previous.has(item.path)).length;
+            const collected = new Map(entries.map((item) => [item.path, item]));
+            while (
+              page.cursor &&
+              collected.size < target &&
+              pages <= current.pages
+            ) {
+              page = await nextPage(
+                page.cursor,
+                firstPage.revision,
+                used,
+                signal,
+              );
+              pages++;
+              for (const item of page.entries) collected.set(item.path, item);
+            }
+            if (used.size) entries = [...collected.values()];
+          }
+          seen = used;
+        }
         publish({
           ...page,
-          ...(same
-            ? {
-                entries: value.entries,
-                cursor: value.cursor,
-                partial: value.partial,
-              }
-            : {}),
+          entries,
+          pages,
           loading: false,
           loadingMore: false,
-          error: null,
-          pageError: null,
+          refreshing: value.refreshing && page.indexState === "scanning",
+          requestError: null,
+          pageError: same ? current.pageError : null,
         });
         return value.entries;
       } catch (error) {
-        if (!signal.aborted) publish({ ...value, loading: false, error });
+        if (signal.aborted) return;
+        if (
+          error.code === "SEARCH_CURSOR_EXPIRED" &&
+          firstPage?.indexState === "scanning"
+        ) {
+          // The scan published another batch while the replacement was loading.
+          publish({ ...value, loading: false, indexState: "scanning" });
+        } else {
+          publish({
+            ...value,
+            loading: false,
+            refreshing: false,
+            requestError: error,
+          });
+        }
       } finally {
         if (firstRequest === controller) firstRequest = null;
         if (!lifetime.signal.aborted) schedule();
@@ -101,15 +169,7 @@ export function useAlbum(connection, path, enabled) {
       const signal = AbortSignal.any([controller.signal, lifetime.signal]);
       publish({ ...value, loadingMore: true, pageError: null });
       try {
-        const page = await searchAlbum(client, path, { cursor }, signal);
-        if (signal.aborted) return;
-        if (
-          (value.revision && page.revision !== value.revision) ||
-          page.cursor === cursor ||
-          (page.cursor && seen.has(page.cursor))
-        )
-          throw coreError("SEARCH_INVALID");
-        seen.add(cursor);
+        const page = await nextPage(cursor, value.revision, seen, signal);
         const entries = [
           ...new Map(
             [...value.entries, ...page.entries].map((item) => [
@@ -121,9 +181,11 @@ export function useAlbum(connection, path, enabled) {
         publish({
           ...page,
           entries,
+          pages: value.pages + 1,
           loading: false,
           loadingMore: false,
-          error: null,
+          refreshing: value.refreshing && page.indexState === "scanning",
+          requestError: value.requestError,
           pageError: null,
         });
         return entries;
@@ -137,6 +199,7 @@ export function useAlbum(connection, path, enabled) {
     };
     owner.more = more;
     owner.refresh = () => {
+      if (value.refreshing) return;
       client.images?.expire();
       return first(true, true);
     };
@@ -146,7 +209,7 @@ export function useAlbum(connection, path, enabled) {
       ...value,
       loading: !cached,
       loadingMore: false,
-      error: null,
+      requestError: null,
       pageError: null,
     });
     if (cached && Date.now() - cached.time < 15000) schedule();

@@ -17,7 +17,9 @@ import { useFileSelection } from "./useFileSelection.js";
 import { SelectionActions } from "./SelectionActions.jsx";
 import { FileItemMenu } from "./FileItemMenu.jsx";
 import { FileDetails } from "../preview/FileDetails.jsx";
-import { AlbumPaging, AlbumIndexStatus } from "../album/AlbumPaging.jsx";
+import { AlbumPaging } from "../album/AlbumPaging.jsx";
+import { AlbumEmptyState } from "../album/AlbumEmptyState.jsx";
+import { AlbumTimeline } from "../album/AlbumTimeline.jsx";
 
 const noEntries = [];
 
@@ -146,10 +148,14 @@ export function FileBrowser({
   );
   const home = library.mode === "home";
   const card = home || (library.mode === "all" && !album);
-  const Collection = album ? "div" : "ul";
+  const albumSearch = album && !!library.scope;
+  const Collection = albumSearch ? AlbumTimeline : album ? "div" : "ul";
   const error =
     recordsError || (usesDirectory || recordsPending ? library.error : null);
-  const busy = !error && (recordsPending || (library.loading && usesDirectory));
+  const busy =
+    !error &&
+    (recordsPending ||
+      (library.loading && usesDirectory && !(albumSearch && entries.length)));
   const [albumOrder, setAlbumOrder] = useState(null);
   const [contextMenu, setContextMenu] = useState(null);
   const [details, setDetails] = useState(null);
@@ -312,9 +318,15 @@ export function FileBrowser({
         </span>
         <span>{t("library.size")}</span>
       </div>
-      {album && <AlbumIndexStatus library={library} />}
       <Collection
-        ref={selection.list}
+        {...(albumSearch
+          ? {
+              listRef: selection.list,
+              scope: library.scope,
+              revision: library.revision,
+              entries,
+            }
+          : { ref: selection.list })}
         tabIndex={-1}
         id={listId}
         role={album ? undefined : "list"}
@@ -348,7 +360,7 @@ export function FileBrowser({
             }
             view={library.albumView}
             entries={error ? noEntries : entries}
-            loading={busy}
+            loading={busy && !albumSearch}
             client={library.connection?.client}
             demo={library.backend?.transport === "demo"}
             selected={selected}
@@ -386,7 +398,10 @@ export function FileBrowser({
           ))
         )}
       </Collection>
-      {album && <AlbumPaging library={library} />}
+      {albumSearch && !error && !entries.length && (
+        <AlbumEmptyState library={library} />
+      )}
+      {album && <AlbumPaging library={library} hasPhotos={!!entries.length} />}
       {selection.touch && (
         <SelectionActions
           selection={selection}
@@ -399,67 +414,62 @@ export function FileBrowser({
           onDetails={openDetails}
         />
       )}
-      {!busy &&
-        !entries.length &&
-        !error &&
-        !(album && ["scanning", "error"].includes(library.indexState)) && (
-          <div class="empty-state">
-            <span class="empty-symbol">
-              <Icon
-                name={
-                  library.query
-                    ? "search"
-                    : library.mode === "favorites"
-                      ? "star"
-                      : recent
-                        ? "clock"
-                        : "folder"
-                }
-              />
-            </span>
-            <h2>
-              {library.query
-                ? t("library.noMatchingFiles")
-                : library.mode === "favorites"
-                  ? t("library.noFavorites")
-                  : recent
-                    ? t("library.noRecentFiles")
-                    : t("library.noFiles")}
-            </h2>
-            <p>
-              {library.query
-                ? t("library.tryKeywords")
-                : library.mode === "favorites"
-                  ? t("library.favoritesHint")
-                  : recent
-                    ? t("library.recentFilesHint")
-                    : library.kind
-                      ? t("library.noFilesOfType")
-                      : t("library.emptyFolderHint")}
-            </p>
-            {library.query && (
-              <button
-                class="secondary-button"
-                onClick={() => library.setQuery("")}
-              >
-                {t("library.clearSearch")}
-              </button>
-            )}
-            {!library.query && library.kind && (
-              <button
-                class="secondary-button"
-                onClick={() => library.selectMode("all")}
-              >
-                {t("library.viewAllFiles")}
-              </button>
-            )}
-            {!library.query && !usesDirectory && (
-              <span class="empty-footnote">
-                {t("library.localRecordsNote")}
-              </span>
-            )}
-          </div>
-        )}
+      {!busy && !entries.length && !error && !albumSearch && (
+        <div class="empty-state">
+          <span class="empty-symbol">
+            <Icon
+              name={
+                library.query
+                  ? "search"
+                  : library.mode === "favorites"
+                    ? "star"
+                    : recent
+                      ? "clock"
+                      : "folder"
+              }
+            />
+          </span>
+          <h2>
+            {library.query
+              ? t("library.noMatchingFiles")
+              : library.mode === "favorites"
+                ? t("library.noFavorites")
+                : recent
+                  ? t("library.noRecentFiles")
+                  : t("library.noFiles")}
+          </h2>
+          <p>
+            {library.query
+              ? t("library.tryKeywords")
+              : library.mode === "favorites"
+                ? t("library.favoritesHint")
+                : recent
+                  ? t("library.recentFilesHint")
+                  : library.kind
+                    ? t("library.noFilesOfType")
+                    : t("library.emptyFolderHint")}
+          </p>
+          {library.query && (
+            <button
+              class="secondary-button"
+              onClick={() => library.setQuery("")}
+            >
+              {t("library.clearSearch")}
+            </button>
+          )}
+          {!library.query && library.kind && (
+            <button
+              class="secondary-button"
+              onClick={() => library.selectMode("all")}
+            >
+              {t("library.viewAllFiles")}
+            </button>
+          )}
+          {!library.query && !usesDirectory && (
+            <span class="empty-footnote">{t("library.localRecordsNote")}</span>
+          )}
+        </div>
+      )}
       <FileItemMenu
         request={contextMenu}
         onDismiss={() => setContextMenu(null)}

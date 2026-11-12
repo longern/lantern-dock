@@ -1,30 +1,15 @@
 import { useEffect, useRef } from "preact/hooks";
 import { t } from "../../../../shared/i18n.js";
 
-export function AlbumIndexStatus({ library }) {
-  const error = library.indexState === "error";
-  if (!error && library.indexState !== "scanning") return null;
-  return (
-    <div class="album-index-status">
-      <p role="status">
-        {t(error ? "library.albumIndexError" : "library.albumIndexing")}
-      </p>
-      {error && (
-        <button class="text-button" onClick={library.refresh}>
-          {t("library.retry")}
-        </button>
-      )}
-    </div>
-  );
-}
-
-export function AlbumPaging({ library }) {
+export function AlbumPaging({ library, hasPhotos }) {
   const marker = useRef(null);
   const {
     hasMore,
     loadingMore,
     loading,
+    refreshing,
     pageError,
+    requestError,
     indexState,
     partial,
     supported,
@@ -53,13 +38,20 @@ export function AlbumPaging({ library }) {
       document.removeEventListener("close", load, true);
     };
   }, [hasMore, loadingMore, loading, pageError, loadMore]);
+  const refreshError = hasPhotos && (requestError || indexState === "error");
   const status =
     pageError?.message ||
-    (partial && !hasMore && !["scanning", "error"].includes(indexState)
-      ? t("library.albumPartialResults")
-      : supported === false && library.connection?.client.transport
-        ? t("library.albumCurrentFolderOnly")
-        : "");
+    (refreshError
+      ? t(
+          requestError
+            ? "library.albumRefreshError"
+            : "library.albumIndexError",
+        )
+      : partial && !hasMore && !["scanning", "error"].includes(indexState)
+        ? t("library.albumPartialResults")
+        : supported === false && library.connection?.client.transport
+          ? t("library.albumCurrentFolderOnly")
+          : "");
   if (!hasMore && !status) return null;
   return (
     <div class="album-paging" ref={marker}>
@@ -67,17 +59,20 @@ export function AlbumPaging({ library }) {
       {hasMore && !pageError && (
         <button
           class="text-button"
-          disabled={loadingMore || loading}
+          disabled={loadingMore || (loading && !hasPhotos)}
           onClick={loadMore}
         >
           {t(loadingMore ? "library.loadingMore" : "library.loadMore")}
         </button>
       )}
-      {pageError && (
+      {(pageError || refreshError) && (
         <button
           class="text-button"
+          disabled={refreshing}
           onClick={
-            pageError?.code === "SEARCH_CURSOR_EXPIRED" ? refresh : loadMore
+            !pageError || pageError.code === "SEARCH_CURSOR_EXPIRED"
+              ? refresh
+              : loadMore
           }
         >
           {t("library.retry")}

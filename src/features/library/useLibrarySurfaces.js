@@ -17,8 +17,7 @@ export function useLibrarySurfaces(source, mobile) {
     ...(route === "album" && !mobile ? source.album : {}),
     ...(route === "album" && !mobile
       ? {
-          error:
-            source.album.error || (!source.connection ? source.error : null),
+          error: !source.connection ? source.error : null,
         }
       : {}),
     mode:
