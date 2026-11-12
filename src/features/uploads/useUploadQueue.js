@@ -1,6 +1,7 @@
-import { t, locale } from "../../../shared/i18n.js";
+import { t } from "../../../shared/i18n.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { UploadClient, uploadBatchKey } from "../../lib/uploads.js";
+import { fetchConfiguration } from "../../lib/configuration.js";
 
 function savedBatch(key) {
   try {
@@ -87,11 +88,7 @@ export function useUploadQueue({
         if (!/^[A-Za-z0-9_-]{43}$/.test(token))
           throw new Error(t("account.invalidUploadLink"));
         if (crypto.subtle) key = await uploadBatchKey(token);
-        const response = await fetch("/api/config", {
-          cache: "no-store",
-          headers: { "Accept-Language": locale },
-          signal: controller.signal,
-        });
+        const response = await fetchConfiguration(controller.signal);
         const config = await response.json();
         if (
           !response.ok ||

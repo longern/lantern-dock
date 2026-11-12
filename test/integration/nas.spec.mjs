@@ -282,9 +282,7 @@ test("NAS serves public read-only WebDAV and receives a private file through the
   await expect(page.locator(".preview-content pre")).toHaveText(textFile);
   const created = await fixture.nas.createLink();
   await page.goto(created.url);
-  await expect(
-    page.getByRole("heading", { name: "临时收照片", exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".upload-subtitle")).toHaveText("临时收照片");
   const contents = "你好，临时收件箱！\n";
   await page.getByLabel("选择上传文件").setInputFiles({
     name: "来访资料.txt",
@@ -402,15 +400,15 @@ test("NAS upload links enforce size, quotas, expiry and revocation in the browse
     maxFiles: 1,
   });
   await page.goto(created.url);
-  await expect(
-    page.getByRole("heading", { name: "临时收照片", exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".upload-subtitle")).toHaveText("临时收照片");
   await page.getByLabel("选择上传文件").setInputFiles({
     name: "too-big.txt",
     mimeType: "text/plain",
     buffer: Buffer.from("123456789"),
   });
-  await expect(page.getByRole("status")).toContainText("单文件大小限制");
+  await expect(page.locator(".upload-file-error")).toContainText(
+    "单文件大小限制",
+  );
   await page.getByLabel("选择上传文件").setInputFiles({
     name: "fits.txt",
     mimeType: "text/plain",
@@ -419,7 +417,7 @@ test("NAS upload links enforce size, quotas, expiry and revocation in the browse
   await expect(
     page.getByRole("status").filter({ hasText: "已接收" }),
   ).toHaveCount(1);
-  await expect(page.getByLabel("选择上传文件")).toBeDisabled();
+  await expect(page.getByLabel("选择上传文件")).toHaveCount(0);
   await fixture.nas.revokeLink(created.link.id);
   await page.reload();
   await expect(page.getByRole("alert")).toContainText("已撤销");
@@ -445,9 +443,7 @@ test("direct HTTPS upload uses the same NAS permissions and supports zero-byte f
       await route.fulfill({ response });
     });
     await page.goto(created.url);
-    await expect(
-      page.getByRole("heading", { name: "临时收照片", exact: true }),
-    ).toBeVisible();
+    await expect(page.locator(".upload-subtitle")).toHaveText("临时收照片");
     await page.getByLabel("选择上传文件").setInputFiles([
       {
         name: "empty.txt",
@@ -529,9 +525,7 @@ test("a guest can resume after reload without exposing their batch to another ta
   const other = await page.context().newPage();
   try {
     await other.goto(created.url);
-    await expect(
-      other.getByRole("heading", { name: "临时收照片" }),
-    ).toBeVisible();
+    await expect(other.locator(".upload-subtitle")).toHaveText("临时收照片");
     await expect(other.getByText(file.name, { exact: true })).toHaveCount(0);
   } finally {
     await other.close();
@@ -539,12 +533,14 @@ test("a guest can resume after reload without exposing their batch to another ta
   await page.reload();
   const resume = page.getByLabel("重选原文件继续", { exact: true });
   await expect(resume).toBeEnabled();
-  await expect(page.getByLabel("选择上传文件")).toBeDisabled();
+  await expect(page.getByLabel("选择上传文件")).toHaveCount(0);
   await resume.setInputFiles({
     ...file,
     buffer: Buffer.alloc(source.length, 9),
   });
-  await expect(page.getByRole("status")).toContainText("与原文件不一致");
+  await expect(page.locator(".upload-file-error")).toContainText(
+    "与原文件不一致",
+  );
   await resume.setInputFiles(file);
   await expect(page.getByRole("status")).toHaveText("已接收");
   const destination = resolve(fixture.nas.dataDir, "inbox", created.link.id);
@@ -565,9 +561,7 @@ test("cancelling a streaming upload through the bridge cleans partial files and 
     maxFiles: 1,
   });
   await page.goto(created.url);
-  await expect(
-    page.getByRole("heading", { name: "临时收照片", exact: true }),
-  ).toBeVisible();
+  await expect(page.locator(".upload-subtitle")).toHaveText("临时收照片");
   const token = new URLSearchParams(new URL(created.url).hash.slice(1)).get(
     "token",
   );

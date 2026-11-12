@@ -6,7 +6,7 @@ import { useDownload } from "../../hooks/useDownload.js";
 import { useTransferPanel } from "../../hooks/useTransferPanel.js";
 import { AdminClient } from "../../lib/admin.js";
 import { Brand } from "../../components/Brand.jsx";
-import { CreateLinkDialog } from "../../components/CreateLinkDialog.jsx";
+import { CreateLinkDialog } from "../uploads/CreateLinkDialog.jsx";
 import { TransferCenter } from "../../components/TransferCenter.jsx";
 import { Icon } from "../../components/Icon.jsx";
 import { LinksPanel } from "./LinksPanel.jsx";

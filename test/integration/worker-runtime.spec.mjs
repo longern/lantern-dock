@@ -79,11 +79,16 @@ test("the LanternDock Worker discovers OIDC in workerd and rejects redirects", a
           .sign(privateKey);
         const response = await mf.dispatchFetch(site + "/api/auth/login", {
           method: "POST",
-          headers: { Origin: site, DPoP: proof },
+          headers: {
+            Origin: site,
+            DPoP: proof,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ returnTo: "/account" }),
         });
         const body = await response.json();
         if (status === 200) {
-          expect(response.status).toBe(200);
+          expect(response.status, body.code ?? body.error).toBe(200);
           const target = new URL(body.url);
           expect(target.origin).toBe(issuer);
           expect(target.searchParams.get("redirect_uri")).toBe(

@@ -116,16 +116,28 @@ test("real workers-sso CIMD login uses HttpOnly cookies and shows a copyable adm
 test("real OIDC login returns to a shared file instead of losing its location", async ({
   page,
 }) => {
+  const destination = fixture.origin + "/files/hello.txt";
   await page.goto(
     fixture.origin +
       "/account?return=" +
       encodeURIComponent("/files/hello.txt"),
   );
+  const callback = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/auth/callback" &&
+      response.status() === 303,
+  );
   await page.getByRole("button", { name: "统一登录", exact: true }).click();
-  await page
-    .getByRole("button", { name: "允许登录 LanternDock", exact: true })
-    .click();
-  await expect(page).toHaveURL(fixture.origin + "/files/hello.txt");
+  const consent = page.getByRole("button", {
+    name: "允许登录 LanternDock",
+    exact: true,
+  });
+  await Promise.race([consent.waitFor(), callback]);
+  if (await consent.isVisible()) await consent.click();
+  expect((await callback).headers().location).toBe(destination);
+  // Intercepted redirects to the fixture's synthetic host can bypass routing.
+  await page.goto(destination);
+  await expect(page).toHaveURL(destination);
   await expect(page.locator("#preview-name")).toHaveText("hello.txt");
   await expect(page.locator(".preview-content pre")).toContainText(
     "WebTransport",

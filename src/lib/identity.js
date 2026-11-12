@@ -4,6 +4,7 @@ import { DirectTransport } from "./transport.js";
 import { backendPaths } from "../../shared/backend-paths.js";
 import { safeReturnPath } from "../../shared/routes.js";
 import { clearPersistentImages } from "./image-cache.js";
+import { fetchConfiguration } from "./configuration.js";
 import {
   AUTHORIZATION_METADATA_PATH,
   SESSION_GRANT_TYPE,
@@ -234,13 +235,7 @@ export async function requestNASGrant(signal, scope = ACCOUNT_SCOPE) {
   }
 }
 export async function accountConnection(signal) {
-  const config = await result(
-    await fetch("/api/config", {
-      cache: "no-store",
-      headers: { "Accept-Language": locale },
-      signal,
-    }),
-  );
+  const config = await result(await fetchConfiguration(signal));
   if (
     config.setupRequired ||
     !config.backend ||

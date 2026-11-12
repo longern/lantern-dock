@@ -541,6 +541,7 @@ test("the upload queue switches columns at the shared breakpoint without interru
   for (const [width, height] of [
     [899, 900],
     [900, 900],
+    [1024, 550],
     [1024, 768],
     [1440, 1000],
     [768, 1024],
@@ -555,6 +556,10 @@ test("the upload queue switches columns at the shared breakpoint without interru
       expect(queue.y).toBeGreaterThan(overview.y + overview.height);
     }
     await noOverflow(page);
+    if (height <= 600) {
+      const card = await page.locator(".upload-page .setup-card").boundingBox();
+      expect(card.height).toBe(height - 16);
+    }
     await expect(page.locator(".upload-foreground-note")).toBeInViewport();
     await expect(
       page.getByRole("button", { name: "取消全部", exact: true }),

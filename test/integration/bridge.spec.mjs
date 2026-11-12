@@ -83,7 +83,13 @@ test("real bridge distinguishes gateway 407 and backend 401, then browses, previ
   await openItem(
     page.getByRole("button", { name: "预览 coast.svg", exact: true }),
   );
+  if (isCompact(page))
+    await page.getByRole("button", { name: "文件详情", exact: true }).click();
   await expect(page.locator(".file-details")).toContainText("1200 × 800");
+  if (isCompact(page)) {
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".file-info-drawer")).toHaveCount(0);
+  }
   await page.screenshot({
     path: testInfo.outputPath("bridge-preview.png"),
     fullPage: false,

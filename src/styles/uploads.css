@@ -6,10 +6,15 @@
 }
 .upload-page .setup-card,
 .settings-dialog.action-dialog.upload-dialog {
+  --upload-height-limit: 820px;
+  --upload-vertical-gutter: 48px;
   width: min(560px, calc(100vw - 48px));
   max-width: 560px;
-  height: min(820px, calc(100dvh - 48px));
-  max-height: calc(100dvh - 48px);
+  height: min(
+    var(--upload-height-limit),
+    calc(100dvh - var(--upload-vertical-gutter))
+  );
+  max-height: calc(100dvh - var(--upload-vertical-gutter));
   padding: 0;
   overflow: hidden;
 }
@@ -417,9 +422,7 @@
   .upload-page .setup-card,
   .settings-dialog.action-dialog.upload-dialog {
     width: calc(100vw - 32px);
-    height: min(820px, calc(100dvh - 32px));
-    max-height: calc(100dvh - 32px);
-    padding: 0;
+    --upload-vertical-gutter: 32px;
   }
   .upload-panel {
     --upload-padding: 20px;
@@ -448,8 +451,7 @@
   }
   .upload-page .setup-card,
   .settings-dialog.action-dialog.upload-dialog {
-    height: calc(100dvh - 16px);
-    max-height: calc(100dvh - 16px);
+    --upload-vertical-gutter: 16px;
   }
   .upload-panel {
     --upload-padding: 16px;
@@ -491,7 +493,6 @@
   .upload-foreground-note {
     margin-bottom: 8px;
     padding: 2px 0;
-    font-size: var(--text-xs);
     line-height: 1.5;
   }
   .upload-queue-heading {
@@ -509,8 +510,7 @@
   .settings-dialog.action-dialog.upload-dialog {
     width: min(1000px, calc(100vw - 64px));
     max-width: 1000px;
-    height: min(760px, calc(100dvh - 48px));
-    max-height: calc(100dvh - 48px);
+    --upload-height-limit: 760px;
   }
   .upload-panel {
     display: grid;

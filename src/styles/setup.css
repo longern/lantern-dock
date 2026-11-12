@@ -393,16 +393,12 @@
     padding: 20px;
     border-radius: 12px;
   }
-  .setup-intro h1 {
-    font-size: var(--text-2xl);
-  }
   .setup-steps {
     gap: 12px;
     margin-top: 16px;
     padding: 16px 0;
   }
   .setup-steps li {
-    font-size: var(--text-xs);
     gap: 6px;
   }
   .setup-choices {
@@ -415,12 +411,6 @@
     align-items: flex-start;
     padding: 12px;
     gap: 4px;
-  }
-  .setup-choice strong {
-    font-size: var(--text-sm);
-  }
-  .setup-choice > span {
-    font-size: var(--text-xs);
   }
   .setup-choice > svg {
     width: 21px;
@@ -443,7 +433,6 @@
   .setup-targets button {
     flex: 1;
     padding: 8px 6px;
-    font-size: var(--text-sm);
   }
   .setup-code {
     font-size: var(--text-xs);

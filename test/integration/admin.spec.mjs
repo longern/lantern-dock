@@ -464,16 +464,13 @@ test("an administrator uploads to their own inbox through the file intake action
   await loginAdministrator(page);
   await page.goto(fixture.origin + "/files/");
   await page.locator("#file-intake-trigger").click();
-  const action = page
-    .getByRole("button", { name: "上传文件", exact: true })
-    .or(page.getByRole("menuitem", { name: "上传文件" }));
-  const chooser = page.waitForEvent("filechooser");
-  await action.click();
   const dialog = page.getByRole("dialog", { name: "上传文件" });
+  const [chooser] = await Promise.all([
+    page.waitForEvent("filechooser"),
+    dialog.getByRole("button", { name: "选择文件上传", exact: true }).click(),
+  ]);
   const name = "my-personal-photo.jpg";
-  await (
-    await chooser
-  ).setFiles({
+  await chooser.setFiles({
     name,
     mimeType: "image/jpeg",
     buffer: Buffer.from("personal upload"),

@@ -510,26 +510,29 @@ export async function startFixture({ nas = false, identity = false } = {}) {
           maxFiles = 5,
           expires = "1h",
         } = {}) {
-          const { stdout } = await exec(nasBinary, [
-            "link",
-            "create",
-            `--data-dir=${dataDir}`,
-            `--site=${origin}`,
-            `--title=${title}`,
-            `--max-file=${maxFile}`,
-            `--max-total=${maxTotal}`,
-            `--max-files=${maxFiles}`,
-            `--expires=${expires}`,
-          ]);
+          const { stdout } = await exec(
+            nasBinary,
+            [
+              "link",
+              "create",
+              `--data-dir=${dataDir}`,
+              `--site=${origin}`,
+              `--title=${title}`,
+              `--max-file=${maxFile}`,
+              `--max-total=${maxTotal}`,
+              `--max-files=${maxFiles}`,
+              `--expires=${expires}`,
+            ],
+            { env: nasEnvironment },
+          );
           return JSON.parse(stdout);
         },
         async revokeLink(id) {
-          await exec(nasBinary, [
-            "link",
-            "revoke",
-            `--data-dir=${dataDir}`,
-            id,
-          ]);
+          await exec(
+            nasBinary,
+            ["link", "revoke", `--data-dir=${dataDir}`, id],
+            { env: nasEnvironment },
+          );
         },
       };
     }

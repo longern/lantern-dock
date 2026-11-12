@@ -29,23 +29,24 @@
   line-height: 1.7;
 }
 .admin-navigation {
+  position: sticky;
+  top: var(--topbar-height);
+  align-self: start;
   display: flex;
+  flex-direction: column;
   gap: 4px;
-  margin-bottom: 24px;
-  padding: 5px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
+  min-height: calc(100svh - var(--topbar-height));
+  padding: 18px 12px;
+  border-right: 1px solid var(--line);
   background: var(--surface);
-  width: fit-content;
-  max-width: 100%;
 }
 .admin-navigation button {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
   min-height: 44px;
-  padding: 10px 20px;
+  padding: 10px 12px;
   border-radius: 10px;
   color: var(--muted);
   font-weight: 500;
@@ -263,6 +264,7 @@
   background: var(--accent-soft);
   color: var(--accent);
   flex-shrink: 0;
+  overflow: hidden;
 }
 .admin-file-copy {
   flex: 1;
@@ -359,53 +361,23 @@
   .admin-heading p {
     font-size: var(--text-sm);
   }
-  .admin-navigation {
-    width: 100%;
-    margin-bottom: 20px;
-  }
-  .admin-navigation button {
-    flex: 1;
-    padding: 10px 12px;
-  }
-  .admin-panel {
-    padding: 20px 16px;
-    border-radius: 16px;
-  }
   .admin-panel-heading {
     flex-wrap: wrap;
-    gap: 16px;
-  }
-  .admin-panel-heading h2 {
-    font-size: var(--text-lg);
   }
   .admin-panel-actions {
     width: 100%;
     flex-direction: row-reverse;
     justify-content: space-between;
   }
-  .admin-link-list {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-  }
-  .admin-link-card {
-    padding: 16px;
-  }
   .admin-link-title {
     flex-wrap: wrap;
     gap: 8px;
-  }
-  .admin-link-details {
-    font-size: var(--text-xs);
   }
   .admin-link-details > div {
     gap: 8px;
   }
   .admin-inbox-file {
     gap: 10px;
-  }
-  .admin-file-icon {
-    width: 32px;
-    height: 40px;
   }
   .admin-pagination {
     gap: 8px;
@@ -419,7 +391,6 @@
 
 .admin-ready {
   padding: 0;
-  background: var(--surface-subtle);
 }
 .admin-ready .admin-header {
   position: sticky;
@@ -432,27 +403,10 @@
   grid-template-columns: 218px minmax(0, 1fr);
   min-height: calc(100svh - var(--topbar-height));
 }
-.admin-workspace .admin-navigation {
-  position: sticky;
-  top: var(--topbar-height);
-  align-self: start;
-  flex-direction: column;
-  width: 100%;
-  min-height: calc(100svh - var(--topbar-height));
-  padding: 18px 12px;
-  margin: 0;
-  border: 0;
-  border-right: 1px solid var(--line);
-  border-radius: 0;
-}
 .admin-nav-brand {
   display: flex;
   align-items: center;
   padding: 10px 12px 22px;
-}
-.admin-workspace .admin-navigation button {
-  justify-content: flex-start;
-  padding-inline: 12px;
 }
 .admin-main {
   min-width: 0;
@@ -658,7 +612,7 @@
     flex-direction: row;
     min-height: 0;
     padding: 6px 10px max(6px, env(safe-area-inset-bottom));
-    border: 0;
+    border-right: 0;
     border-top: 1px solid var(--line);
   }
   .admin-workspace .admin-navigation button {
@@ -757,9 +711,6 @@
   display: block;
   margin-top: 3px;
   color: var(--muted);
-}
-.admin-file-icon {
-  overflow: hidden;
 }
 .admin-file-icon img {
   display: block;

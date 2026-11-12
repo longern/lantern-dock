@@ -23,3 +23,6 @@ jobs:
       - run: npm run format:check
       - run: npm run check
       - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - name: Test file browsing, overlays, and upload layout
+        run: npm run test:browser -- test/browser/library.spec.mjs test/browser/favorites.spec.mjs test/browser/uploads.spec.mjs test/browser/typography.spec.mjs

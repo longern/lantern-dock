@@ -524,7 +524,7 @@ test("continued management activity cannot exceed eight hours from login", async
   assert.equal(expired.headers.get("Set-Cookie"), null);
 });
 
-test("a fixed-lifetime cookie keeps its original login time when upgraded", async (t) => {
+test("a session without a recorded login time cannot mint NAS grants", async (t) => {
   const started = Math.floor(Date.now() / 1000) * 1000;
   let timestamp = started;
   t.mock.method(Date, "now", () => timestamp);
@@ -571,8 +571,10 @@ test("a fixed-lifetime cookie keeps its original login time when upgraded", asyn
   );
   f.jar.set(name, encode(Buffer.concat([iv, Buffer.from(encrypted)])));
   timestamp += 20 * 60 * 1000;
-  assert.equal((await f.grant("links:read")).status, 200);
-  assert.equal((await decode()).startedAt, started / 1000);
+  const grant = await f.grant("links:read");
+  assert.equal(grant.status, 400);
+  assert.equal((await grant.json()).code, "LOGIN_REQUIRED");
+  assert.equal(grant.headers.get("Set-Cookie"), null);
 });
 
 test("UserInfo is fetched server-side and must match the verified ID token subject", async () => {
@@ -1080,6 +1082,29 @@ test("login identifies Discovery failures without returning upstream bodies or e
     if (entry.message) assert.match(value.error, entry.message);
     assert.ok(!JSON.stringify(value).includes("private-canary"));
   }
+});
+
+test("switching to CIMD rechecks Discovery even when the client identifier stays the same", async () => {
+  const f = await fixture();
+  const fetch = f.env.SSO_SERVICE.fetch;
+  f.env.SSO_SERVICE.fetch = async (request) => {
+    const response = await fetch(request);
+    return Response.json({
+      ...(await response.json()),
+      client_id_metadata_document_supported: false,
+    });
+  };
+  const login = async () =>
+    f.request("/api/auth/login", {
+      method: "POST",
+      headers: { DPoP: await f.proof("/api/auth/login") },
+    });
+  f.env.OIDC_CLIENT_ID = site + "/api/auth/oidc/client.json";
+  assert.equal((await login()).status, 200);
+  delete f.env.OIDC_CLIENT_ID;
+  const response = await login();
+  assert.equal(response.status, 503);
+  assert.equal((await response.json()).code, "OIDC_CIMD_UNSUPPORTED");
 });
 
 test("authentication localizes display messages but keeps OAuth identifiers stable", async () => {
