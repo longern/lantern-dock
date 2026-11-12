@@ -67,6 +67,33 @@
   object-fit: contain;
   display: block;
 }
+.preview-image {
+  position: relative;
+  width: min(
+    100%,
+    var(--preview-image-width),
+    calc(50dvh * var(--preview-image-ratio))
+  );
+  aspect-ratio: var(--preview-image-ratio);
+}
+.preview-image > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-height: none;
+}
+.preview-image-sharp {
+  animation: preview-image-sharpen 180ms ease-out;
+}
+@keyframes preview-image-sharpen {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 .preview-content video {
   display: block;
   width: 100%;
@@ -267,7 +294,7 @@
     border-radius: 0;
     background: var(--surface);
   }
-  .preview-media .preview-content > img,
+  .preview-media .preview-image,
   .preview-media .preview-content > video {
     position: absolute;
     inset: 0;

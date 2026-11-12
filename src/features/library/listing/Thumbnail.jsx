@@ -21,7 +21,7 @@ function observe(node, ready) {
     observer.unobserve(node);
   };
 }
-export function Thumbnail({ item, client, side, fallback = null }) {
+export function Thumbnail({ item, client, side, fallback = null, imageRef }) {
   const element = useRef(null);
   const [visible, setVisible] = useState(false);
   const [source, setSource] = useState(null);
@@ -37,7 +37,7 @@ export function Thumbnail({ item, client, side, fallback = null }) {
       if (!image || controller.signal.aborted) return;
       if (url) URL.revokeObjectURL(url);
       url = URL.createObjectURL(image.blob);
-      setSource(url);
+      setSource({ url, image });
     };
     setSource(null);
     display(client.images.peek(item, side));
@@ -45,12 +45,14 @@ export function Thumbnail({ item, client, side, fallback = null }) {
       if (!controller.signal.aborted) {
         if (url) URL.revokeObjectURL(url);
         url = null;
+        if (imageRef) imageRef.current = null;
         setSource(null);
       }
     });
     return () => {
       controller.abort();
       if (url) URL.revokeObjectURL(url);
+      if (imageRef) imageRef.current = null;
     };
   }, [
     visible,
@@ -61,15 +63,23 @@ export function Thumbnail({ item, client, side, fallback = null }) {
     client,
     side,
     client?.images?.revision,
+    imageRef,
   ]);
   return (
     <span ref={element} class="thumbnail-slot" aria-hidden="true">
       {source ? (
         <img
-          src={source}
+          src={source.url}
           alt=""
           decoding="async"
-          onError={() => setSource(null)}
+          onLoad={(event) => {
+            if (imageRef && event.currentTarget.currentSrc === source.url)
+              imageRef.current = source.image;
+          }}
+          onError={() => {
+            if (imageRef) imageRef.current = null;
+            setSource(null);
+          }}
         />
       ) : (
         fallback

@@ -174,7 +174,30 @@ export function albumLiveItems(entries, metadata) {
     );
 }
 
-export function createLiveVideoSource(client, live, signal) {
+// MP4Box can revisit bytes while locating the index or seeking to the first
+// frame. Count the union of downloaded ranges, including in-flight chunks.
+function liveRangeProgress(onProgress) {
+  const ranges = [];
+  let downloaded = 0;
+  return (offset, received, total) => {
+    let start = offset;
+    let end = offset + received;
+    const previous = downloaded;
+    let index = 0;
+    while (index < ranges.length && ranges[index].end < start) index++;
+    while (index < ranges.length && ranges[index].start <= end) {
+      const [range] = ranges.splice(index, 1);
+      downloaded -= range.end - range.start;
+      start = Math.min(start, range.start);
+      end = Math.max(end, range.end);
+    }
+    ranges.splice(index, 0, { start, end });
+    downloaded += end - start;
+    if (downloaded !== previous) onProgress(downloaded, total);
+  };
+}
+
+export async function createLiveVideoSource(client, live, signal, onProgress) {
   if (!liveDescriptor(live, client.root))
     throw new Error("Invalid live resource");
   // The DAV client's file-root boundary remains unchanged. This adapter permits
@@ -196,5 +219,6 @@ export function createLiveVideoSource(client, live, signal) {
     adapter,
     { path: live.video, name: "motion.mp4", size: live.length },
     signal,
+    onProgress && liveRangeProgress(onProgress),
   );
 }

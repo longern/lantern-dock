@@ -8,6 +8,7 @@ import {
   useCompactLayout,
 } from "../../../hooks/useMediaQuery.js";
 import { Dialog } from "../../../components/Dialog.jsx";
+import { PreviewImage } from "./PreviewImage.jsx";
 import { VideoPreview } from "./VideoPreview.jsx";
 import { PageHeader } from "../../../components/PageHeader.jsx";
 import { SheetHandle } from "../../../components/SheetHandle.jsx";
@@ -15,6 +16,7 @@ import { dialogHeadingFocus } from "../../../lib/overlay-focus.js";
 
 export function FilePreview({
   item,
+  thumbnail,
   client,
   favorite,
   onFavorite,
@@ -45,69 +47,24 @@ export function FilePreview({
   }, [compact, details, open]);
 
   useEffect(() => {
+    if (item.kind !== "text") return;
     const controller = new AbortController();
-    let url;
     setContent(null);
     setError("");
-    setDimensions("");
     (async () => {
-      try {
-        if (item.kind === "video") {
-          setContent({ video: true });
-          return;
-        }
-        if (!["image", "text"].includes(item.kind)) {
-          setError(t("library.downloadToView"));
-          return;
-        }
-        if (item.kind === "image" && client.images) {
-          const show = (image) => {
-            if (!image || controller.signal.aborted) return;
-            if (url) URL.revokeObjectURL(url);
-            url = URL.createObjectURL(image.blob);
-            setContent({ url, width: image.width, height: image.height });
-            setDimensions(`${image.width} × ${image.height}`);
-          };
-          show(client.images.peek(item, 1600));
-          const image = await client.images.image(
-            item,
-            1600,
-            controller.signal,
-          );
-          if (image) {
-            show(image);
-            return;
-          }
-        }
-        const limit = (item.kind === "image" ? 25 : 1) * 1024 * 1024;
-        if (item.size > limit) throw new Error(t("library.previewTooLarge"));
-        const response = await client.get(item.path, controller.signal);
-        const data = await limitedBytes(response, limit, controller.signal);
-        if (controller.signal.aborted) return;
-        if (item.kind === "text") {
-          setContent({ text: new TextDecoder().decode(data) });
-          return;
-        }
-        const mime = response.headers.get("Content-Type")?.split(";")[0];
-        if (mime && !mime.startsWith("image/"))
-          throw new Error(t("library.imageResponseInvalid"));
-        if (url) URL.revokeObjectURL(url);
-        url = URL.createObjectURL(
-          new Blob([data], { type: mime || "image/*" }),
-        );
-        setContent({ url });
-      } catch (error) {
-        if (!controller.signal.aborted) {
-          setError(t("library.filePreviewFailed"));
-          onError(error.message);
-        }
-      }
-    })();
-    return () => {
-      controller.abort();
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [item, client, client.images?.revision]);
+      const limit = 1024 * 1024;
+      if (item.size > limit) throw new Error(t("library.previewTooLarge"));
+      const response = await client.get(item.path, controller.signal);
+      const data = await limitedBytes(response, limit, controller.signal);
+      if (!controller.signal.aborted)
+        setContent(new TextDecoder().decode(data));
+    })().catch((error) => {
+      if (controller.signal.aborted) return;
+      setError(t("library.filePreviewFailed"));
+      onError(error.message);
+    });
+    return () => controller.abort();
+  }, [item, client]);
 
   return (
     <Dialog
@@ -136,12 +93,15 @@ export function FilePreview({
         class={`preview-scroll${item.kind === "image" || item.kind === "video" ? " preview-media" : ""}`}
       >
         <div class="preview-content">
-          {error || !content ? (
-            <div class="preview-placeholder">
-              <Icon name={item.kind} />
-              <p role="status">{error || t("library.loadingPreview")}</p>
-            </div>
-          ) : content.video ? (
+          {item.kind === "image" ? (
+            <PreviewImage
+              item={item}
+              client={client}
+              thumbnail={thumbnail}
+              onDimensions={setDimensions}
+              onError={onError}
+            />
+          ) : item.kind === "video" ? (
             <VideoPreview
               item={item}
               client={client}
@@ -151,22 +111,17 @@ export function FilePreview({
                 setDimensions(`${width} × ${height}`)
               }
             />
-          ) : content.text !== undefined ? (
-            <pre>{content.text}</pre>
+          ) : content !== null ? (
+            <pre>{content}</pre>
           ) : (
-            <img
-              src={content.url}
-              alt={item.name}
-              onLoad={(event) =>
-                setDimensions(
-                  `${content.width || event.currentTarget.naturalWidth} × ${content.height || event.currentTarget.naturalHeight}`,
-                )
-              }
-              onError={() => {
-                setError(t("library.imagePreviewFailed"));
-                onError(t("library.imagePreviewFailed"));
-              }}
-            />
+            <div class="preview-placeholder">
+              <Icon name={item.kind} />
+              <p role="status">
+                {item.kind === "text"
+                  ? error || t("library.loadingPreview")
+                  : t("library.downloadToView")}
+              </p>
+            </div>
           )}
         </div>
         {!compact && (

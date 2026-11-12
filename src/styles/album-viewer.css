@@ -80,6 +80,9 @@ html:has(.album-viewer[open]) {
   bottom: 76px;
   left: 50%;
   transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 6px 12px;
   width: max-content;
   max-width: calc(100% - 24px);
@@ -89,6 +92,37 @@ html:has(.album-viewer[open]) {
   font-size: var(--text-xs);
   text-align: center;
   pointer-events: none;
+  transition:
+    opacity 140ms ease-out,
+    visibility 140ms;
+}
+.album-live-status.is-fading {
+  opacity: 0;
+  visibility: hidden;
+}
+.album-live-spinner,
+.album-live-progress {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+.album-live-spinner {
+  border: 2px solid #fff4;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 850ms linear infinite;
+}
+.album-live-status.is-fading .album-live-spinner {
+  animation-play-state: paused;
+}
+.album-live-progress {
+  fill: none;
+  stroke: #fff4;
+  stroke-width: 2;
+  transform: rotate(-90deg);
+}
+.album-live-progress circle:last-child {
+  stroke: currentColor;
 }
 .album-viewer-actions:has([data-live-action]) {
   gap: 0;
@@ -266,10 +300,12 @@ html:has(.album-viewer[open]) {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .album-image-original {
+  .album-image-original,
+  .album-live-spinner {
     animation: none;
   }
-  .album-live-video {
+  .album-live-video,
+  .album-live-status {
     transition: none;
   }
   /* The library normally clears its fade class on animationend. No animation

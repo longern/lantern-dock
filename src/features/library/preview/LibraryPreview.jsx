@@ -13,6 +13,7 @@ export function LibraryPreview({
 }) {
   const {
     selected,
+    thumbnail,
     gallery,
     preview,
     previewOpen,
@@ -44,6 +45,7 @@ export function LibraryPreview({
     <FilePreview
       key={selected.path}
       item={selected}
+      thumbnail={thumbnail}
       client={client}
       favorite={records.isFavorite(selected)}
       onFavorite={records.toggleFavorite}

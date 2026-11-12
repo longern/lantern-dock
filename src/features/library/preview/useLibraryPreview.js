@@ -21,6 +21,7 @@ export function useLibraryPreview({
   setSettings,
 }) {
   const [selected, setSelected] = useState(null);
+  const [thumbnail, setThumbnail] = useState(null);
   const [gallery, setGallery] = useState(null);
   const galleryItems = useRef(null);
   const selectedRef = useRef(null);
@@ -221,8 +222,9 @@ export function useLibraryPreview({
     setRecentSnapshot(null);
     setSelected(null);
     setGallery(null);
+    setThumbnail(null);
   };
-  const preview = (item, gallery = null) => {
+  const preview = (item, gallery = null, image = null) => {
     if (
       !albumPresent &&
       library.mode === "home" &&
@@ -243,6 +245,11 @@ export function useLibraryPreview({
     }
     records.remember(item);
     setGallery(gallery);
+    setThumbnail(
+      image
+        ? { path: item.path, client: library.connection.client, image }
+        : null,
+    );
     setSelected(item);
     if (!previewOpen) setPreviewEpoch((value) => value + 1);
     setPreviewOpen(true);
@@ -258,6 +265,11 @@ export function useLibraryPreview({
   };
   return {
     selected,
+    thumbnail:
+      thumbnail?.path === selected?.path &&
+      thumbnail?.client === library.connection?.client
+        ? thumbnail?.image
+        : null,
     setSelected,
     gallery,
     previewOpen,

@@ -192,6 +192,7 @@ export default {
   checkingFile: "Getting file information…",
   removeFromRecent: "Remove from recent",
   livePhoto: "Live Photo",
+  loadingLivePhoto: "Loading Live Photo",
   playLivePhoto: "Play Live Photo",
   stopLivePhoto: "Stop Live Photo",
   copyLink: "Copy link",

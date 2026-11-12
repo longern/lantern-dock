@@ -1,5 +1,5 @@
 import { coreError } from "./errors.js";
-export async function limitedBytes(response, limit, signal) {
+export async function limitedBytes(response, limit, signal, onProgress) {
   const declared = Number(response.headers.get("Content-Length"));
   if (declared > limit) {
     await response.body?.cancel();
@@ -17,6 +17,7 @@ export async function limitedBytes(response, limit, signal) {
       total += value.length;
       if (total > limit) throw coreError("MEMORY_LIMIT");
       chunks.push(value);
+      onProgress?.(total);
     }
   } catch (error) {
     await reader.cancel().catch(() => {});

@@ -2,11 +2,11 @@ import { mediaQueries } from "../../../lib/breakpoints.js";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { t } from "../../../../shared/i18n.js";
 import {
-  albumImage,
+  previewImage,
   canViewOriginal,
-  decodeAlbumImage,
+  decodeImage,
   originalImage,
-} from "../../../lib/album-media.js";
+} from "../../../lib/image-preview.js";
 import { Icon } from "../../../components/Icon.jsx";
 import { VideoPreview } from "../preview/VideoPreview.jsx";
 import { LivePhoto } from "../preview/LivePhoto.jsx";
@@ -70,7 +70,7 @@ export function AlbumMedia({
       const { blob } = await originalImage(client, item, combined);
       combined.throwIfAborted();
       url = URL.createObjectURL(blob);
-      const size = await decodeAlbumImage(url, combined);
+      const size = await decodeImage(url, combined);
       combined.throwIfAborted();
       onSize(item.path, size.width, size.height);
       setOriginalResult({ url });
@@ -101,7 +101,7 @@ export function AlbumMedia({
       if (!image) return;
       combined.throwIfAborted();
       url = URL.createObjectURL(image.blob);
-      const size = await decodeAlbumImage(url, combined);
+      const size = await decodeImage(url, combined);
       combined.throwIfAborted();
       setLow(url);
       onSize(item.path, image.width || size.width, image.height || size.height);
@@ -127,10 +127,10 @@ export function AlbumMedia({
     setError("");
     (async () => {
       const cached = client.images?.peek(item, 1600);
-      const image = cached || (await albumImage(client, item, combined));
+      const image = cached || (await previewImage(client, item, combined));
       combined.throwIfAborted();
       url = URL.createObjectURL(image.blob);
-      const size = await decodeAlbumImage(url, combined);
+      const size = await decodeImage(url, combined);
       combined.throwIfAborted();
       onSize(item.path, image.width || size.width, image.height || size.height);
       setHigh({

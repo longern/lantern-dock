@@ -70,7 +70,7 @@ export function mp4ParseError(module, detail = "", offset) {
 // MP4Box only reorganizes compressed samples into fMP4 fragments. Decoding is
 // performed by the browser. Everything is scoped to this preview instance.
 export class MP4MediaSource {
-  constructor(client, item, signal) {
+  constructor(client, item, signal, onRead) {
     this.client = client;
     this.item = item;
     this.mode = "mse";
@@ -81,6 +81,7 @@ export class MP4MediaSource {
     this.url = URL.createObjectURL(this.media);
     this.controller = new AbortController();
     this.signal = signal;
+    this.onRead = onRead;
     this.buffers = [];
     this.waiters = new Set();
     this.offset = 0;
@@ -301,7 +302,12 @@ export class MP4MediaSource {
         const etag = response.headers.get("ETag");
         if (etag && !etag.startsWith("W/")) this.etag = etag;
       }
-      const bytes = await limitedBytes(response, chunkSize, request.signal);
+      const bytes = await limitedBytes(
+        response,
+        chunkSize,
+        request.signal,
+        this.onRead && ((received) => this.onRead(offset, received, this.size)),
+      );
       if (bytes.byteLength !== Number(match[2]) - offset + 1)
         throw coreError("VIDEO_INCOMPLETE");
       const data = bytes.buffer.slice(

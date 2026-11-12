@@ -12,7 +12,10 @@ export function LivePhoto({ client, live, requested, onStop, target }) {
   const [ready, setReady] = useState(false);
   const [playing, setPlaying] = useState(false);
   const [error, setError] = useState("");
+  const [progress, setProgress] = useState(null);
   const wanted = held || requested;
+  const hideLoading = playing && !error;
+  const loadingLabel = t("library.loadingLivePhoto");
   const state = useRef(null);
   state.current = { wanted, onStop };
   const stop = () => {
@@ -98,7 +101,16 @@ export function LivePhoto({ client, live, requested, onStop, target }) {
       connection?.dispose();
     };
     control.current.fail = fail;
-    createLiveVideoSource(client, live, controller.signal).then((source) => {
+    setProgress(null);
+    createLiveVideoSource(
+      client,
+      live,
+      controller.signal,
+      (received, total) => {
+        if (!controller.signal.aborted)
+          setProgress(Math.min(100, Math.floor((received / total) * 100)));
+      },
+    ).then((source) => {
       if (controller.signal.aborted) {
         source.dispose();
         return;
@@ -156,9 +168,35 @@ export function LivePhoto({ client, live, requested, onStop, target }) {
           if (player.current.error?.code > 1) control.current.fail?.();
         }}
       />
-      {(error || (wanted && !playing)) && (
-        <span class="album-live-status" role="status">
-          {error || t("library.loadingVideo")}
+      {(error || wanted) && (
+        <span
+          class={`album-live-status${hideLoading ? " is-fading" : ""}`}
+          role="status"
+          aria-hidden={hideLoading || undefined}
+        >
+          {error || loadingLabel}
+          {!error &&
+            (progress === null ? (
+              <span class="album-live-spinner" aria-hidden="true" />
+            ) : (
+              <svg
+                class="album-live-progress"
+                viewBox="0 0 16 16"
+                role="progressbar"
+                aria-label={loadingLabel}
+                aria-valuenow={progress}
+              >
+                <circle cx="8" cy="8" r="6.5" />
+                <circle
+                  cx="8"
+                  cy="8"
+                  r="6.5"
+                  pathLength="100"
+                  stroke-dasharray="100"
+                  stroke-dashoffset={100 - progress}
+                />
+              </svg>
+            ))}
         </span>
       )}
     </>

@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { MP4MediaSource, mp4ParseError } from "../src/lib/video-mp4.js";
+import { createLiveVideoSource } from "../src/lib/live.js";
+import { imageIdentifier } from "../src/lib/images.js";
 import { baselineMP4, boxes, tailMoovMP4 } from "./helpers/mp4-fixture.mjs";
 
 const MiB = 1024 * 1024;
@@ -66,6 +68,55 @@ function installMediaSource(t) {
     else delete globalThis.MediaSource;
   });
 }
+
+test("live download progress counts partial and overlapping byte ranges once", async (t) => {
+  installMediaSource(t);
+  const live = {
+    image: "/dav/photo.jpg",
+    pairedVideo: "/dav/video.mp4",
+    video: `/api/media/${imageIdentifier("photo.jpg")}/${imageIdentifier("video.mp4")}/${"a".repeat(64)}/video.mp4`,
+    length: 40,
+    posterTime: 0,
+    kind: "apple",
+  };
+  const updates = [];
+  const source = await createLiveVideoSource(
+    {
+      root: "/dav/",
+      transport: {
+        config: { transport: "webtransport" },
+        async request(_path, { headers }) {
+          const start = Number(/^bytes=(\d+)-/.exec(headers.Range)[1]);
+          const body = new ReadableStream({
+            start(controller) {
+              controller.enqueue(new Uint8Array(5));
+              controller.enqueue(new Uint8Array(5));
+              controller.close();
+            },
+          });
+          return new Response(body, {
+            status: 206,
+            headers: { "Content-Range": `bytes ${start}-${start + 9}/40` },
+          });
+        },
+      },
+    },
+    live,
+    new AbortController().signal,
+    (received, total) => updates.push([received, total]),
+  );
+  t.after(() => source.dispose());
+  await source.read(0);
+  await source.read(20);
+  await source.read(5);
+  assert.deepEqual(updates, [
+    [5, 40],
+    [10, 40],
+    [15, 40],
+    [20, 40],
+    [25, 40],
+  ]);
+});
 
 async function parseMP4(t, fixture, configure = () => {}) {
   installMediaSource(t);

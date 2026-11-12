@@ -12,6 +12,10 @@ import { artwork } from "../../../lib/demo.js";
 import { groupMediaByDate } from "../../../lib/album.js";
 import { useLiveMedia } from "../../../hooks/useLiveMedia.js";
 import { albumLiveItems } from "../../../lib/live.js";
+// Redrawn for LanternDock from the Apple Live Photos design reference.
+// Reference artwork © Apple Inc.
+// https://developer.apple.com/design/human-interface-guidelines/live-photos
+import livePhotoBadge from "./live-photo-badge.svg";
 
 export function Album({
   view = "date",
@@ -88,6 +92,7 @@ export function Album({
                 : "library.previewNamed",
               { name: item.name },
             )}
+            aria-description={item.live ? t("library.livePhoto") : undefined}
             aria-pressed={
               selection.isSelected(item) || selected?.path === item.path
             }
@@ -138,11 +143,9 @@ export function Album({
             {item.live && (
               <span
                 class="album-live-indicator"
-                aria-label={t("library.livePhoto")}
-              >
-                <Icon name="live" />
-                <span>LIVE</span>
-              </span>
+                style={{ backgroundImage: `url("${livePhotoBadge}")` }}
+                aria-hidden="true"
+              />
             )}
           </button>
           {selection.touch && (

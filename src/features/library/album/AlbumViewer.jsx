@@ -10,7 +10,6 @@ import { PhotoSlider } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
 import { t } from "../../../../shared/i18n.js";
 import { bytes, date } from "../../../lib/format.js";
-import { fitAlbumMedia } from "../../../lib/album-media.js";
 import {
   useCompactLayout,
   useReducedMotion,
@@ -20,6 +19,12 @@ import { Dialog } from "../../../components/Dialog.jsx";
 import { Icon } from "../../../components/Icon.jsx";
 import { useLiveMedia } from "../../../hooks/useLiveMedia.js";
 import { dialogHeadingFocus } from "../../../lib/overlay-focus.js";
+
+function fitAlbumMedia(width, height, viewportWidth, viewportHeight) {
+  const ratio = width > 0 && height > 0 ? width / height : 1;
+  const fittedWidth = Math.min(viewportWidth, viewportHeight * ratio);
+  return { width: fittedWidth, height: fittedWidth / ratio };
+}
 
 export function AlbumViewer({
   gallery,

@@ -4,8 +4,8 @@ import { originalImageLimit } from "./image-cache.js";
 export const canViewOriginal = (item) =>
   item.kind === "image" && !(item.size > originalImageLimit);
 
-// The viewer never hands a NAS URL or credentials to the gallery library.
-export async function albumImage(client, item, signal) {
+// Previews render locally owned blobs and keep NAS credentials in the client.
+export async function previewImage(client, item, signal) {
   const image = await client.images?.image(item, 1600, signal);
   return image || originalImage(client, item, signal);
 }
@@ -28,7 +28,7 @@ export async function originalImage(client, item, signal) {
   };
 }
 
-export async function decodeAlbumImage(url, signal) {
+export async function decodeImage(url, signal) {
   signal.throwIfAborted();
   const image = new Image();
   const abort = () => {
@@ -43,10 +43,4 @@ export async function decodeAlbumImage(url, signal) {
   } finally {
     signal.removeEventListener("abort", abort);
   }
-}
-
-export function fitAlbumMedia(width, height, viewportWidth, viewportHeight) {
-  const ratio = width > 0 && height > 0 ? width / height : 1;
-  const fittedWidth = Math.min(viewportWidth, viewportHeight * ratio);
-  return { width: fittedWidth, height: fittedWidth / ratio };
 }

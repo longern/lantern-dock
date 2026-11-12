@@ -31,6 +31,7 @@ function FileItem({
   selection,
   onOpen,
 }) {
+  const thumbnail = useRef(null);
   return (
     <li
       class={`file-item${item.isDirectory ? " folder-item" : ""}${selected || selection.isSelected(item) ? " selected" : ""}`}
@@ -46,7 +47,7 @@ function FileItem({
         aria-pressed={
           selection.isSelected(item) || (!item.isDirectory && selected)
         }
-        {...selection.props(item, onOpen)}
+        {...selection.props(item, (entry) => onOpen(entry, thumbnail.current))}
       >
         <span class={`file-art ${item.kind}`}>
           {demo && item.kind === "image" ? (
@@ -58,7 +59,12 @@ function FileItem({
             <>
               <Icon name={item.kind} />
               {["image", "video"].includes(item.kind) && (
-                <Thumbnail item={item} client={client} side={side} />
+                <Thumbnail
+                  item={item}
+                  client={client}
+                  side={side}
+                  imageRef={thumbnail}
+                />
               )}
               {!item.isDirectory && (
                 <span class="extension">
@@ -370,10 +376,10 @@ export function FileBrowser({
                 selected={selected?.path === item.path}
                 selection={selection}
                 recent={recent}
-                onOpen={(item) =>
+                onOpen={(item, thumbnail) =>
                   item.isDirectory
                     ? library.navigate(item.path)
-                    : onPreview(item)
+                    : onPreview(item, null, thumbnail)
                 }
               />
             </Fragment>

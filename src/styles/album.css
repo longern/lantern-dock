@@ -73,10 +73,9 @@
   height: 32px;
   stroke-width: 1.2;
 }
-.album-video-indicator {
+.album-video-indicator,
+.album-live-indicator {
   position: absolute;
-  right: 6px;
-  bottom: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -87,6 +86,10 @@
   color: #fff;
   pointer-events: none;
 }
+.album-video-indicator {
+  right: 6px;
+  bottom: 6px;
+}
 .album-video-indicator svg {
   width: 12px;
   height: 12px;
@@ -94,22 +97,11 @@
   stroke: none;
 }
 .album-live-indicator {
-  position: absolute;
-  inset: 6px auto auto 6px;
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px 5px;
-  border-radius: 4px;
-  background: #0009;
-  color: white;
-  font-size: var(--text-xs);
-  line-height: 1.25;
-  pointer-events: none;
-}
-.album-live-indicator svg {
-  width: 12px;
-  height: 12px;
+  top: 6px;
+  left: 6px;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 14px;
 }
 .album-layout .skeleton {
   height: auto;

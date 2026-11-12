@@ -181,6 +181,7 @@ export default {
   checkingFile: "正在获取文件信息…",
   removeFromRecent: "从最近访问中移除",
   livePhoto: "动态照片",
+  loadingLivePhoto: "正在加载动态照片",
   playLivePhoto: "播放动态照片",
   stopLivePhoto: "停止动态照片",
   copyLink: "复制链接",

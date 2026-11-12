@@ -196,7 +196,7 @@ async function install(page, options = {}) {
       return route.fulfill({ headers, contentType: "image/jpeg", body: high });
     }
     return route.fulfill({
-      headers,
+      headers: state.thumbnailHeaders || headers,
       contentType: "image/jpeg",
       body: thumbnail,
     });
@@ -231,7 +231,8 @@ async function install(page, options = {}) {
       },
     });
   });
-  await page.goto("/");
+  await page.goto(state.files ? "/files/" : "/");
+  if (state.files) return state;
   await page
     .getByRole("navigation", { name: "文件分类", exact: true })
     .getByRole("button", { name: "相册", exact: true })
@@ -250,6 +251,53 @@ async function install(page, options = {}) {
     .toBe(true);
   return state;
 }
+
+test("file preview keeps the displayed thumbnail while a larger image loads", async ({
+  page,
+}) => {
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+    gates.add(resolve);
+  });
+  const state = await install(page, {
+    files: true,
+    thumbnailHeaders: { "Cache-Control": "no-store" },
+    highResponse: async (route, body) => {
+      await gate;
+      await route.fulfill({ contentType: "image/jpeg", body });
+    },
+  });
+  const file = page.getByRole("button", {
+    name: "预览 first.png",
+    exact: true,
+  });
+  const listingImage = file.locator(".thumbnail-slot img");
+  await expect
+    .poll(() => listingImage.evaluate((image) => image.naturalWidth))
+    .toBeGreaterThan(0);
+  const lowWidth = await listingImage.evaluate((image) => image.naturalWidth);
+
+  await openItem(file);
+  const preview = page.locator("#preview-dialog");
+  await expect.poll(() => state.high.length).toBe(1);
+  await expect(preview.getByText("正在加载预览…")).toHaveCount(0);
+  const image = preview.locator(".preview-image img");
+  await expect(image).toHaveJSProperty("naturalWidth", lowWidth);
+  const lowURL = await image.getAttribute("src");
+  expect(lowURL).not.toBe(await listingImage.getAttribute("src"));
+  const lowBounds = await preview.locator(".preview-image").boundingBox();
+
+  release();
+  const sharp = preview.locator(".preview-image-sharp");
+  await expect(sharp).toHaveJSProperty("naturalWidth", 1600);
+  await expect(sharp).toHaveCSS("animation-duration", "0.18s");
+  await expect(image).toHaveCount(1);
+  const highBounds = await preview.locator(".preview-image").boundingBox();
+  expect(highBounds.width).toBeCloseTo(lowBounds.width, 2);
+  expect(highBounds.height).toBeCloseTo(lowBounds.height, 2);
+  expect(state.originals).toEqual([]);
+});
 
 test("a cropped thumbnail opens immediately, then decoded high resolution fades over the retained low layer", async ({
   page,
@@ -837,6 +885,27 @@ test("a released hold cannot start playback when a delayed video arrives", async
       .evaluate((v) => v.paused),
   ).toBe(true);
   await expect(current(page).locator("video")).not.toHaveClass(/is-playing/);
+});
+
+test("native live playback fades out its waiting indicator when playback starts", async ({
+  page,
+}) => {
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+    gates.add(resolve);
+  });
+  await install(page, { ...liveFixture, liveVideoGate: () => gate });
+  await openItem(page.locator(".album-preview").first());
+  await button(page, "播放动态照片").click();
+  const status = current(page).locator(".album-live-status");
+  await expect(status).toHaveText("正在加载动态照片");
+  await expect(status.locator(".album-live-spinner")).toBeVisible();
+  await expect(status.getByRole("progressbar")).toHaveCount(0);
+  release();
+  await expect(current(page).locator("video")).toHaveClass(/is-playing/);
+  await expect(status).toHaveClass(/is-fading/);
+  await expect(status).toBeHidden();
 });
 
 test("metadata arriving after opening enables LIVE without remounting the viewer", async ({
