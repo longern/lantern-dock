@@ -968,7 +968,13 @@ test("video posters and MP4Box MediaSource playback seek over the real bridge", 
     .poll(() => video.evaluate((v) => v.readyState))
     .toBeGreaterThanOrEqual(1);
   expect(await video.evaluate((v) => v.duration)).toBeCloseTo(8, 0);
+  if (isCompact(page))
+    await page.getByRole("button", { name: "文件详情", exact: true }).click();
   await expect(page.locator(".file-details")).toContainText("640 × 360");
+  if (isCompact(page))
+    await page
+      .getByRole("button", { name: "关闭文件详情", exact: true })
+      .click();
   expect(await video.getAttribute("src")).toMatch(/^blob:/);
   await video.evaluate((v) => {
     v.muted = true;
@@ -993,6 +999,68 @@ test("video posters and MP4Box MediaSource playback seek over the real bridge", 
   await page.getByRole("button", { name: "关闭预览", exact: true }).click();
   await expect(page.locator("#preview-dialog")).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test("WebTransport video ranges survive reload and revalidate with 304", async ({
+  page,
+}) => {
+  await page.goto(fixture.origin);
+  const read = () =>
+    page.evaluate(async () => {
+      const { DirectTransport } = await import("/__test/lib/transport.js");
+      const { DAVClient } = await import("/__test/lib/dav.js");
+      const { createVideoSource } = await import("/__test/lib/video.js");
+      const { backend } = await (await fetch("/api/config")).json();
+      const transport = new DirectTransport(backend);
+      const request = transport.request.bind(transport);
+      const reads = [];
+      transport.request = async (path, options) => {
+        const response = await request(path, options);
+        if (path.endsWith("/video.mp4") && options?.headers?.Range)
+          reads.push([
+            response.status,
+            options.headers["If-None-Match"] || null,
+          ]);
+        return response;
+      };
+      const client = new DAVClient(transport, backend);
+      let source;
+      try {
+        const folder = backend.rootPath + encodeURIComponent("照片") + "/";
+        const item = (await client.list(folder)).find(
+          (entry) => entry.name === "video.mp4",
+        );
+        await client.images.service();
+        source = await createVideoSource(client, item);
+        const range = await source.read(0);
+        const hash = await crypto.subtle.digest("SHA-256", range);
+        return {
+          reads,
+          size: range.byteLength,
+          hash: [...new Uint8Array(hash)],
+        };
+      } finally {
+        source?.dispose();
+        client.dispose();
+        transport.close();
+      }
+    });
+  const initial = await read();
+  expect(initial.reads).toEqual([[206, null]]);
+  expect(initial.size).toBeGreaterThan(0);
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const cache = await caches.open("lantern-dock-public-video-ranges-v1");
+        return (await cache.keys()).filter((key) => !key.url.endsWith("/index"))
+          .length;
+      }),
+    )
+    .toBe(1);
+  await page.reload();
+  const reloaded = await read();
+  expect(reloaded).toEqual({ ...initial, reads: [[304, expect.any(String)]] });
+  expect(page.context().serviceWorkers()).toHaveLength(0);
 });
 
 test("long moov-at-end videos load by Range, seek outside the buffer and seek back", async ({

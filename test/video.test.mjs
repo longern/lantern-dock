@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createVideoSource } from "../src/lib/video.js";
 import { MP4MediaSource } from "../src/lib/video-mp4.js";
+import { isFreshVideoRange } from "../src/lib/video-cache.js";
 const item = { path: "/dav/照片/video.mp4", name: "video.mp4" };
 const client = (credentials = { mode: "none" }) => ({
   root: "/dav/",
@@ -123,4 +124,78 @@ test("MSE range reads report authentication failures and reject truncated data",
   source.controller.abort();
   await assert.rejects(loading, { name: "AbortError" });
   assert.equal(source.request, null);
+});
+
+test("WebTransport reuses fresh video ranges and revalidates no-cache bytes with the NAS", async () => {
+  const calls = [];
+  const writes = [];
+  let deletes = 0;
+  let cacheControl = "private, max-age=30";
+  let validation = {};
+  const bytes = new Uint8Array([1, 2, 3, 4]);
+  const source = reader(async (_path, _signal, headers) => {
+    calls.push(headers);
+    return new Response(null, { status: 304, headers: validation });
+  });
+  source.client.images = { publicFiles: true };
+  source.ranges = {
+    get: () => ({
+      time: Date.now() - 1000,
+      bytes,
+      etag: '"v1"',
+      headers: new Headers({
+        "Content-Range": "bytes 0-3/4",
+        "Cache-Control": cacheControl,
+        ETag: '"v1"',
+      }),
+    }),
+    async put(_path, _version, _range, value) {
+      writes.push(value);
+    },
+    async delete() {
+      deletes++;
+    },
+  };
+  assert.deepEqual(new Uint8Array(await source.read(0)), bytes);
+  assert.equal(calls.length, 0);
+  assert.equal(writes.length, 0);
+
+  cacheControl = "private, no-cache";
+  assert.deepEqual(new Uint8Array(await source.read(0)), bytes);
+  assert.deepEqual(calls[0], {
+    Range: "bytes=0-1048575",
+    "If-Range": '"v1"',
+    "If-None-Match": '"v1"',
+  });
+  assert.equal(writes.length, 1);
+
+  validation = { "Cache-Control": "no-store" };
+  assert.deepEqual(new Uint8Array(await source.read(0)), bytes);
+  assert.equal(deletes, 1);
+  assert.equal(writes.length, 1);
+});
+
+test("freshness honors the origin response date and Age for stored video ranges", () => {
+  const time = Date.parse("2026-11-12T12:00:00Z");
+  const headers = new Headers({
+    "Cache-Control": "private, max-age=30",
+    Date: "Thu, 12 Nov 2026 11:59:50 GMT",
+    Age: "15",
+  });
+  assert.equal(isFreshVideoRange({ headers, time }, time + 14999), true);
+  assert.equal(isFreshVideoRange({ headers, time }, time + 15000), false);
+  headers.set("Cache-Control", "private, no-cache, max-age=30");
+  assert.equal(isFreshVideoRange({ headers, time }, time), false);
+});
+
+test("MSE rejects a mismatched 206 ETag before combining file versions", async () => {
+  const source = reader(
+    async () =>
+      new Response(new Uint8Array([1, 2, 3, 4]), {
+        status: 206,
+        headers: { "Content-Range": "bytes 0-3/4", ETag: '"v2"' },
+      }),
+  );
+  source.etag = '"v1"';
+  await assert.rejects(source.read(0), /已更新/);
 });

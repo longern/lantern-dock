@@ -51,7 +51,7 @@ function testProtocolModules() {
       write: false,
       lib: {
         entry: Object.fromEntries(
-          ["transport", "dav", "uploads"].map((name) => [
+          ["transport", "dav", "uploads", "video"].map((name) => [
             name,
             resolve("src/lib", name + ".js"),
           ]),

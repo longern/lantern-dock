@@ -11,7 +11,7 @@ import {
   libraryLocation,
   parseRoute,
 } from "../../../shared/routes.js";
-import { clearPersistentImages } from "../../lib/image-cache.js";
+import { clearPersistentMedia } from "../../lib/video-cache.js";
 import { useAlbum } from "./album/useAlbum.js";
 
 export function useLibrary() {
@@ -79,7 +79,7 @@ export function useLibrary() {
       try {
         if (previousCredentials.current !== credentials) {
           previousCredentials.current = credentials;
-          await clearPersistentImages();
+          await clearPersistentMedia();
           if (controller.signal.aborted) return;
         }
         if (demoPreview) {

@@ -6,6 +6,10 @@ import {
   originalImageAccept,
 } from "../src/lib/image-cache.js";
 import { ImageClient, imageIdentifier } from "../src/lib/images.js";
+import {
+  PersistentVideoCache,
+  videoCacheBudget,
+} from "../src/lib/video-cache.js";
 
 const origin = "https://portal.example";
 const backend = {
@@ -76,6 +80,85 @@ const payload = (size = 4, headers = {}) => ({
     "Cache-Control": "private, no-cache",
     ...headers,
   }),
+});
+
+const MiB = 1024 * 1024;
+const videoRange = "bytes=0-1048575";
+const videoPayload = (time) => ({
+  ...payload(4, {
+    "Content-Type": "video/mp4",
+    "Content-Range": "bytes 0-3/4",
+  }),
+  time,
+});
+
+test("video cache budgets reserve site space and add back video bytes already stored", () => {
+  assert.equal(videoCacheBudget(undefined), 512 * MiB);
+  assert.equal(videoCacheBudget({ quota: 128 * MiB, usage: 0 }), 0);
+  assert.equal(
+    videoCacheBudget({ quota: 4096 * MiB, usage: 3072 * MiB }, 512 * MiB),
+    1280 * MiB,
+  );
+  assert.equal(videoCacheBudget({ quota: 4096 * MiB, usage: 0 }), 2048 * MiB);
+});
+
+test("opening a player with less space trims old video ranges and updates the budget for other players", async () => {
+  const f = storageFixture();
+  const make = (quota, usage) =>
+    new PersistentVideoCache(f.transport, {
+      ...f.settings,
+      estimate: async () => ({ quota: 256 * MiB + quota, usage }),
+    });
+  const a = make(8, 0);
+  await a.put("/dav/one.mp4", "v1", videoRange, videoPayload(1));
+  await a.put("/dav/two.mp4", "v1", videoRange, videoPayload(2));
+  const b = make(4, 8);
+  assert.equal(await b.get("/dav/one.mp4", "v1", videoRange, 4), null);
+  assert.ok(await b.get("/dav/two.mp4", "v1", videoRange, 4));
+
+  await a.put("/dav/three.mp4", "v1", videoRange, videoPayload(3));
+  assert.equal(await b.get("/dav/two.mp4", "v1", videoRange, 4), null);
+  assert.ok(await b.get("/dav/three.mp4", "v1", videoRange, 4));
+});
+
+test("a video quota error evicts old ranges and retries the write with a reduced shared budget", async () => {
+  const f = storageFixture();
+  const cache = await f.settings.storage.open(
+    "lantern-dock-public-video-ranges-v1",
+  );
+  const put = cache.put.bind(cache);
+  let failNextRange = false;
+  let rejected = 0;
+  cache.put = async (key, response) => {
+    if (failNextRange && !key.endsWith("/index")) {
+      failNextRange = false;
+      rejected++;
+      throw new DOMException("out of storage", "QuotaExceededError");
+    }
+    await put(key, response);
+  };
+  let estimates = 0;
+  const make = () =>
+    new PersistentVideoCache(f.transport, {
+      ...f.settings,
+      estimate: async () => {
+        estimates++;
+        return { quota: 256 * MiB + 16, usage: 0 };
+      },
+    });
+  const first = make();
+  const second = make();
+  await first.put("/dav/one.mp4", "v1", videoRange, videoPayload(1));
+  await first.put("/dav/two.mp4", "v1", videoRange, videoPayload(2));
+  failNextRange = true;
+  await first.put("/dav/three.mp4", "v1", videoRange, videoPayload(3));
+  assert.equal(rejected, 1);
+  assert.equal(await second.get("/dav/one.mp4", "v1", videoRange, 4), null);
+  assert.ok(await second.get("/dav/three.mp4", "v1", videoRange, 4));
+  await second.put("/dav/four.mp4", "v1", videoRange, videoPayload(4));
+  assert.equal(await first.get("/dav/three.mp4", "v1", videoRange, 4), null);
+  assert.ok(await first.get("/dav/four.mp4", "v1", videoRange, 4));
+  assert.equal(estimates, 2);
 });
 
 test("public renditions survive a new client and scopes isolate backend, root, source version and size", async () => {

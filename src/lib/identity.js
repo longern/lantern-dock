@@ -3,7 +3,7 @@ import { coreError } from "./errors.js";
 import { DirectTransport } from "./transport.js";
 import { backendPaths } from "../../shared/backend-paths.js";
 import { safeReturnPath } from "../../shared/routes.js";
-import { clearPersistentImages } from "./image-cache.js";
+import { clearPersistentMedia } from "./video-cache.js";
 import { fetchConfiguration } from "./configuration.js";
 import {
   AUTHORIZATION_METADATA_PATH,
@@ -149,7 +149,7 @@ export async function beginLogin(signal) {
     }),
   );
   signal?.throwIfAborted();
-  await clearPersistentImages();
+  await clearPersistentMedia();
   signal?.throwIfAborted();
   location.assign(value.url);
 }
@@ -162,7 +162,7 @@ export async function endLogin() {
       headers: { "Accept-Language": locale },
     }),
   );
-  await clearPersistentImages();
+  await clearPersistentMedia();
   return value;
 }
 let tokenNonce;
