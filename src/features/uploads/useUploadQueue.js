@@ -50,6 +50,9 @@ export function useUploadQueue({
   const [working, setWorking] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [revision, setRevision] = useState(0);
+  const [nextTasks, setNextTasks] = useState(null);
+  const [loadingTasks, setLoadingTasks] = useState(false);
+  const [tasksError, setTasksError] = useState("");
   const client = useRef(null);
   const active = useRef(null);
   const running = useRef(false);
@@ -61,11 +64,13 @@ export function useUploadQueue({
   const selection = useRef(initialFiles);
   const batchKey = useRef(null);
   const batchID = useRef(null);
+  const tasksRequest = useRef(null);
   useEffect(() => {
     mounted.current = true;
     const controller = new AbortController();
     const stop = () => {
       active.current?.controller.abort();
+      tasksRequest.current?.abort();
       client.current?.close();
     };
     const reopen = (event) => {
@@ -75,6 +80,9 @@ export function useUploadQueue({
     window.addEventListener("pageshow", reopen);
     setLink(null);
     setError("");
+    setNextTasks(null);
+    setLoadingTasks(false);
+    setTasksError("");
     let key;
     (async () => {
       try {
@@ -106,12 +114,13 @@ export function useUploadQueue({
         if (batchKey.current) {
           batchID.current ||= savedBatch(key);
           if (batchID.current) {
-            const tasks = await connection.resumableTasks(
+            const { tasks, next } = await connection.resumableTasks(
               batchID.current,
               controller.signal,
             );
             if (controller.signal.aborted) return;
             setRows(tasks.map(restoredRow));
+            setNextTasks(next);
           }
         }
         setLink(info);
@@ -130,11 +139,44 @@ export function useUploadQueue({
       window.removeEventListener("pagehide", stop);
       window.removeEventListener("pageshow", reopen);
       controller.abort();
+      tasksRequest.current?.abort();
+      tasksRequest.current = null;
       active.current?.controller.abort();
       client.current?.close();
       client.current = null;
     };
   }, [token, revision, personalClient]);
+  const loadMoreTasks = async () => {
+    const connection = client.current;
+    if (!connection || !nextTasks || tasksRequest.current) return;
+    const request = new AbortController();
+    tasksRequest.current = request;
+    setLoadingTasks(true);
+    setTasksError("");
+    try {
+      const { tasks, next } = await connection.resumableTasks(
+        batchID.current,
+        request.signal,
+        nextTasks,
+      );
+      if (request.signal.aborted) return;
+      setRows((current) => {
+        const seen = new Set(current.map((row) => row.task?.id || row.id));
+        return [
+          ...current,
+          ...tasks.filter((task) => !seen.has(task.id)).map(restoredRow),
+        ];
+      });
+      setNextTasks(next);
+    } catch (err) {
+      if (!request.signal.aborted) setTasksError(err.message);
+    } finally {
+      if (tasksRequest.current === request) {
+        tasksRequest.current = null;
+        if (!request.signal.aborted) setLoadingTasks(false);
+      }
+    }
+  };
   const update = (id, patch) => {
     if (mounted.current)
       setRows((current) =>
@@ -400,6 +442,10 @@ export function useUploadQueue({
     completed,
     percent,
     orderedRows,
+    nextTasks,
+    loadingTasks,
+    tasksError,
+    loadMoreTasks,
     receive,
     cancelRow,
     cancelUploads,

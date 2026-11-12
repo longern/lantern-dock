@@ -45,7 +45,7 @@ The NAS starts from its configured `SITE_ORIGIN`, validates an exact metadata is
 
 The Worker derives its issuer from the HTTPS request URL by default. Optional Worker `SITE_ORIGIN` pins a canonical origin and rejects other request origins. Forwarded headers do not choose the issuer. Sessions and signing keys are scoped to the resulting site origin; the NAS always uses its explicitly configured trusted origin.
 
-Discovery is lazy, on the first authenticated request. Metadata and its remote key cache are renewed after five minutes on demand; unknown signing-key IDs can refresh JWKS sooner. There is no background polling and no per-file Worker call. Retrieval uses bounded bodies and a ten-second HTTP timeout. Discovery failures return `503`; an invalid token or proof returns `401`. A valid existing cache can continue working until its refresh boundary; expired discovery does not silently fall back to another issuer or anonymous access.
+Discovery is lazy, on the first authenticated request. Metadata and its key cache are renewed after five minutes on demand. An unknown signing-key ID can refresh JWKS sooner. Concurrent requests share a lookup, and successive attempts triggered by unknown keys are spaced by at least five seconds. A bad signature for a cached key is rejected locally. Retrieval uses bounded bodies and a ten-second timeout. Discovery failures return `503`, while an invalid token or proof returns `401`. Cached keys remain usable until the discovery cache expires.
 
 ## Session grant and nonce retry
 

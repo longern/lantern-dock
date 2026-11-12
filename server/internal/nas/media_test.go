@@ -225,15 +225,24 @@ func TestMediaInspectionCancellationAndAdmissionLimits(t *testing.T) {
 	if err := f.s.inspectMedia(ctx, files); err == nil || time.Since(start) > time.Second {
 		t.Fatal("metadata process escaped cancellation", err)
 	}
-	f.s.mediaRequests <- struct{}{}
-	f.s.mediaRequests <- struct{}{}
+	f.s.mediaVideos <- struct{}{}
+	f.s.mediaVideos <- struct{}{}
+	f.s.mediaTool, err = exec.LookPath("exiftool")
+	if err != nil {
+		t.Fatal(err)
+	}
+	readMediaIndex(t, f, mediaPath+"/"+mediaID("")+"/index.json")
+	<-f.s.mediaVideos
+	<-f.s.mediaVideos
+	f.s.mediaIndexes <- struct{}{}
+	f.s.mediaIndexes <- struct{}{}
 	r := f.request(t, "GET", mediaPath+"/"+mediaID("")+"/index.json", "", nil, nil)
 	status(t, r, 503)
 	if r.Header.Get("Retry-After") != "1" || r.Header.Get("Cache-Control") != "no-store" {
 		t.Fatal("missing admission headers")
 	}
-	<-f.s.mediaRequests
-	<-f.s.mediaRequests
+	<-f.s.mediaIndexes
+	<-f.s.mediaIndexes
 }
 
 func TestMotionTagsRequireSupportedFinalContainer(t *testing.T) {

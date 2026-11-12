@@ -180,11 +180,27 @@ export class UploadClient {
           onUploadProgress: onProgress,
         });
   }
-  resumableTasks(batch, signal) {
-    return this.request(this.path + "/resumable", {
-      headers: tusHeaders(batch),
-      signal,
-    });
+  async resumableTasks(batch, signal, cursor) {
+    const root = this.path + "/resumable";
+    const response = await this.send(
+      cursor ? root + "?cursor=" + cursor : root,
+      {
+        headers: tusHeaders(batch),
+        signal,
+      },
+    );
+    const tasks = await uploadResponse(response);
+    const link = /^<([^>]+)>;\s*rel="next"$/.exec(
+      response.headers.get("Link") || "",
+    );
+    const prefix = root + "?cursor=";
+    const next = link?.[1].startsWith(prefix)
+      ? link[1].slice(prefix.length)
+      : null;
+    return {
+      tasks,
+      next: next && /^[01]\.\d+\.[a-f0-9]{32}$/.test(next) ? next : null,
+    };
   }
   async cancelResumable(batch, id) {
     const response = await this.send(this.path + "/resumable/" + id, {

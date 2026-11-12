@@ -105,6 +105,41 @@ test("optional metadata discovery does not guess third-party DAV routes", async 
   assert.deepEqual(c.requests, ["/api/capabilities"]);
   c.images.dispose();
 });
+
+test("busy live indexes retry and retain the last confirmed metadata", async () => {
+  const c = client();
+  const signal = new AbortController().signal;
+  const fetch = c.transport.request;
+  let busy = 0;
+  c.transport.request = (path) => {
+    if (path.endsWith("/index.json") && busy > 0) {
+      busy--;
+      return new Response(null, {
+        status: 503,
+        headers: { "Retry-After": "0" },
+      });
+    }
+    return fetch(path);
+  };
+  busy = 1;
+  assert.deepEqual(
+    (await fetchLiveMedia(c, [image], signal)).get(image.path),
+    live,
+  );
+  assert.equal(busy, 0);
+  c.images.expire();
+  busy = 4;
+  assert.deepEqual(
+    (await fetchLiveMedia(c, [image], signal)).get(image.path),
+    live,
+  );
+  assert.equal(busy, 1);
+  busy = 4;
+  const changed = { ...image, etag: "v2" };
+  assert.equal((await fetchLiveMedia(c, [changed], signal)).size, 0);
+  c.images.dispose();
+});
+
 test("no-store metadata is never retained and paired videos hide only beside their image", async () => {
   const c = client({ policy: "no-store" }),
     signal = new AbortController().signal;

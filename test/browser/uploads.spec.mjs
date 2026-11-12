@@ -21,7 +21,12 @@ const info = {
 
 async function install(
   page,
-  { resumable = false, holdRefresh = false, personal = false } = {},
+  {
+    resumable = false,
+    holdRefresh = false,
+    personal = false,
+    paged = false,
+  } = {},
 ) {
   const state = { creates: [], deletes: [], reads: 0, refresh: null };
   const root = personal ? "/api/account/uploads" : "/api/uploads";
@@ -70,8 +75,25 @@ async function install(
       });
     }
     if (path.endsWith("/resumable")) {
+      if (paged && new URL(request.url()).searchParams.has("cursor"))
+        return route.fulfill({
+          json: [
+            {
+              id: "d".repeat(32),
+              name: "上次上传.txt",
+              size: 32,
+              offset: 32,
+              status: "complete",
+            },
+          ],
+        });
       const hash = (data) => createHash("sha256").update(data).digest();
       return route.fulfill({
+        headers: paged
+          ? {
+              Link: `<${root}/resumable?cursor=1.123.${"c".repeat(32)}>; rel="next"`,
+            }
+          : {},
         json: [
           {
             id: "c".repeat(32),
@@ -361,6 +383,22 @@ test("restored paused uploads retain original-file resume and cancellation contr
   await expect(page.locator(".upload-result.cancelled")).toHaveCount(1);
   expect(state.deletes).toEqual(["/api/uploads/resumable/" + "c".repeat(32)]);
   expect(state.creates).toHaveLength(0);
+});
+
+test("older upload history can be loaded without hiding a paused task", async ({
+  page,
+}) => {
+  await install(page, { resumable: true, paged: true });
+  await expect(
+    page.getByLabel("重选原文件继续", { exact: true }),
+  ).toBeAttached();
+  const more = page.getByRole("button", { name: "加载更多", exact: true });
+  await more.click();
+  await expect(page.getByText("上次上传.txt")).toBeVisible();
+  await expect(
+    page.getByLabel("重选原文件继续", { exact: true }),
+  ).toBeAttached();
+  await expect(more).toHaveCount(0);
 });
 
 test("upload errors stay with the affected file and never show a successful total", async ({

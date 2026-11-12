@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/sha256"
 	"crypto/tls"
@@ -21,7 +22,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	jose "github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 )
@@ -46,30 +46,125 @@ type identityAuth struct {
 	resourceOriginExplicit bool
 }
 type rotatingKeys struct {
-	mu      sync.Mutex
-	expires time.Time
-	keys    oidc.KeySet
-	ctx     context.Context
-	uri     string
-	client  *http.Client
+	mu           sync.Mutex
+	expires      time.Time
+	refreshAfter time.Time
+	refreshing   chan struct{}
+	keysURI      string
+	keys         map[string]ed25519.PublicKey
+	ctx          context.Context
+	uri          string
+	client       *http.Client
 }
 
 var errIdentityDiscovery = errors.New("authorization server discovery failed")
 
-func (k *rotatingKeys) VerifySignature(ctx context.Context, raw string) ([]byte, error) {
-	k.mu.Lock()
-	if k.keys == nil || time.Now().After(k.expires) {
-		uri, err := k.discover(ctx)
-		if err != nil {
+func (k *rotatingKeys) verificationKey(ctx context.Context, kid string) (ed25519.PublicKey, error) {
+	for {
+		k.mu.Lock()
+		now := time.Now()
+		expired := !now.Before(k.expires)
+		if key := k.keys[kid]; !expired && key != nil {
 			k.mu.Unlock()
-			return nil, fmt.Errorf("%w: %v", errIdentityDiscovery, err)
+			return key, nil
 		}
-		k.keys = oidc.NewRemoteKeySet(k.ctx, uri)
-		k.expires = time.Now().Add(5 * time.Minute)
+		if k.refreshing == nil {
+			if now.Before(k.refreshAfter) {
+				k.mu.Unlock()
+				if expired {
+					return nil, errIdentityDiscovery
+				}
+				return nil, errors.New("unknown signing key")
+			}
+			k.refreshing = make(chan struct{})
+			go k.refresh(k.keysURI, expired, kid)
+		}
+		done := k.refreshing
+		k.mu.Unlock()
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
-	keys := k.keys
-	k.mu.Unlock()
-	return keys.VerifySignature(ctx, raw)
+}
+
+func (k *rotatingKeys) refresh(uri string, discover bool, kid string) {
+	ctx, cancel := context.WithTimeout(k.ctx, 10*time.Second)
+	defer cancel()
+	var keys map[string]ed25519.PublicKey
+	var err error
+	if discover {
+		uri, err = k.discover(ctx)
+	}
+	if err == nil {
+		keys, err = k.fetchKeys(ctx, uri)
+	}
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	now := time.Now()
+	k.refreshAfter = now.Add(5 * time.Second)
+	if err == nil {
+		// A successful initial lookup can be followed immediately by key rotation.
+		if k.keys == nil && keys[kid] != nil {
+			k.refreshAfter = now
+		}
+		k.keys, k.keysURI = keys, uri
+		if discover {
+			k.expires = now.Add(5 * time.Minute)
+		}
+	}
+	close(k.refreshing)
+	k.refreshing = nil
+}
+
+func (k *rotatingKeys) fetchKeys(ctx context.Context, uri string) (map[string]ed25519.PublicKey, error) {
+	request, err := http.NewRequestWithContext(ctx, "GET", uri, nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Cache-Control", "no-cache")
+	response, err := k.client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("JWKS status %d", response.StatusCode)
+	}
+	var set jose.JSONWebKeySet
+	if err = decodeIdentityDocument(response.Body, &set); err != nil {
+		return nil, err
+	}
+	keys := make(map[string]ed25519.PublicKey)
+	for _, jwk := range set.Keys {
+		key, ok := jwk.Key.(ed25519.PublicKey)
+		if !ok || len(key) != ed25519.PublicKeySize || jwk.KeyID == "" || len(jwk.KeyID) > 128 ||
+			(jwk.Algorithm != "" && jwk.Algorithm != "EdDSA") || (jwk.Use != "" && jwk.Use != "sig") {
+			continue
+		}
+		if _, duplicate := keys[jwk.KeyID]; duplicate {
+			return nil, errors.New("duplicate signing key ID")
+		}
+		keys[jwk.KeyID] = key
+	}
+	if len(keys) == 0 {
+		return nil, errors.New("no Ed25519 signing keys")
+	}
+	return keys, nil
+}
+
+func decodeIdentityDocument(body io.Reader, value any) error {
+	const maxBytes = 128 << 10
+	data, err := io.ReadAll(io.LimitReader(body, maxBytes+1))
+	if err != nil {
+		return err
+	}
+	if len(data) > maxBytes {
+		return errors.New("identity document too large")
+	}
+	return json.Unmarshal(data, value)
 }
 func (k *rotatingKeys) discover(ctx context.Context) (string, error) {
 	request, err := http.NewRequestWithContext(ctx, "GET", k.uri+"/.well-known/oauth-authorization-server", nil)
@@ -92,13 +187,8 @@ func (k *rotatingKeys) discover(ctx context.Context) (string, error) {
 			ProtocolVersion int `json:"protocol_version"`
 		} `json:"lantern_dock"`
 	}
-	decoder := json.NewDecoder(io.LimitReader(response.Body, 128<<10))
-	if err = decoder.Decode(&metadata); err != nil {
+	if err = decodeIdentityDocument(response.Body, &metadata); err != nil {
 		return "", err
-	}
-	var extra any
-	if decoder.Decode(&extra) != io.EOF {
-		return "", fmt.Errorf("invalid metadata document")
 	}
 	keys, err := url.Parse(metadata.JWKS)
 	issuer, _ := url.Parse(k.uri)
@@ -147,23 +237,6 @@ func validSiteSubject(sub string) bool {
 	return err == nil && len(digest) == 16 && base64.RawURLEncoding.EncodeToString(digest) == encoded
 }
 
-type limitedTransport struct{ base http.RoundTripper }
-type limitedBody struct {
-	io.Reader
-	io.Closer
-}
-
-func (t limitedTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	if r.URL.Scheme != "https" {
-		return nil, fmt.Errorf("identity keys require HTTPS")
-	}
-	response, err := t.base.RoundTrip(r)
-	if err != nil {
-		return nil, err
-	}
-	response.Body = limitedBody{io.LimitReader(response.Body, 128<<10), response.Body}
-	return response, nil
-}
 func identityClient() (*http.Client, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	if certFile := os.Getenv("SSL_CERT_FILE"); certFile != "" {
@@ -180,7 +253,7 @@ func identityClient() (*http.Client, error) {
 		}
 		transport.TLSClientConfig = &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}
 	}
-	return &http.Client{Transport: limitedTransport{transport}, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, nil
+	return &http.Client{Transport: transport, Timeout: 10 * time.Second, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}, nil
 }
 func (s *Server) ConfigureIdentity(cfg IdentityConfig) error {
 	if cfg.SiteOrigin == "" {
@@ -216,8 +289,7 @@ func (s *Server) ConfigureIdentity(cfg IdentityConfig) error {
 			return err
 		}
 	}
-	ctx := oidc.ClientContext(s.ctx, client)
-	keys := &rotatingKeys{ctx: ctx, uri: site, client: client}
+	keys := &rotatingKeys{ctx: s.ctx, uri: site, client: client}
 	if _, err = s.Store.DB.Exec(`CREATE TABLE IF NOT EXISTS identity_proofs (id TEXT PRIMARY KEY, expires_at INTEGER NOT NULL); CREATE INDEX IF NOT EXISTS identity_proofs_expiry ON identity_proofs(expires_at);`); err != nil {
 		return err
 	}
@@ -252,12 +324,16 @@ func (s *Server) identityUserScope(r *http.Request, requiredScope string) (Ident
 	if (strings.ToLower(typ) != "at+jwt" && strings.ToLower(typ) != "application/at+jwt") || header.KeyID == "" || len(header.KeyID) > 128 {
 		return user, fault(401, "INVALID_IDENTITY", "errors.invalidIdentityType")
 	}
-	payload, err := s.identity.keys.VerifySignature(r.Context(), raw)
+	key, err := s.identity.keys.verificationKey(r.Context(), header.KeyID)
 	if err != nil {
 		if errors.Is(err, errIdentityDiscovery) {
 			return user, fault(503, "IDENTITY_DISCOVERY_UNAVAILABLE", "errors.identityDiscoveryUnavailable")
 		}
 		return user, fault(401, "INVALID_IDENTITY", "errors.identityExpired")
+	}
+	payload, err := signed.Verify(key)
+	if err != nil {
+		return user, fault(401, "INVALID_IDENTITY", "errors.invalidIdentity")
 	}
 	var claims struct {
 		jwt.Claims

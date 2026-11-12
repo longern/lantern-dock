@@ -28,6 +28,10 @@ export function UploadPanel({
     completed,
     percent,
     orderedRows,
+    nextTasks,
+    loadingTasks,
+    tasksError,
+    loadMoreTasks,
     receive,
     cancelRow,
     cancelUploads,
@@ -167,6 +171,17 @@ export function UploadPanel({
                 />
               ))}
             </ul>
+            {tasksError && <p role="alert">{tasksError}</p>}
+            {nextTasks && (
+              <button
+                type="button"
+                class="secondary-button"
+                disabled={loadingTasks}
+                onClick={loadMoreTasks}
+              >
+                {t(loadingTasks ? "library.loadingMore" : "library.loadMore")}
+              </button>
+            )}
           </>
         ) : (
           <div class="upload-empty">

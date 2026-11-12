@@ -124,6 +124,8 @@ func OpenStore(directory string, options ...StoreOption) (*Store, error) {
  size INTEGER NOT NULL CHECK(size>=0), status TEXT NOT NULL CHECK(status IN ('pending','receiving','complete','failed')),
  expires_at INTEGER NOT NULL, created_at INTEGER NOT NULL);
  CREATE INDEX IF NOT EXISTS uploads_link ON uploads(link_id,status,expires_at);
+ CREATE INDEX IF NOT EXISTS uploads_created ON uploads(link_id,created_at);
+ CREATE INDEX IF NOT EXISTS uploads_failed ON uploads(created_at,id) WHERE status='failed';
  CREATE TABLE IF NOT EXISTS resumable_uploads (
  upload_id TEXT PRIMARY KEY REFERENCES uploads(id) ON DELETE CASCADE,
  batch_hash BLOB NOT NULL, metadata TEXT NOT NULL,
@@ -304,6 +306,9 @@ func validName(name string) bool {
 func (s *Store) Reserve(ctx context.Context, linkID, name string, size int64) (Upload, error) {
 	return s.reserve(ctx, linkID, name, size, nil, "")
 }
+
+const uploadCreationLimit = 120
+
 func (s *Store) reserve(ctx context.Context, linkID, name string, size int64, batch []byte, metadata string) (Upload, error) {
 	if !validName(name) || size < 0 {
 		return Upload{}, fault(400, "INVALID_FILE", "errors.invalidFile")
@@ -323,23 +328,35 @@ func (s *Store) reserve(ctx context.Context, linkID, name string, size int64, ba
 	if size > l.MaxFileBytes {
 		return Upload{}, fault(413, "FILE_TOO_LARGE", "errors.fileTooLarge")
 	}
+	now := time.Now()
 	var used, count int64
-	err = tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(size),0),COUNT(*) FROM uploads WHERE link_id=? AND `+usageWhere+dailyMemberUsage, l.ID, time.Now().Unix()).Scan(&used, &count)
+	err = tx.QueryRowContext(ctx, `SELECT COALESCE(SUM(size),0),COUNT(*) FROM uploads WHERE link_id=? AND `+usageWhere+dailyMemberUsage, l.ID, now.Unix()).Scan(&used, &count)
 	if err != nil {
 		return Upload{}, err
 	}
 	if size > l.MaxTotalBytes-used || count >= l.MaxFiles {
 		return Upload{}, fault(409, "QUOTA_EXCEEDED", "errors.quotaExceeded")
 	}
-	expiry := time.Now().Add(15 * time.Minute)
+	// Count cancelled and failed tasks as well so releasing quota cannot reset
+	// the creation limit. Check and reserve in the same transaction.
+	var limited bool
+	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM uploads WHERE link_id=? AND created_at>? LIMIT 1 OFFSET ?)`,
+		l.ID, now.Add(-time.Minute).Unix(), uploadCreationLimit-1).Scan(&limited)
+	if err != nil {
+		return Upload{}, err
+	}
+	if limited {
+		return Upload{}, fault(429, "UPLOAD_RATE_LIMITED", "errors.uploadRateLimited")
+	}
+	expiry := now.Add(15 * time.Minute)
 	if batch != nil {
-		expiry = time.Now().Add(resumeLifetime)
+		expiry = now.Add(resumeLifetime)
 	}
 	if l.ExpiresAt.Before(expiry) {
 		expiry = l.ExpiresAt
 	}
 	u := Upload{ID: randomID(), LinkID: l.ID, Name: name, Size: size, Status: "pending", ExpiresAt: time.Unix(expiry.Unix(), 0).UTC()}
-	_, err = tx.ExecContext(ctx, `INSERT INTO uploads(id,link_id,name,size,status,expires_at,created_at) VALUES(?,?,?,?,?,?,?)`, u.ID, u.LinkID, u.Name, u.Size, u.Status, u.ExpiresAt.Unix(), time.Now().Unix())
+	_, err = tx.ExecContext(ctx, `INSERT INTO uploads(id,link_id,name,size,status,expires_at,created_at) VALUES(?,?,?,?,?,?,?)`, u.ID, u.LinkID, u.Name, u.Size, u.Status, u.ExpiresAt.Unix(), now.Unix())
 	if err != nil {
 		return Upload{}, err
 	}

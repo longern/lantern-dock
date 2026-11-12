@@ -42,6 +42,7 @@
   "errors.methodNotAllowed": "此接口不支持该请求方法。",
   "errors.sizeMismatch": "文件大小与上传任务不一致。",
   "errors.uploadBusy": "同时上传的文件过多，请稍后重试。",
+  "errors.uploadRateLimited": "短时间内发起的上传过多，请一分钟后重试。",
   "errors.shuttingDown": "服务正在关闭。",
   "errors.uploadInterrupted": "上传未完成，请重试。",
   "errors.invalidUploadBatch": "缺少有效的上传批次标识。",

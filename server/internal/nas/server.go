@@ -26,7 +26,8 @@ type Server struct {
 	dav             *webdav.Handler
 	images          *imageCache
 	mediaTool       string
-	mediaRequests   chan struct{}
+	mediaIndexes    chan struct{}
+	mediaVideos     chan struct{}
 	mediaProbe      chan struct{}
 	origins         map[string]bool
 	ctx             context.Context
@@ -75,7 +76,8 @@ func New(publicDir, dataDir string, origins []string, options ...StoreOption) (*
 	}
 	s := &Server{Store: store, origins: map[string]bool{}, active: map[string]func(){}, slots: make(chan struct{}, 32)}
 	s.mediaTool, _ = exec.LookPath("exiftool")
-	s.mediaRequests = make(chan struct{}, 2)
+	s.mediaIndexes = make(chan struct{}, 2)
+	s.mediaVideos = make(chan struct{}, 2)
 	s.mediaProbe = make(chan struct{}, 1)
 	ok := false
 	defer func() {
@@ -178,6 +180,9 @@ func writeError(w http.ResponseWriter, r *http.Request, err error) {
 	if f.Status == 401 {
 		w.Header().Set("WWW-Authenticate", `Bearer realm="lantern-dock-uploads"`)
 	}
+	if f.Code == "UPLOAD_RATE_LIMITED" {
+		w.Header().Set("Retry-After", "60")
+	}
 	writeJSON(w, f.Status, map[string]string{"error": t.T(f.MessageKey), "code": f.Code})
 }
 func validRequestPath(value string) bool {
@@ -208,7 +213,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS, PROPFIND, SEARCH, POST, PUT, PATCH, DELETE")
 		w.Header().Set("Access-Control-Allow-Headers", "Accept-Language, Authorization, Content-Type, Depth, DPoP, If-None-Match, Range, If-Range, Tus-Resumable, Upload-Length, Upload-Metadata, Upload-Offset, X-Upload-Batch")
-		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Content-Disposition, Accept-Ranges, ETag, Link, WWW-Authenticate, DPoP-Nonce, DAV, DASL, Allow, Location, Tus-Resumable, Tus-Version, Tus-Extension, Upload-Length, Upload-Offset, Upload-Expires, Upload-Metadata")
+		w.Header().Set("Access-Control-Expose-Headers", "Content-Length, Content-Range, Content-Disposition, Accept-Ranges, ETag, Link, Retry-After, WWW-Authenticate, DPoP-Nonce, DAV, DASL, Allow, Location, Tus-Resumable, Tus-Version, Tus-Extension, Upload-Length, Upload-Offset, Upload-Expires, Upload-Metadata")
 	}
 	switch {
 	case r.URL.Path == mediaPath || strings.HasPrefix(r.URL.Path, mediaPath+"/"):

@@ -314,20 +314,30 @@ func (s *Server) serveMedia(w http.ResponseWriter, r *http.Request) {
 		writeError(w, r, fault(503, "MEDIA_UNAVAILABLE", "errors.mediaUnavailable"))
 		return
 	}
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, mediaPath+"/"), "/")
+	var slots chan struct{}
+	switch {
+	case len(parts) == 2 && parts[1] == "index.json":
+		slots = s.mediaIndexes
+	case len(parts) == 4 && parts[3] == "video.mp4":
+		slots = s.mediaVideos
+	default:
+		writeError(w, r, fault(404, "NOT_FOUND", "errors.notFound"))
+		return
+	}
 	select {
-	case s.mediaRequests <- struct{}{}:
+	case slots <- struct{}{}:
 	default:
 		w.Header().Set("Retry-After", "1")
 		writeError(w, r, fault(503, "MEDIA_BUSY", "errors.mediaBusy"))
 		return
 	}
-	defer func() { <-s.mediaRequests }()
+	defer func() { <-slots }()
 	ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 	defer cancel()
 	stop := context.AfterFunc(s.ctx, cancel)
 	defer stop()
-	parts := strings.Split(strings.TrimPrefix(r.URL.Path, mediaPath+"/"), "/")
-	if len(parts) == 2 && parts[1] == "index.json" {
+	if slots == s.mediaIndexes {
 		name, ok := mediaName(parts[0], true)
 		if !ok {
 			writeError(w, r, fault(404, "NOT_FOUND", "errors.notFound"))
@@ -336,11 +346,7 @@ func (s *Server) serveMedia(w http.ResponseWriter, r *http.Request) {
 		s.serveMediaIndex(ctx, w, r, name)
 		return
 	}
-	if len(parts) == 4 && parts[3] == "video.mp4" {
-		s.serveMotionVideo(ctx, w, r, parts)
-		return
-	}
-	writeError(w, r, fault(404, "NOT_FOUND", "errors.notFound"))
+	s.serveMotionVideo(ctx, w, r, parts)
 }
 func (s *Server) serveMediaIndex(ctx context.Context, w http.ResponseWriter, r *http.Request, name string) {
 	offset := 0
@@ -419,8 +425,23 @@ func (s *Server) serveMediaIndex(ctx context.Context, w http.ResponseWriter, r *
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "private, max-age=15")
 	w.Header().Set("ETag", `"`+imageHash(body)+`"`)
+	controller := http.NewResponseController(w)
+	deadline, _ := ctx.Deadline()
+	_ = controller.SetWriteDeadline(deadline)
+	defer func() { _ = controller.SetWriteDeadline(time.Time{}) }()
 	http.ServeContent(w, r, "", time.Time{}, bytes.NewReader(body))
 }
+
+type motionVideoWriter struct {
+	http.ResponseWriter
+	controller *http.ResponseController
+}
+
+func (w motionVideoWriter) Write(p []byte) (int, error) {
+	_ = w.controller.SetWriteDeadline(time.Now().Add(time.Minute))
+	return w.ResponseWriter.Write(p)
+}
+
 func (s *Server) serveMotionVideo(ctx context.Context, w http.ResponseWriter, r *http.Request, parts []string) {
 	imageName, a := mediaName(parts[0], false)
 	videoName, b := mediaName(parts[1], false)
@@ -475,5 +496,7 @@ func (s *Server) serveMotionVideo(ctx context.Context, w http.ResponseWriter, r 
 	}
 	w.Header().Set("Cache-Control", "private, no-cache")
 	w.Header().Set("ETag", `"`+parts[2]+`"`)
-	http.ServeContent(w, r, "motion.mp4", time.Time{}, io.NewSectionReader(sources[1].File, offset, length))
+	controller := http.NewResponseController(w)
+	defer func() { _ = controller.SetWriteDeadline(time.Time{}) }()
+	http.ServeContent(motionVideoWriter{w, controller}, r, "motion.mp4", time.Time{}, io.NewSectionReader(sources[1].File, offset, length))
 }

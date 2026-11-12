@@ -93,66 +93,111 @@ export async function fetchLiveMedia(client, entries, signal) {
         ? cached.value.items
         : null;
     if (!values) {
-      const relative =
-        decodeURIComponent(
-          dir.slice(backendPaths.files.length).replace(/\/$/, ""),
-        ) || ".";
-      const base = `${backendPaths.media}/${imageIdentifier(relative)}/index.json`;
-      let offset = 0,
-        revision;
-      for (let page = 0; page < 158; page++) {
-        const path = offset
-          ? `${base}?offset=${offset}&revision=${revision}`
-          : base;
-        const response = await client.transport.request(path, {
-          signal,
-          headers: { Accept: "application/json" },
-        });
-        if (!response.ok) {
-          await response.body?.cancel();
-          throw new Error("Live metadata unavailable");
-        }
-        const value = JSON.parse(
-          new TextDecoder().decode(
-            await limitedBytes(response, 2 * 1024 * 1024, signal),
-          ),
-        );
-        if (
-          value.version !== 1 ||
-          !/^[a-f0-9]{64}$/.test(value.revision) ||
-          (revision && revision !== value.revision) ||
-          !Array.isArray(value.items) ||
-          value.items.length > 10000
-        )
-          throw new Error("Invalid live index");
-        revision = value.revision;
-        if (value.nextOffset === null) {
-          values = value.items
-            .map((entry) => liveDescriptor(entry, client.root))
-            .filter((entry) => entry && directory(entry.image) === dir);
-          const policy = cachePolicy(response.headers);
-          if (policy.storable)
+      try {
+        const index = await fetchLiveIndex(client, dir, signal);
+        if (index) {
+          values = index.items;
+          if (index.storable)
             client.images.liveIndexes.set(
               key,
-              { items: values, freshFor: policy.freshFor },
+              index,
               key.length * 2 + JSON.stringify(values).length * 2,
             );
-          break;
-        }
-        if (
-          !Number.isInteger(value.nextOffset) ||
-          value.nextOffset !== offset + 64 ||
-          value.nextOffset > 10000
-        )
-          throw new Error("Invalid live page");
-        offset = value.nextOffset;
+          else client.images.liveIndexes.delete(key);
+        } else values = cached?.value.items;
+      } catch {
+        signal.throwIfAborted();
+        client.images.liveIndexes.delete(key);
       }
-      if (!values) throw new Error("Incomplete live index");
     }
     // Apply only the final index: a later page can reveal duplicate Apple IDs.
-    for (const value of values) result.set(value.image, value);
+    for (const value of values || []) result.set(value.image, value);
   }
   return result;
+}
+
+async function requestLivePage(client, path, signal) {
+  for (let attempt = 0; ; attempt++) {
+    signal.throwIfAborted();
+    const response = await client.transport.request(path, {
+      signal,
+      headers: { Accept: "application/json" },
+    });
+    if (response.status !== 503) return response;
+    await response.body?.cancel();
+    if (attempt === 2) return null;
+    const header = response.headers.get("Retry-After") || "";
+    const delay = /^\d+$/.test(header)
+      ? Number(header) * 1000
+      : Date.parse(header) - Date.now();
+    // Long retry windows belong to a subsequent album refresh.
+    if (delay > 5000) return null;
+    await new Promise((resolve, reject) => {
+      signal.throwIfAborted();
+      const abort = () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      };
+      const timer = setTimeout(
+        () => {
+          signal.removeEventListener("abort", abort);
+          resolve();
+        },
+        Number.isFinite(delay) ? Math.max(0, delay) : 1000,
+      );
+      signal.addEventListener("abort", abort, { once: true });
+    });
+  }
+}
+
+async function fetchLiveIndex(client, dir, signal) {
+  const relative =
+    decodeURIComponent(
+      dir.slice(backendPaths.files.length).replace(/\/$/, ""),
+    ) || ".";
+  const base = `${backendPaths.media}/${imageIdentifier(relative)}/index.json`;
+  let offset = 0;
+  let revision;
+  for (let page = 0; page < 158; page++) {
+    const path = offset
+      ? `${base}?offset=${offset}&revision=${revision}`
+      : base;
+    const response = await requestLivePage(client, path, signal);
+    if (!response) return null;
+    if (!response.ok) {
+      await response.body?.cancel();
+      throw new Error("Live metadata unavailable");
+    }
+    const value = JSON.parse(
+      new TextDecoder().decode(
+        await limitedBytes(response, 2 * 1024 * 1024, signal),
+      ),
+    );
+    if (
+      value.version !== 1 ||
+      !/^[a-f0-9]{64}$/.test(value.revision) ||
+      (revision && revision !== value.revision) ||
+      !Array.isArray(value.items) ||
+      value.items.length > 10000
+    )
+      throw new Error("Invalid live index");
+    revision = value.revision;
+    if (value.nextOffset === null)
+      return {
+        ...cachePolicy(response.headers),
+        items: value.items
+          .map((entry) => liveDescriptor(entry, client.root))
+          .filter((entry) => entry && directory(entry.image) === dir),
+      };
+    if (
+      !Number.isInteger(value.nextOffset) ||
+      value.nextOffset !== offset + 64 ||
+      value.nextOffset > 10000
+    )
+      throw new Error("Invalid live page");
+    offset = value.nextOffset;
+  }
+  throw new Error("Incomplete live index");
 }
 
 export function albumLiveItems(entries, metadata) {

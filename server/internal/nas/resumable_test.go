@@ -2,6 +2,7 @@ package nas
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"os"
@@ -9,6 +10,61 @@ import (
 	"strings"
 	"testing"
 )
+
+func TestResumableListingKeepsPendingTasksAheadOfHistory(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	link, token := f.link(t, 8, 1000, 120)
+	batch := strings.Repeat("a", 32)
+	hash := sha256.Sum256([]byte(batch))
+	pending, err := f.s.Store.reserve(ctx, link.ID, "unfinished.bin", 8, hash[:], "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.s.Store.DB.Exec(`UPDATE uploads SET created_at=created_at-3600 WHERE id=?`, pending.ID); err != nil {
+		t.Fatal(err)
+	}
+	for range 105 {
+		u, err := f.s.Store.reserve(ctx, link.ID, "done.bin", 1, hash[:], "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = f.s.Store.DB.Exec(`UPDATE uploads SET status='complete' WHERE id=?`, u.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	headers := map[string]string{"Tus-Resumable": tusVersion, "X-Upload-Batch": batch}
+	readPage := func(path string) ([]resumableUpload, string) {
+		t.Helper()
+		r := f.request(t, "GET", path, token, nil, headers)
+		status(t, r, 200)
+		defer r.Body.Close()
+		var tasks []resumableUpload
+		if err := json.NewDecoder(r.Body).Decode(&tasks); err != nil {
+			t.Fatal(err)
+		}
+		return tasks, r.Header.Get("Link")
+	}
+	first, next := readPage(resumePath)
+	if len(first) != 100 || first[0].ID != pending.ID || first[0].Status != "pending" {
+		t.Fatalf("first page did not start with the older pending upload (size %d)", len(first))
+	}
+	nextPath, ok := strings.CutSuffix(strings.TrimPrefix(next, "<"), `>; rel="next"`)
+	if !ok || !strings.HasPrefix(nextPath, resumePath+"?cursor=") {
+		t.Fatal("invalid next link", next)
+	}
+	second, next := readPage(nextPath)
+	if len(second) != 6 || next != "" {
+		t.Fatalf("last page has %d items and next %q", len(second), next)
+	}
+	seen := map[string]bool{}
+	for _, task := range append(first, second...) {
+		if seen[task.ID] {
+			t.Fatal("task repeated between pages", task.ID)
+		}
+		seen[task.ID] = true
+	}
+}
 
 func TestResumableUploadIsScopedAndRestoresCommittedOffset(t *testing.T) {
 	f := newFixture(t)

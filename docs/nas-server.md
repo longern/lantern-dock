@@ -194,11 +194,13 @@ The NAS advertises resumable uploads through `Tus-Version: 1.0.0` on the authent
 | `HEAD /api/uploads/resumable/<id>`   | Query the confirmed `Upload-Offset` and `Upload-Length`.                                                                                                                             |
 | `PATCH /api/uploads/resumable/<id>`  | Append at the confirmed offset using `application/offset+octet-stream`. Returns `204` and the new offset. The NAS accepts up to 8 MiB per request.                                   |
 | `DELETE /api/uploads/resumable/<id>` | Cancel an unfinished upload and release its reservation.                                                                                                                             |
-| `GET /api/uploads/resumable`         | LanternDock extension returning up to 100 recent tasks from the current batch.                                                                                                       |
+| `GET /api/uploads/resumable`         | Lists up to 100 tasks from the current batch, with unfinished tasks first. Follow the response's `Link: <…>; rel="next"` for the next page.                                          |
 
 All batch requests include the invitation's bearer token, `Tus-Resumable: 1.0.0`, and an unpredictable 32-character hexadecimal `X-Upload-Batch` value. The NAS scopes task access to the invitation and the hash of the batch value. The browser saves only the batch ID in `sessionStorage`, under a key derived from the invitation. After refreshing the same tab, users can reselect their original file and continue. The LanternDock client checks a fingerprint derived from every 4 MiB block of the file before appending. Completed tasks can be recovered without selecting a file again.
 
 Unfinished tasks expire 24 hours after creation or the last successful chunk, capped by the invitation's expiry. Cancellation, expiry, and revocation release reserved capacity and remove partial files. The guest batch exposes only its own upload status. Administrators use the private inbox to view or download received files.
+
+The NAS accepts up to 120 upload starts per minute per collection link or upload grant, including starts that are later cancelled. A rate-limited request returns `429` with `Retry-After`. The NAS periodically removes failed task records that were created over 24 hours ago.
 
 ## Image previews and caching
 

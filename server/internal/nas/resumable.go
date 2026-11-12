@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -33,10 +34,11 @@ const resumeSelect = `SELECT u.id,u.link_id,u.name,u.size,u.status,u.expires_at,
  FROM resumable_uploads r JOIN uploads u ON u.id=r.upload_id
  WHERE u.link_id=? AND r.batch_hash=?`
 
-func scanResume(row scanner) (resumableUpload, error) {
+func scanResume(row scanner, extra ...any) (resumableUpload, error) {
 	var u resumableUpload
 	var expiry int64
-	err := row.Scan(&u.ID, &u.LinkID, &u.Name, &u.Size, &u.Status, &expiry, &u.Offset, &u.metadata)
+	fields := []any{&u.ID, &u.LinkID, &u.Name, &u.Size, &u.Status, &expiry, &u.Offset, &u.metadata}
+	err := row.Scan(append(fields, extra...)...)
 	u.ExpiresAt = time.Unix(expiry, 0).UTC()
 	if u.Status == "pending" && !u.ExpiresAt.After(time.Now()) {
 		u.Status = "failed"
@@ -44,22 +46,52 @@ func scanResume(row scanner) (resumableUpload, error) {
 	return u, err
 }
 
-func (s *Server) resumeTasks(ctx context.Context, l Link, batch []byte) ([]resumableUpload, error) {
-	rows, err := s.Store.DB.QueryContext(ctx, resumeSelect+` ORDER BY u.created_at DESC,u.id DESC LIMIT 100`, l.ID, batch)
+func (s *Server) resumeTasks(ctx context.Context, l Link, batch []byte, cursor string) ([]resumableUpload, string, error) {
+	const pageSize = 100
+	now := time.Now().Unix()
+	priority, created, id := 2, int64(0), ""
+	if cursor != "" {
+		var err error
+		parts := strings.SplitN(cursor, ".", 3)
+		if len(parts) != 3 || (parts[0] != "0" && parts[0] != "1") || !validID(parts[2]) {
+			return nil, "", fault(400, "INVALID_QUERY", "errors.invalidListQuery")
+		}
+		priority, _ = strconv.Atoi(parts[0])
+		created, err = strconv.ParseInt(parts[1], 10, 64)
+		if err != nil || created < 0 {
+			return nil, "", fault(400, "INVALID_QUERY", "errors.invalidListQuery")
+		}
+		id = parts[2]
+	}
+	// Pending tasks always precede history. A keyset cursor stays valid even
+	// when failed rows are removed or new uploads arrive between pages.
+	rows, err := s.Store.DB.QueryContext(ctx, `WITH tasks AS (
+ SELECT u.id,u.link_id,u.name,u.size,u.status,u.expires_at,r.offset,r.metadata,u.created_at,
+        (u.status='pending' AND u.expires_at>?) AS priority
+ FROM resumable_uploads r JOIN uploads u ON u.id=r.upload_id
+ WHERE u.link_id=? AND r.batch_hash=?
+)
+ SELECT * FROM tasks WHERE (priority,created_at,id)<(?,?,?)
+ ORDER BY priority DESC,created_at DESC,id DESC LIMIT ?`, now, l.ID, batch, priority, created, id, pageSize+1)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer rows.Close()
 	tasks := []resumableUpload{}
+	var next string
 	for rows.Next() {
-		task, err := scanResume(rows)
+		if len(tasks) == pageSize {
+			return tasks, next, nil
+		}
+		task, err := scanResume(rows, &created, &priority)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		_, task.Fingerprint = resumeMetadata(task.metadata)
 		tasks = append(tasks, task)
+		next = fmt.Sprintf("%d.%d.%s", priority, created, task.ID)
 	}
-	return tasks, rows.Err()
+	return tasks, "", rows.Err()
 }
 
 func resumeMetadata(value string) (name, fingerprint string) {
@@ -106,10 +138,13 @@ func (s *Server) serveResumable(w http.ResponseWriter, r *http.Request, l Link) 
 	if r.URL.Path == resumePath {
 		switch r.Method {
 		case "GET":
-			tasks, err := s.resumeTasks(ctx, l, batch[:])
+			tasks, next, err := s.resumeTasks(ctx, l, batch[:], r.URL.Query().Get("cursor"))
 			if err != nil {
 				writeError(w, r, err)
 				return
+			}
+			if next != "" {
+				w.Header().Set("Link", "<"+resumePath+"?cursor="+next+">; rel=\"next\"")
 			}
 			writeJSON(w, 200, tasks)
 		case "POST":

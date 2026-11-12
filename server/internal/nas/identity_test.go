@@ -19,7 +19,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coreos/go-oidc/v3/oidc"
 	jose "github.com/go-jose/go-jose/v4"
 )
 
@@ -79,36 +78,57 @@ func TestDiscoveryRefreshRolloverAndTrustBoundary(t *testing.T) {
 	document.Store(metadata(portal.URL, portal.URL+"/custom/keys"))
 	keyDocument.Store(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{key1}})
 	client := portal.Client()
-	ctx := oidc.ClientContext(context.Background(), client)
+	ctx := context.Background()
 	keys := &rotatingKeys{ctx: ctx, uri: portal.URL, client: client}
+	verify := func(raw string) error {
+		signed, err := jose.ParseSigned(raw, []jose.SignatureAlgorithm{jose.EdDSA})
+		if err != nil {
+			return err
+		}
+		key, err := keys.verificationKey(ctx, signed.Signatures[0].Protected.KeyID)
+		if err != nil {
+			return err
+		}
+		_, err = signed.Verify(key)
+		return err
+	}
 	token := func(key ed25519.PrivateKey, kid string) string {
 		return signedJWT(t, key, jose.EdDSA, map[jose.HeaderKey]any{"kid": kid}, map[string]any{"sub": identityTestSubject("owner")})
 	}
 	one, two := token(private1, "one"), token(private2, "two")
-	if _, err := keys.VerifySignature(ctx, one); err != nil {
+	if err := verify(one); err != nil {
 		t.Fatal(err)
 	}
 	keyDocument.Store(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{key1, key2}})
-	if _, err := keys.VerifySignature(ctx, two); err != nil {
+	if err := verify(two); err != nil {
 		t.Fatal("unknown kid did not refresh", err)
 	}
 	if keyFetches.Load() != 2 || metadataFetches.Load() != 1 {
 		t.Fatal("incorrect discovery/key cache behavior")
 	}
-	if _, err := keys.VerifySignature(ctx, one); err != nil {
+	if err := verify(one); err != nil {
 		t.Fatal("overlap rejected", err)
+	}
+	for _, kid := range []string{"unknown-one", "unknown-two", "unknown-three"} {
+		if err := verify(token(private2, kid)); err == nil {
+			t.Fatal("unknown key accepted", kid)
+		}
+	}
+	if keyFetches.Load() != 2 {
+		t.Fatal("unknown keys bypassed the global cooldown")
 	}
 	keyDocument.Store(jose.JSONWebKeySet{Keys: []jose.JSONWebKey{key2}})
 	keys.expires = time.Now().Add(-time.Second)
-	if _, err := keys.VerifySignature(ctx, two); err != nil {
+	keys.refreshAfter = time.Time{}
+	if err := verify(two); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := keys.VerifySignature(ctx, one); err == nil {
+	if err := verify(one); err == nil {
 		t.Fatal("retired key remained trusted after refresh")
 	}
 	// A cached, valid key still works while metadata is unavailable.
 	document.Store("unavailable")
-	if _, err := keys.VerifySignature(ctx, two); err != nil {
+	if err := verify(two); err != nil {
 		t.Fatal("discarded live cache", err)
 	}
 	for _, bad := range []string{
@@ -121,12 +141,17 @@ func TestDiscoveryRefreshRolloverAndTrustBoundary(t *testing.T) {
 	} {
 		document.Store(bad)
 		keys.expires = time.Now().Add(-time.Second)
+		keys.refreshAfter = time.Time{}
 		before := keyFetches.Load()
-		if _, err := keys.VerifySignature(ctx, two); !errors.Is(err, errIdentityDiscovery) {
+		if err := verify(two); !errors.Is(err, errIdentityDiscovery) {
 			t.Fatal("accepted untrusted metadata", err)
 		}
 		if keyFetches.Load() != before {
 			t.Fatal("followed invalid discovery metadata")
+		}
+		beforeDiscovery := metadataFetches.Load()
+		if err := verify(two); !errors.Is(err, errIdentityDiscovery) || metadataFetches.Load() != beforeDiscovery {
+			t.Fatal("failed discovery was retried during cooldown", err)
 		}
 	}
 }
@@ -194,6 +219,14 @@ func TestIdentityProofAndLocalAdministrator(t *testing.T) {
 	body := read(t, r)
 	if !strings.Contains(body, `"role":"admin"`) || strings.Contains(body, "ADMIN_SUBJECTS") {
 		t.Fatal(body)
+	}
+	_, wrongKey, _ := ed25519.GenerateKey(rand.Reader)
+	badSignature := signedJWT(t, wrongKey, jose.EdDSA, map[jose.HeaderKey]any{"kid": "portal", "typ": "at+jwt"}, map[string]any{"sub": identityTestSubject("owner")})
+	for range 4 {
+		status(t, request(badSignature, proof(badSignature, nil)), 401)
+	}
+	if keyFetches.Load() != 1 {
+		t.Fatal("invalid signatures caused a JWKS refresh")
 	}
 	encodedClaims, _ := base64.RawURLEncoding.DecodeString(strings.Split(token, ".")[1])
 	var originalClaims map[string]any

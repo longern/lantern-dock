@@ -92,7 +92,7 @@ export class ImageClient {
     this.originalResponses.expire();
     this.previews.expire();
     this.failed.clear();
-    this.liveIndexes.clear();
+    this.liveIndexes.expire();
   }
   run(work, signal) {
     return new Promise((resolve, reject) => {

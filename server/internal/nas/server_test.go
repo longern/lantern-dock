@@ -162,6 +162,47 @@ func TestReceiveAndScope(t *testing.T) {
 		t.Fatalf("bad usage: %+v %v", l, err)
 	}
 }
+
+func TestCancelledUploadsCannotBypassCreationLimitAndArePruned(t *testing.T) {
+	f := newFixture(t)
+	link, token := f.link(t, 10, 10, 1)
+	var cancelled Upload
+	for range uploadCreationLimit {
+		cancelled = f.reserve(t, token, "cancelled.txt", 1)
+		status(t, f.request(t, "DELETE", inboxPath+"/"+cancelled.ID, token, nil, nil), 204)
+	}
+	partial := filepath.Join(f.data, staging(cancelled))
+	if err := os.WriteFile(partial, []byte("x"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	r := f.request(t, "POST", inboxPath, token, strings.NewReader(`{"name":"again.txt","size":1}`), nil)
+	status(t, r, 429)
+	if r.Header.Get("Retry-After") != "60" {
+		t.Fatal(r.Header)
+	}
+	ctx := context.Background()
+	now := time.Now()
+	if _, err := f.s.Store.DB.Exec(`UPDATE uploads SET created_at=? WHERE link_id=?`, now.Add(-25*time.Hour).Unix(), link.ID); err != nil {
+		t.Fatal(err)
+	}
+	pending := f.reserve(t, token, "pending.txt", 1)
+	for range 2 {
+		if err := f.s.pruneFailedUploads(ctx, now.Add(-24*time.Hour)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var count int
+	if err := f.s.Store.DB.QueryRow(`SELECT COUNT(*) FROM uploads WHERE link_id=?`, link.ID).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("remaining tasks = %d, err = %v", count, err)
+	}
+	if _, err := f.s.Store.GetUpload(ctx, pending.ID, link.ID); err != nil {
+		t.Fatal("pending reservation removed", err)
+	}
+	if _, err := os.Stat(partial); !os.IsNotExist(err) {
+		t.Fatal("failed upload's staging file was left behind", err)
+	}
+}
+
 func TestQuotaReservationsAreAtomicAndReleased(t *testing.T) {
 	f := newFixture(t)
 	l, token := f.link(t, 10, 10, 2)

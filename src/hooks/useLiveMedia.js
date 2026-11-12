@@ -12,16 +12,13 @@ export function useLiveMedia(client, entries) {
       : controller.signal;
     fetchLiveMedia(client, entries, signal).then(
       (value) => {
-        if (!signal.aborted) setState({ client, entries, revision, value });
+        if (!signal.aborted) setState({ client, entries, value });
       },
       () => {},
     );
     return () => controller.abort();
   }, [client, entries, revision]);
-  return state &&
-    state.client === client &&
-    state.entries === entries &&
-    state.revision === revision
+  return state && state.client === client && state.entries === entries
     ? state.value
     : empty;
 }

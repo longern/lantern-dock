@@ -155,10 +155,6 @@ func (s *Server) receive(w http.ResponseWriter, r *http.Request, u Upload, l Lin
 		writeError(w, r, fault(503, "UPLOAD_BUSY", "errors.uploadBusy"))
 		return
 	}
-	if err := s.Store.Start(r.Context(), u, l); err != nil {
-		writeError(w, r, err)
-		return
-	}
 	ctx, cancel := context.WithDeadline(r.Context(), l.ExpiresAt)
 	defer cancel()
 	interrupted := make(chan struct{})
@@ -176,8 +172,13 @@ func (s *Server) receive(w http.ResponseWriter, r *http.Request, u Upload, l Lin
 	s.mu.Lock()
 	if s.ctx.Err() != nil {
 		s.mu.Unlock()
-		_ = s.Store.Fail(context.Background(), u.ID)
 		writeError(w, r, fault(503, "SHUTTING_DOWN", "errors.shuttingDown"))
+		return
+	}
+	// Register the active writer before a failed task can be pruned.
+	if err := s.Store.Start(ctx, u, l); err != nil {
+		s.mu.Unlock()
+		writeError(w, r, err)
 		return
 	}
 	s.active[u.ID] = cancel
@@ -337,5 +338,57 @@ func (s *Server) sweep() {
 				}
 			}
 		}
+		_ = s.pruneFailedUploads(s.ctx, time.Now().Add(-24*time.Hour))
 	}
+}
+
+func (s *Server) pruneFailedUploads(ctx context.Context, cutoff time.Time) error {
+	rows, err := s.Store.DB.QueryContext(ctx, `SELECT id,link_id,name FROM uploads
+ WHERE status='failed' AND created_at<=? ORDER BY created_at,id LIMIT 100`, cutoff.Unix())
+	if err != nil {
+		return err
+	}
+	var failed []Upload
+	for rows.Next() {
+		var u Upload
+		if err := rows.Scan(&u.ID, &u.LinkID, &u.Name); err != nil {
+			rows.Close()
+			return err
+		}
+		failed = append(failed, u)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	var failures error
+	for _, u := range failed {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := s.pruneFailedUpload(ctx, u); err != nil {
+			failures = errors.Join(failures, err)
+		}
+	}
+	return failures
+}
+
+func (s *Server) pruneFailedUpload(ctx context.Context, u Upload) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.active[u.ID] != nil {
+		return nil
+	}
+	// Keep the database row until the files are gone so cleanup can be retried
+	// after a filesystem error or restart.
+	for _, name := range []string{staging(u), destination(u)} {
+		if err := s.private.Remove(name); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		if err := s.syncUploadDir(path.Dir(name)); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	_, err := s.Store.DB.ExecContext(ctx, `DELETE FROM uploads WHERE id=? AND status='failed'`, u.ID)
+	return err
 }

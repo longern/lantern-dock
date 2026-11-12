@@ -42,6 +42,7 @@
   "errors.methodNotAllowed": "This endpoint does not support that request method.",
   "errors.sizeMismatch": "The file size does not match the upload reservation.",
   "errors.uploadBusy": "Too many files are uploading at once. Please try again later.",
+  "errors.uploadRateLimited": "Too many uploads were started. Try again in a minute.",
   "errors.shuttingDown": "The service is shutting down.",
   "errors.uploadInterrupted": "The upload did not finish. Please try again.",
   "errors.invalidUploadBatch": "The upload batch identifier is missing or invalid.",
