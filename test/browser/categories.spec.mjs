@@ -1,3 +1,8 @@
+import {
+  closeHomeSearch,
+  homeSearchEntry,
+  openHomeSearch,
+} from "../helpers/home-search.mjs";
 import { isCompact } from "../helpers/responsive.mjs";
 import { openItem } from "../helpers/open-item.mjs";
 import {
@@ -86,7 +91,8 @@ test("category shortcuts open the file view and clear search", async ({
     await mainNav(page)
       .getByRole("button", { name: "首页", exact: true })
       .click();
-    await page.getByRole("searchbox").fill("no-matching-file");
+    await (await openHomeSearch(page)).fill("no-matching-file");
+    await closeHomeSearch(page);
     await cards(page).getByRole("button", { name: label, exact: true }).click();
     if (label === "相册" && isCompact(page)) {
       await expect(albumSurface(page)).toBeVisible();
@@ -97,7 +103,7 @@ test("category shortcuts open the file view and clear search", async ({
         count,
       );
       await dismissAlbum(page);
-      await expect(page.getByRole("searchbox")).toHaveValue("");
+      await expect(homeSearchEntry(page)).toBeVisible();
       continue;
     }
     await expect(
@@ -131,7 +137,7 @@ test("category shortcuts open the file view and clear search", async ({
     await mainNav(page)
       .getByRole("button", { name: "首页", exact: true })
       .click();
-    await expect(page.getByRole("searchbox")).toHaveValue("");
+    await expect(homeSearchEntry(page)).toBeVisible();
     await expect(page.locator(".file-item")).toHaveCount(12);
   }
 });

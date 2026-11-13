@@ -7,6 +7,8 @@ import { useCompactLayout } from "../../hooks/useMediaQuery.js";
 import { useSession } from "../../hooks/useSession.jsx";
 import { accountHref } from "../../../shared/routes.js";
 import { Brand } from "../../components/Brand.jsx";
+import { HomeSearch } from "./HomeSearch.jsx";
+import { SearchField } from "./SearchField.jsx";
 
 const modes = [
   ["home", "home", "library.home"],
@@ -132,6 +134,7 @@ export function Sidebar({ library, onSettings }) {
 
 export function Topbar({
   library,
+  renderSearchResults,
   actions,
   transferAction,
   intakeAction,
@@ -194,35 +197,13 @@ export function Topbar({
     </nav>
   );
   const search = (
-    <label class="search-box">
-      <Icon name="search" />
-      <input
-        ref={searchInput}
-        id="search"
-        type="search"
-        value={library.query}
-        onFocus={() => {
-          if (mobileFiles) setSearchExpanded(true);
-        }}
-        onInput={(event) => library.setQuery(event.currentTarget.value)}
-        placeholder={t("library.searchFiles")}
-        aria-label={t("library.searchFiles")}
-      />
-      {library.query && (
-        <button
-          type="button"
-          class="search-clear icon-button"
-          aria-label={t("library.clearSearch")}
-          onClick={() => {
-            if (mobileFiles) setSearchExpanded(true);
-            library.setQuery("");
-            searchInput.current?.focus();
-          }}
-        >
-          <Icon name="x" />
-        </button>
-      )}
-    </label>
+    <SearchField
+      input={searchInput}
+      id="search"
+      value={library.query}
+      onFocus={mobileFiles ? () => setSearchExpanded(true) : undefined}
+      onChange={library.setQuery}
+    />
   );
   return (
     <div
@@ -306,7 +287,16 @@ export function Topbar({
       </header>
       {mobile && (
         <div class={home ? "mobile-home-search" : "mobile-file-tools"}>
-          {home || filesSearchVisible ? search : breadcrumbs}
+          {home ? (
+            <HomeSearch
+              initialQuery={library.query}
+              renderResults={renderSearchResults}
+            />
+          ) : filesSearchVisible ? (
+            search
+          ) : (
+            breadcrumbs
+          )}
         </div>
       )}
     </div>

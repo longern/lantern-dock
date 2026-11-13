@@ -48,6 +48,37 @@
   color: var(--muted);
   line-height: 1.7;
 }
+.my-account-skeleton {
+  animation: my-account-skeleton-pulse 1.5s ease-in-out infinite;
+}
+.my-account-skeleton .my-account-copy {
+  display: grid;
+  flex: 1;
+  gap: 12px;
+}
+.my-account-skeleton .my-account-symbol,
+.my-account-skeleton-name,
+.my-account-skeleton-email {
+  background: #e2e3ea;
+}
+.my-account-skeleton-name,
+.my-account-skeleton-email {
+  display: block;
+  border-radius: 4px;
+}
+.my-account-skeleton-name {
+  width: min(100%, 7.5rem);
+  height: 1.125rem;
+}
+.my-account-skeleton-email {
+  width: min(100%, 11rem);
+  height: 0.875rem;
+}
+@keyframes my-account-skeleton-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
 .my-account-actions {
   display: flex;
   align-items: center;

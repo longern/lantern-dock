@@ -147,6 +147,7 @@ export function FileBrowser({
     ],
   );
   const home = library.mode === "home";
+  const searching = !!library.query;
   const card = home || (library.mode === "all" && !album);
   const albumSearch = album && !!library.scope;
   const Collection = albumSearch ? AlbumTimeline : album ? "div" : "ul";
@@ -264,7 +265,7 @@ export function FileBrowser({
           <h1>{t("library.photos")}</h1>
         </div>
       )}
-      {home && recent && (
+      {home && recent && !searching && (
         <h2 class="file-section-title">{t("library.recentFiles")}</h2>
       )}
       {error && (
@@ -340,9 +341,11 @@ export function FileBrowser({
         aria-label={
           album
             ? t("library.album")
-            : recent
-              ? t("library.recentFileList")
-              : t("library.fileList")
+            : searching
+              ? t("library.searchResults")
+              : recent
+                ? t("library.recentFileList")
+                : t("library.fileList")
         }
       >
         {album ? (

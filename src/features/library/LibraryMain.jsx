@@ -70,6 +70,16 @@ export function LibraryMain({
         <>
           <Topbar
             library={library}
+            renderSearchResults={(query, setQuery) => (
+              <FileBrowser
+                library={{ ...library, query, setQuery, view: "list" }}
+                records={visibleRecords}
+                listId="home-search-list"
+                selected={listProps.selected}
+                onPreview={listProps.onPreview}
+                onSettings={listProps.onSettings}
+              />
+            )}
             hideRefresh={["album", "image"].includes(library.kind)}
             transferAction={
               library.mode === "home" && (

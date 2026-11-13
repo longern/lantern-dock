@@ -1,3 +1,8 @@
+import {
+  closeHomeSearch,
+  homeSearchDialog,
+  openHomeSearch,
+} from "../helpers/home-search.mjs";
 import { isCompact, breakpoints } from "../helpers/responsive.mjs";
 import { openItem } from "../helpers/open-item.mjs";
 import { chooseListingOption } from "../helpers/listing-options.mjs";
@@ -38,12 +43,15 @@ test("search, sorting, views, folders and navigation work", async ({
   await expect(list.getByRole("listitem")).toHaveCount(12);
   await expect(list.locator(":scope > :not(li)")).toHaveCount(0);
   await expect(list.locator(".file-open button")).toHaveCount(0);
-  await page.getByRole("searchbox").fill("山间");
-  await expect(page.locator(".file-item")).toHaveCount(1);
-  await page.getByRole("searchbox").fill("no-such-file");
-  await expect(page.getByText("没有找到匹配的文件")).toBeVisible();
-  await expect(page.locator(".list-head")).toBeHidden();
-  await page.getByRole("searchbox").fill("");
+  const search = await openHomeSearch(page);
+  const results = isCompact(page) ? homeSearchDialog(page) : page;
+  await search.fill("山间");
+  await expect(results.locator(".file-item")).toHaveCount(1);
+  await search.fill("no-such-file");
+  await expect(results.getByText("没有找到匹配的文件")).toBeVisible();
+  await expect(results.locator(".list-head")).toBeHidden();
+  await search.fill("");
+  await closeHomeSearch(page);
   await chooseListingOption(page, "大小");
   await expect(
     page.locator(".file-item").nth(4).locator(".file-name"),

@@ -129,10 +129,13 @@ export function LibraryApp() {
         !selected &&
         !albumPresent &&
         !myPage &&
+        !document.querySelector("dialog:modal") &&
         listing.mode === "home"
       ) {
         event.preventDefault();
-        document.getElementById("search")?.focus();
+        const trigger = document.getElementById("home-search-trigger");
+        if (trigger) trigger.click();
+        else document.getElementById("search")?.focus();
       }
     };
     document.addEventListener("keydown", keyboard);

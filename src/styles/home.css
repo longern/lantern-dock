@@ -33,6 +33,136 @@
   padding-inline: 16px;
 }
 
+.home-search-trigger {
+  color: var(--muted);
+  text-align: start;
+  font-size: var(--text-md);
+}
+.home-search-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-search-trigger[data-search-active] {
+  opacity: 0;
+}
+.home-search-dialog {
+  position: fixed;
+  inset: var(--search-viewport-top, 0px) 0 auto;
+  width: 100%;
+  height: var(--search-viewport-height, 100dvh);
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  color: inherit;
+  overflow: hidden;
+  background: transparent;
+}
+.home-search-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.home-search-dialog::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--surface);
+  pointer-events: none;
+}
+.home-search-dialog[open]::before,
+.home-search-dialog[open] .home-search-header > .icon-button,
+.home-search-dialog[open] .home-search-results {
+  animation: backdrop-in var(--motion-enter) ease-out both;
+}
+.home-search-dialog[open][data-state="closed"]::before,
+.home-search-dialog[open][data-state="closed"]
+  .home-search-header
+  > .icon-button,
+.home-search-dialog[open][data-state="closed"] .home-search-results {
+  animation: backdrop-out var(--motion-exit) ease-in both;
+}
+.home-search-dialog::backdrop {
+  background: transparent;
+}
+.home-search-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 4px;
+  min-height: calc(var(--topbar-height) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) 16px 0;
+}
+.home-search-header > .icon-button {
+  width: var(--topbar-button-size);
+  height: var(--topbar-button-size);
+}
+.home-search-header > .icon-button svg {
+  width: 24px;
+  height: 24px;
+}
+.home-search-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+}
+.home-search-field .search-box {
+  position: absolute;
+  inset: 0 auto auto 0;
+  height: 100%;
+  animation: home-search-field-in var(--motion-enter) var(--ease-standard) both;
+}
+.home-search-dialog[data-state="closed"] .home-search-field .search-box {
+  animation: home-search-field-out var(--motion-exit) var(--ease-standard) both;
+  border-color: #e4e4eb;
+  background: var(--surface-subtle);
+  box-shadow: none;
+}
+@keyframes home-search-field-in {
+  from {
+    transform: translate(
+      var(--search-entry-x, 0px),
+      var(--search-entry-y, 0px)
+    );
+    width: var(--search-entry-width, 100%);
+    height: var(--search-entry-height, 100%);
+  }
+}
+@keyframes home-search-field-out {
+  from {
+    transform: translate(var(--search-exit-from-x), var(--search-exit-from-y));
+    width: var(--search-exit-from-width);
+    height: var(--search-exit-from-height);
+  }
+  to {
+    transform: translate(var(--search-exit-to-x), var(--search-exit-to-y));
+    width: var(--search-exit-to-width);
+    height: var(--search-exit-to-height);
+  }
+}
+.home-search-header input {
+  flex: 1;
+  padding: 0;
+}
+.home-search-results {
+  position: relative;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.home-search-results > .content {
+  margin: 0;
+  padding: 0;
+}
+.home-search-results .list-head {
+  display: none;
+}
+
 @media (--between-md-lg) {
   .content.collection-card {
     margin-left: 18px;

@@ -156,6 +156,7 @@ export default {
   mainNavigation: "主导航",
   filePath: "文件路径",
   searchFiles: "搜索文件",
+  searchResults: "搜索结果",
   refresh: "刷新",
   mobileResourceNavigation: "移动端资源导航",
   resources: "资源",

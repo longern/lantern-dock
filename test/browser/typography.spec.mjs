@@ -1,3 +1,4 @@
+import { homeSearchEntry } from "../helpers/home-search.mjs";
 import { test, expect } from "@playwright/test";
 import { isCompact } from "../helpers/responsive.mjs";
 
@@ -14,7 +15,7 @@ test("interface text and editable fields follow a larger root font", async ({
   );
   await expect(brand).toHaveCSS("font-size", "18px");
   await expect(brand).toHaveCSS("font-weight", "600");
-  const search = page.getByRole("searchbox");
+  const search = homeSearchEntry(page);
   await expect(search).toBeVisible();
   await expect(search).toHaveCSS(
     "font-size",

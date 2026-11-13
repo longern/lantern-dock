@@ -2,6 +2,13 @@ import { isCompact } from "../helpers/responsive.mjs";
 import { favoriteItem } from "../helpers/favorite-item.mjs";
 import { openItem } from "../helpers/open-item.mjs";
 import {
+  closeHomeSearch,
+  homeSearchDialog,
+  homeSearchEntry,
+  homeSearchTrigger,
+  openHomeSearch,
+} from "../helpers/home-search.mjs";
+import {
   chooseListingOption,
   listingOptionsButton,
 } from "../helpers/listing-options.mjs";
@@ -19,10 +26,7 @@ const files = (page) => nav(page).getByRole("button", { name: /^文件/ });
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await expect(page.locator(".file-item")).toHaveCount(12);
-  await expect(
-    page.getByRole("searchbox", { includeHidden: true }),
-  ).toHaveCount(1);
-  await expect(page.getByRole("searchbox")).toBeVisible();
+  await expect(homeSearchEntry(page)).toBeVisible();
   await expect(
     page.locator(".topbar").getByRole("button", {
       name: "连接设置",
@@ -62,12 +66,13 @@ test("home and files are separate destinations, with breadcrumbs only in files",
   await expect(page.getByRole("navigation", { name: "文件路径" })).toHaveCount(
     0,
   );
-  await expect(page.getByRole("searchbox")).toHaveValue("");
+  await expect(homeSearchEntry(page)).toBeVisible();
 });
 
 test("leaving Home clears search for Files, Favorites, folders and sidebar categories", async ({
   page,
 }) => {
+  test.skip(isCompact(page), "Desktop inline search");
   await favoriteItem(
     page.getByRole("button", { name: "预览 项目笔记.md", exact: true }),
   );
@@ -138,6 +143,7 @@ test("slash focuses Home search without navigating from other destinations", asy
   await page.getByRole("searchbox").fill("note");
   await page.keyboard.press("/");
   await expect(page.getByRole("searchbox")).toHaveValue("note/");
+  await closeHomeSearch(page);
   for (const mode of ["files", "favorites"]) {
     const destination =
       mode === "favorites" ? await openFavorites(page) : files(page);
@@ -202,17 +208,21 @@ test("home shows actual recent visits, persists them and does not fall back afte
     "项目笔记.md",
   ]);
   await expect(listingOptionsButton(page)).toHaveCount(0);
-  await page.getByRole("searchbox").fill("山间");
-  await expect(page.locator(".file-item")).toHaveCount(0);
-  await expect(page.locator(".file-section-title")).toHaveText("最近文件");
-  await expect(page.locator(".empty-state")).toContainText(
+  await (await openHomeSearch(page)).fill("山间");
+  const results = isCompact(page) ? homeSearchDialog(page) : page;
+  await expect(results.locator(".file-item")).toHaveCount(0);
+  await expect(results.locator(".file-section-title")).toHaveCount(0);
+  await expect(results.getByRole("list", { name: "搜索结果" })).toBeAttached();
+  await expect(results.locator(".empty-state")).toContainText(
     "没有找到匹配的文件",
   );
   await expect(listingOptionsButton(page)).toHaveCount(0);
-  await page
+  await results
     .locator(".empty-state")
     .getByRole("button", { name: "清除搜索" })
     .click();
+  await closeHomeSearch(page);
+  await expect(page.locator(".file-section-title")).toHaveText("最近文件");
   await page.reload();
   await expect(page.locator(".file-name")).toHaveText([
     "阅读清单.txt",
@@ -247,6 +257,7 @@ test("Home and Files headers have no divider above their collection cards", asyn
 test("Home search stays 36px tall with and without the clear control after returning", async ({
   page,
 }) => {
+  test.skip(isCompact(page), "Desktop inline search");
   for (const returnHome of [false, true]) {
     if (returnHome) {
       await files(page).click();
@@ -267,6 +278,101 @@ test("Home search stays 36px tall with and without the clear control after retur
       }
     }
   }
+});
+
+test("mobile Home search fades in fullscreen and opens files from live results", async ({
+  page,
+}) => {
+  test.skip(!isCompact(page), "Mobile Home search");
+  const trigger = homeSearchTrigger(page);
+  const dialog = homeSearchDialog(page);
+  const field = dialog.locator(".home-search-field .search-box");
+  await expect(trigger).toHaveCSS("height", "36px");
+  await expect(dialog).toHaveCount(0);
+  await page.addStyleTag({
+    content: ".home-search-field .search-box { animation-play-state: paused; }",
+  });
+  const origin = await trigger.boundingBox();
+  const search = await openHomeSearch(page);
+  await expect(search).toBeFocused();
+  expect(
+    await dialog.evaluate(
+      (node) => getComputedStyle(node, "::before").animationName,
+    ),
+  ).toBe("backdrop-in");
+  await expect(dialog).toHaveCSS("transform", "none");
+  const sampleField = (name, time) =>
+    field.evaluate(
+      (node, { name, time }) => {
+        const animation = node
+          .getAnimations()
+          .find((effect) => effect.animationName === name);
+        animation.currentTime = time;
+        return node.getBoundingClientRect().toJSON();
+      },
+      { name, time },
+    );
+  const start = await sampleField("home-search-field-in", 0);
+  const middle = await sampleField("home-search-field-in", 110);
+  const end = await sampleField("home-search-field-in", 220);
+  expect(start.y).toBeCloseTo(origin.y, 1);
+  expect(start.x).toBeCloseTo(origin.x, 1);
+  expect(start.width).toBeCloseTo(origin.width, 1);
+  expect(middle.y).toBeLessThan(start.y);
+  expect(middle.y).toBeGreaterThan(end.y);
+  expect(end.width).toBeLessThan(start.width);
+  const bounds = await dialog.boundingBox();
+  expect(bounds.x).toBeCloseTo(0, 1);
+  expect(bounds.y).toBeCloseTo(0, 1);
+  expect(bounds.width).toBeCloseTo(page.viewportSize().width, 1);
+  expect(bounds.height).toBeCloseTo(page.viewportSize().height, 1);
+  await search.fill("no-matching-file");
+  await expect(dialog.getByText("没有找到匹配的文件")).toBeVisible();
+  await expect(page.locator("#file-list .file-item")).toHaveCount(12);
+  await dialog.locator(".search-clear").click();
+  await expect(search).toBeFocused();
+  await search.fill("项目笔记");
+  const results = dialog.getByRole("list", { name: "搜索结果" });
+  await expect(results.locator(".file-item")).toHaveCount(1);
+  const result = dialog.getByRole("button", { name: "预览 项目笔记.md" });
+  await openItem(result);
+  await expect(page.locator("#preview-dialog")).toBeVisible();
+  await page.getByRole("button", { name: "关闭预览" }).click();
+  await expect(result).toBeFocused();
+  await expect(search).toHaveValue("项目笔记");
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await page.keyboard.press("Escape");
+  expect(
+    await dialog.evaluate(
+      (node) => getComputedStyle(node, "::before").animationName,
+    ),
+  ).toBe("backdrop-out");
+  const returnPosition = await sampleField("home-search-field-out", 180);
+  expect(returnPosition.y).toBeCloseTo(origin.y, 1);
+  expect(returnPosition.x).toBeCloseTo(origin.x, 1);
+  expect(returnPosition.width).toBeCloseTo(origin.width, 1);
+  await page.clock.runFor(250);
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect(page).toHaveURL("/");
+
+  await page.clock.resume();
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openHomeSearch(page);
+  await expect(search).toHaveValue("");
+  await expect(field).toHaveCSS("animation-name", "none");
+  await closeHomeSearch(page);
+  // A fresh homepage searches the directory until there are recent visits.
+  await page.evaluate(() =>
+    localStorage.removeItem("lantern-dock:demo::/:recent"),
+  );
+  await page.reload();
+  await openHomeSearch(page);
+  await search.fill("照片");
+  await openItem(dialog.getByRole("button", { name: "打开文件夹 照片" }));
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator("#file-list .file-item")).toHaveCount(4);
 });
 
 test("mobile Files search opens from the header, focuses and survives query reloads", async ({

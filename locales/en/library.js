@@ -164,6 +164,7 @@ export default {
   mainNavigation: "Main navigation",
   filePath: "File path",
   searchFiles: "Search files",
+  searchResults: "Search results",
   refresh: "Refresh",
   mobileResourceNavigation: "Mobile resource navigation",
   resources: "Resources",

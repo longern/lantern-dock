@@ -1,3 +1,4 @@
+import { homeSearchEntry } from "../helpers/home-search.mjs";
 import { isCompact } from "../helpers/responsive.mjs";
 import { test as base, expect } from "@playwright/test";
 import { mainNavigation } from "../helpers/navigation.mjs";
@@ -166,9 +167,22 @@ for (const language of ["zh-CN", "en"]) {
       const account = await enterMyPage(page, language);
       try {
         await expect(account).toHaveAttribute("aria-busy", "true");
+        const skeleton = account.locator(".my-account-skeleton");
+        await expect(skeleton).toBeVisible();
+        await expect(skeleton).toHaveAttribute("aria-hidden", "true");
+        await expect(skeleton.locator(".my-account-symbol")).toHaveCSS(
+          "width",
+          "60px",
+        );
+        await expect(skeleton).toHaveCSS(
+          "animation-name",
+          "my-account-skeleton-pulse",
+        );
+        await page.emulateMedia({ reducedMotion: "reduce" });
+        await expect(skeleton).toHaveCSS("animation-name", "none");
         await expect(
           account.getByRole("heading", { name: copy.checking, exact: true }),
-        ).toBeVisible();
+        ).toHaveCount(0);
         await expect(account.getByRole("link")).toHaveCount(0);
         await expect(account).not.toContainText("@");
         await expect(page.locator("#my-favorites")).toBeEnabled();
@@ -177,6 +191,7 @@ for (const language of ["zh-CN", "en"]) {
         release();
       }
       await expect(account).toHaveAttribute("aria-busy", "false");
+      await expect(account.locator(".my-account-skeleton")).toHaveCount(0);
       await expect(account).not.toContainText("private upstream diagnostic");
       await account
         .getByRole("button", { name: copy.retry, exact: true })
@@ -585,7 +600,7 @@ test("resizing My to desktop returns to the desktop library without stranding fo
   await expect(
     mainNavigation(page).getByRole("button", { name: "首页", exact: true }),
   ).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("searchbox")).toBeVisible();
+  await expect(homeSearchEntry(page)).toBeVisible();
 });
 
 test("signing out during a pending account check cannot resurrect the old identity", async ({

@@ -1,3 +1,8 @@
+import {
+  closeHomeSearch,
+  homeSearchDialog,
+  openHomeSearch,
+} from "../helpers/home-search.mjs";
 import { isCompact, breakpoints } from "../helpers/responsive.mjs";
 import { test, expect } from "@playwright/test";
 import {
@@ -156,19 +161,22 @@ test("reduced motion disables surface and backdrop animation without leaving a m
 test("search and type empty states offer recovery without losing keyboard access", async ({
   page,
 }) => {
-  await page.getByRole("searchbox").fill("unmatched query");
-  await expect(page.locator(".list-head")).toBeHidden();
-  await page
+  const search = await openHomeSearch(page);
+  const results = isCompact(page) ? homeSearchDialog(page) : page;
+  await search.fill("unmatched query");
+  await expect(results.locator(".list-head")).toBeHidden();
+  await results
     .locator(".empty-state")
     .getByRole("button", { name: "清除搜索" })
     .click();
   await expect(page.locator(".file-item")).toHaveCount(12);
-  await page.getByRole("searchbox").fill("山间");
-  await page
+  await search.fill("山间");
+  await results
     .locator(".search-box")
     .getByRole("button", { name: "清除搜索" })
     .click();
-  await expect(page.getByRole("searchbox")).toBeFocused();
+  await expect(search).toBeFocused();
+  await closeHomeSearch(page);
   await page
     .getByRole("navigation", { name: "文件分类", exact: true })
     .getByRole("button", { name: "视频", exact: true })

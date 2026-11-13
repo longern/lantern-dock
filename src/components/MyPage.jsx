@@ -11,29 +11,29 @@ export function MyPage({ active = true, onFavorites, onSettings }) {
   useLayoutEffect(() => {
     if (!active || state.status !== "signed-out") setSignInOpen(false);
   }, [active, state.status]);
+  const loading = state.status === "loading";
   const signedIn = state.status === "authenticated";
-  const title =
-    state.status === "loading"
-      ? t("account.checkingAccount")
-      : state.status === "error"
-        ? t(
-            state.error?.kind === "offline"
-              ? "account.sessionOffline"
-              : "account.sessionUnavailable",
-          )
-        : signedIn
-          ? state.user.name || state.user.email || t("account.myAccount")
-          : t("account.guest");
   return (
     <section id="my-page" class="my-page" aria-label={t("library.me")}>
       <section
         id="my-account"
         class="my-account"
         aria-label={t("account.myAccount")}
-        aria-busy={state.status === "loading"}
+        aria-busy={loading}
         data-status={state.status}
       >
-        {state.status === "signed-out" ? (
+        {loading ? (
+          <div
+            class="my-account-summary my-account-skeleton"
+            aria-hidden="true"
+          >
+            <span class="my-account-symbol" />
+            <div class="my-account-copy">
+              <span class="my-account-skeleton-name" />
+              <span class="my-account-skeleton-email" />
+            </div>
+          </div>
+        ) : state.status === "signed-out" ? (
           <button
             id="my-guest-button"
             type="button"
@@ -59,7 +59,9 @@ export function MyPage({ active = true, onFavorites, onSettings }) {
               <Icon name="user" />
             </span>
             <div class="my-account-copy" aria-live="polite">
-              <h2>{title}</h2>
+              <h2>
+                {state.user.name || state.user.email || t("account.myAccount")}
+              </h2>
               {state.user.name && state.user.email && <p>{state.user.email}</p>}
             </div>
           </a>
@@ -69,7 +71,13 @@ export function MyPage({ active = true, onFavorites, onSettings }) {
               <Icon name="user" />
             </span>
             <div class="my-account-copy" aria-live="polite">
-              <h2>{title}</h2>
+              <h2>
+                {t(
+                  state.error?.kind === "offline"
+                    ? "account.sessionOffline"
+                    : "account.sessionUnavailable",
+                )}
+              </h2>
               {state.status === "error" && (
                 <p>
                   {t(

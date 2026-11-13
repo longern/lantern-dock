@@ -1,3 +1,4 @@
+import { closeHomeSearch, openHomeSearch } from "../helpers/home-search.mjs";
 import { isCompact } from "../helpers/responsive.mjs";
 import { openItem } from "../helpers/open-item.mjs";
 import { favoriteItem } from "../helpers/favorite-item.mjs";
@@ -177,6 +178,7 @@ for (const { locale, expected } of [
         .click();
       await expect(search).toHaveValue("");
       await expect(search).toBeFocused();
+      await closeHomeSearch(page);
       await categories
         .getByRole("button", { name: copy.documents, exact: true })
         .click();
@@ -188,11 +190,15 @@ for (const { locale, expected } of [
         page.getByRole("navigation", { name: copy.path, exact: true }),
       ).toBeVisible();
       await home.click();
+      await openHomeSearch(page);
       await expect(search).toHaveValue("");
+      await closeHomeSearch(page);
       await expect(page.locator(".file-item")).toHaveCount(12);
 
       for (const mode of ["files", "favorites"]) {
+        await openHomeSearch(page);
         await search.fill("no-matching-i18n-file");
+        await closeHomeSearch(page);
         const destination =
           mode === "favorites"
             ? await openFavorites(page, expected)
@@ -220,7 +226,9 @@ for (const { locale, expected } of [
         }
         if (mode === "favorites") await closeFavorites(page, expected);
         await home.click();
+        await openHomeSearch(page);
         await expect(search).toHaveValue("");
+        await closeHomeSearch(page);
       }
     });
   });
@@ -277,7 +285,10 @@ for (const scenario of [
         }),
       ).toHaveAttribute("aria-current", "page");
       await expect(
-        page.getByRole("searchbox", { name: copy.search, exact: true }),
+        page.getByRole(isCompact(page) ? "button" : "searchbox", {
+          name: copy.search,
+          exact: true,
+        }),
       ).toBeVisible();
     });
   });
@@ -384,7 +395,10 @@ test("English account entry and recheck remain local and translated", async ({
         })
         .click();
       await expect(
-        page.getByRole("searchbox", { name: "Search files", exact: true }),
+        page.getByRole(isCompact(page) ? "button" : "searchbox", {
+          name: "Search files",
+          exact: true,
+        }),
       ).toBeVisible();
     },
   );

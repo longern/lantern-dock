@@ -1,3 +1,10 @@
+import {
+  closeHomeSearch,
+  homeSearchDialog,
+  homeSearchEntry,
+  openHomeSearch,
+} from "../helpers/home-search.mjs";
+import { isCompact } from "../helpers/responsive.mjs";
 import { isModalPreview } from "../helpers/responsive.mjs";
 import { favoriteItem } from "../helpers/favorite-item.mjs";
 import { openItem } from "../helpers/open-item.mjs";
@@ -143,9 +150,10 @@ test("fallback files expose one menu with keyboard navigation and dismissal", as
   await expect(trigger).toBeFocused();
   await openListingOptions(page);
   // On mobile the anchored menu covers the middle of the search field.
-  await page.getByRole("searchbox").click({ position: { x: 4, y: 12 } });
+  await homeSearchEntry(page).click({ position: { x: 4, y: 12 } });
   await expect(menu).toHaveCount(0);
   await expect(page.getByRole("searchbox")).toBeFocused();
+  await closeHomeSearch(page);
   await openListingOptions(page);
   await page.keyboard.press("Tab");
   await expect(menu).toHaveCount(0);
@@ -169,8 +177,13 @@ test("recent files stay a newest-first list without changing Files or Favorites 
   await expect(fileNames(page)).toHaveText(names);
   await expect(listingOptionsButton(page)).toHaveCount(0);
   await expect(page.locator(".view-tools select,.view-switch")).toHaveCount(0);
-  await page.getByRole("searchbox").fill("not-found");
-  await expect(fileNames(page)).toHaveCount(0);
+  await (await openHomeSearch(page)).fill("not-found");
+  await expect(
+    isCompact(page)
+      ? homeSearchDialog(page).locator(".file-name")
+      : fileNames(page),
+  ).toHaveCount(0);
+  await closeHomeSearch(page);
   await expect(listingOptionsButton(page)).toHaveCount(0);
   await goFiles(page);
   await expect(page.locator("#file-list")).not.toHaveClass(/list-layout/);
