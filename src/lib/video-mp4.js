@@ -17,6 +17,36 @@ import { backendPaths } from "../../shared/backend-paths.js";
 
 const metadataLimit = 16 * 1024 * 1024;
 const queueLimit = 16 * 1024 * 1024;
+const retryableRangeErrors = new Set([
+  "HTTP_MESSAGE_TRUNCATED",
+  "HTTP_BODY_TRUNCATED",
+  "HTTP_CHUNK_TRUNCATED",
+  "VIDEO_INCOMPLETE",
+  "CONNECTION_TIMEOUT",
+  "BACKEND_UNREACHABLE",
+]);
+
+function waitForVisiblePage(signal) {
+  if (typeof document === "undefined" || document.visibilityState !== "hidden")
+    return;
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      document.removeEventListener("visibilitychange", visible);
+      signal.removeEventListener("abort", abort);
+    };
+    const visible = () => {
+      if (document.visibilityState !== "visible") return;
+      cleanup();
+      resolve();
+    };
+    const abort = () => {
+      cleanup();
+      reject(signal.reason);
+    };
+    document.addEventListener("visibilitychange", visible);
+    signal.addEventListener("abort", abort, { once: true });
+  });
+}
 
 // Do not surface raw parser messages: metadata can contain private text. Keep
 // only known parser/box names and a numeric byte offset for useful diagnostics.
@@ -282,120 +312,143 @@ export class MP4MediaSource {
   }
   async read(offset) {
     const request = new AbortController();
+    const signal = AbortSignal.any([request.signal, this.controller.signal]);
     this.request = request;
-    const abort = () => request.abort();
-    this.controller.signal.addEventListener("abort", abort, { once: true });
-    const timer = setTimeout(abort, 15000);
     try {
-      const { signal } = request;
-      const range = `bytes=${offset}-${offset + chunkSize - 1}`;
-      const version =
-        this.item.etag || `${this.item.modified}:${this.item.size}`;
-      const cache =
-        this.ranges &&
-        (this.client.images.publicFiles || (await this.rangesReady))
-          ? this.ranges
-          : null;
-      let cached = await cache?.get(
-        this.item.path,
-        version,
-        range,
-        chunkSize,
-        signal,
-      );
-      if (cached && this.etag && cached.etag !== this.etag) cached = null;
-      signal.throwIfAborted();
-
-      const headers = { Range: range };
-      if (this.etag) headers["If-Range"] = this.etag;
-      const fresh = cached && isFreshVideoRange(cached);
-      let response;
-      if (fresh) {
-        response = new Response(cached.bytes, {
-          status: 206,
-          headers: cached.headers,
-        });
-      } else {
-        response = await this.client.read(
-          this.item.path,
-          signal,
-          cached ? { ...headers, "If-None-Match": cached.etag } : headers,
+      for (let attempt = 0; ; attempt++) {
+        signal.throwIfAborted();
+        const timeout = new AbortController();
+        const timer = setTimeout(
+          () => timeout.abort(coreError("CONNECTION_TIMEOUT")),
+          15000,
         );
-        if (response.status === 304 && cached) {
-          await response.body?.cancel();
-          const validated = revalidatedVideoHeaders(
-            cached.headers,
-            response.headers,
+        try {
+          return await this.readRange(
+            offset,
+            AbortSignal.any([signal, timeout.signal]),
           );
-          if (validated) {
-            response = new Response(cached.bytes, {
-              status: 206,
-              headers: validated,
-            });
-          } else {
-            await cache.delete(this.item.path, version, range);
-            response = await this.client.read(this.item.path, signal, headers);
-          }
+        } catch (error) {
+          signal.throwIfAborted();
+          const failure = timeout.signal.reason ?? error;
+          if (
+            attempt ||
+            (!retryableRangeErrors.has(failure?.code) &&
+              failure?.name !== "WebTransportError" &&
+              failure?.name !== "NetworkError")
+          )
+            throw failure;
+        } finally {
+          clearTimeout(timer);
         }
+        // A suspended page can lose its stream. Retry the same offset once
+        // the browser can run the player again.
+        await waitForVisiblePage(signal);
       }
-      const time = Date.now();
-      if (!response.ok) {
-        if (cached) await cache.delete(this.item.path, version, range);
-        checkResponse(response);
-      }
-      const bounds = videoRange(response.headers);
-      if (response.status !== 206 || !bounds || bounds.start !== offset) {
-        await response.body?.cancel();
-        if (cached) await cache.delete(this.item.path, version, range);
-        throw coreError(
-          response.status === 200 && this.etag
-            ? "VIDEO_CHANGED"
-            : "VIDEO_RANGE_INVALID",
-        );
-      }
-      const etag = videoETag(response.headers);
-      if (
-        (this.size !== Infinity && this.size !== bounds.size) ||
-        (this.etag && response.headers.has("ETag") && this.etag !== etag)
-      ) {
-        await response.body?.cancel();
-        if (cached) await cache.delete(this.item.path, version, range);
-        throw coreError("VIDEO_CHANGED");
-      }
-      const storable = cache && canStoreVideoRange(response.headers, range);
-      if (!storable && cached)
-        await cache.delete(this.item.path, version, range);
-      const bytes = await limitedBytes(
-        response,
-        chunkSize,
-        signal,
-        this.onRead &&
-          ((received) => this.onRead(offset, received, bounds.size)),
-      );
-      if (bytes.byteLength !== bounds.end - bounds.start + 1)
-        throw coreError("VIDEO_INCOMPLETE");
-      signal.throwIfAborted();
-      this.size = bounds.size;
-      this.etag ||= etag;
-      if (storable && !fresh)
-        void cache
-          .put(this.item.path, version, range, {
-            bytes,
-            headers: response.headers,
-            time,
-          })
-          .catch(() => {});
-      const data = bytes.buffer.slice(
-        bytes.byteOffset,
-        bytes.byteOffset + bytes.byteLength,
-      );
-      data.fileStart = offset;
-      return data;
     } finally {
-      clearTimeout(timer);
-      this.controller.signal.removeEventListener("abort", abort);
       if (this.request === request) this.request = null;
     }
+  }
+  async readRange(offset, signal) {
+    const range = `bytes=${offset}-${offset + chunkSize - 1}`;
+    const version = this.item.etag || `${this.item.modified}:${this.item.size}`;
+    const cache =
+      this.ranges &&
+      (this.client.images.publicFiles || (await this.rangesReady))
+        ? this.ranges
+        : null;
+    let cached = await cache?.get(
+      this.item.path,
+      version,
+      range,
+      chunkSize,
+      signal,
+    );
+    if (cached && this.etag && cached.etag !== this.etag) cached = null;
+    signal.throwIfAborted();
+
+    const headers = { Range: range };
+    if (this.etag) headers["If-Range"] = this.etag;
+    const fresh = cached && isFreshVideoRange(cached);
+    let response;
+    if (fresh) {
+      response = new Response(cached.bytes, {
+        status: 206,
+        headers: cached.headers,
+      });
+    } else {
+      response = await this.client.read(
+        this.item.path,
+        signal,
+        cached ? { ...headers, "If-None-Match": cached.etag } : headers,
+      );
+      if (response.status === 304 && cached) {
+        await response.body?.cancel();
+        const validated = revalidatedVideoHeaders(
+          cached.headers,
+          response.headers,
+        );
+        if (validated) {
+          response = new Response(cached.bytes, {
+            status: 206,
+            headers: validated,
+          });
+        } else {
+          await cache.delete(this.item.path, version, range);
+          response = await this.client.read(this.item.path, signal, headers);
+        }
+      }
+    }
+    const time = Date.now();
+    if (!response.ok) {
+      if (cached) await cache.delete(this.item.path, version, range);
+      checkResponse(response);
+    }
+    const bounds = videoRange(response.headers);
+    if (response.status !== 206 || !bounds || bounds.start !== offset) {
+      await response.body?.cancel();
+      if (cached) await cache.delete(this.item.path, version, range);
+      throw coreError(
+        response.status === 200 && this.etag
+          ? "VIDEO_CHANGED"
+          : "VIDEO_RANGE_INVALID",
+      );
+    }
+    const etag = videoETag(response.headers);
+    if (
+      (this.size !== Infinity && this.size !== bounds.size) ||
+      (this.etag && response.headers.has("ETag") && this.etag !== etag)
+    ) {
+      await response.body?.cancel();
+      if (cached) await cache.delete(this.item.path, version, range);
+      throw coreError("VIDEO_CHANGED");
+    }
+    const storable = cache && canStoreVideoRange(response.headers, range);
+    if (!storable && cached) await cache.delete(this.item.path, version, range);
+    const bytes = await limitedBytes(
+      response,
+      chunkSize,
+      signal,
+      this.onRead && ((received) => this.onRead(offset, received, bounds.size)),
+    );
+    if (bytes.byteLength !== bounds.end - bounds.start + 1)
+      throw coreError("VIDEO_INCOMPLETE");
+    signal.throwIfAborted();
+    this.size = bounds.size;
+    this.etag ||= etag;
+    if (storable && !fresh)
+      void cache
+        .put(this.item.path, version, range, {
+          bytes,
+          headers: response.headers,
+          time,
+        })
+        .catch(() => {});
+    const data = bytes.buffer.slice(
+      bytes.byteOffset,
+      bytes.byteOffset + bytes.byteLength,
+    );
+    data.fileStart = offset;
+    return data;
   }
   async run() {
     while (!this.disposed && !this.failed) {
