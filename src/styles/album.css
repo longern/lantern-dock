@@ -62,6 +62,10 @@
   height: 100%;
   object-fit: cover;
 }
+.album-thumbnail-image {
+  position: absolute;
+  inset: 0;
+}
 .album-preview .thumbnail-slot {
   display: flex;
   align-items: center;
@@ -73,35 +77,38 @@
   height: 32px;
   stroke-width: 1.2;
 }
-.album-video-indicator,
-.album-live-indicator {
+.album-indicator {
+  --album-indicator-inset: calc(6px * var(--album-indicator-scale, 1));
   position: absolute;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: calc(22px * var(--album-indicator-scale, 1));
+  height: calc(22px * var(--album-indicator-scale, 1));
   border-radius: 50%;
   background: #0009;
   color: #fff;
   pointer-events: none;
 }
 .album-video-indicator {
-  right: 6px;
-  bottom: 6px;
+  right: var(--album-indicator-inset);
+  bottom: var(--album-indicator-inset);
 }
 .album-video-indicator svg {
-  width: 12px;
-  height: 12px;
+  width: calc(12px * var(--album-indicator-scale, 1));
+  height: calc(12px * var(--album-indicator-scale, 1));
   fill: currentColor;
   stroke: none;
 }
+.album-preview[data-moving-indicator] > .album-indicator {
+  visibility: hidden;
+}
 .album-live-indicator {
-  top: 6px;
-  left: 6px;
+  top: var(--album-indicator-inset);
+  left: var(--album-indicator-inset);
   background-position: center;
   background-repeat: no-repeat;
-  background-size: 14px;
+  background-size: calc(14px * var(--album-indicator-scale, 1));
 }
 .album-layout .skeleton {
   height: auto;

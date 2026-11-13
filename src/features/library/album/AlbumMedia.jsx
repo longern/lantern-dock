@@ -1,5 +1,6 @@
-import { mediaQueries } from "../../../lib/breakpoints.js";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { createPortal } from "preact/compat";
+import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
+import { useReducedMotion } from "../../../hooks/useMediaQuery.js";
 import { t } from "../../../../shared/i18n.js";
 import {
   previewImage,
@@ -8,17 +9,24 @@ import {
   originalImage,
 } from "../../../lib/image-preview.js";
 import { Icon } from "../../../components/Icon.jsx";
+import { afterOverlayEntry } from "../../../lib/overlay-entry.js";
 import { VideoPreview } from "../preview/VideoPreview.jsx";
 import { LivePhoto } from "../preview/LivePhoto.jsx";
+import { AlbumIndicator } from "./AlbumIndicator.jsx";
+import { moveAlbumImage } from "./album-thumbnail-transition.jsx";
 
-// PhotoSlider owns the transform/crop and gestures. The image layers share
-// its exact geometry, so sharpening cannot move or stretch the photograph.
 export function AlbumMedia({
   attrs,
   scale,
   fitted,
   item,
   thumbnail,
+  returningToTile,
+  videoThumbnail,
+  indicator,
+  thumbnailLayer,
+  indicatorLayer,
+  onThumbnailSettled,
   client,
   active,
   open,
@@ -28,11 +36,17 @@ export function AlbumMedia({
   live,
   liveRequested,
   onLiveStop,
+  onVideoPlayer,
 }) {
   const root = useRef(null);
+  const touchStart = useRef(null);
+  touchStart.current = attrs.onTouchStart;
+  const previewSlot = useRef(null);
+  const thumbnailImage = useRef(null);
+  const lifted = !!thumbnailLayer;
+  const reducedMotion = useReducedMotion();
   const [low, setLow] = useState(thumbnail || null);
   const [high, setHigh] = useState(null);
-  const [shown, setShown] = useState(false);
   const [settled, setSettled] = useState(false);
   const [error, setError] = useState("");
   const [upgrading, setUpgrading] = useState(false);
@@ -116,11 +130,11 @@ export function AlbumMedia({
     if (!active || item.kind !== "image") {
       if (open) {
         setHigh(null);
-        setShown(false);
         setSettled(false);
       }
       return;
     }
+    setSettled(false);
     const controller = new AbortController();
     const combined = AbortSignal.any([controller.signal, signal]);
     let url;
@@ -134,7 +148,7 @@ export function AlbumMedia({
       combined.throwIfAborted();
       onSize(item.path, image.width || size.width, image.height || size.height);
       setHigh({
-        url,
+        node: size.image,
         cached: !!cached,
         original: image.original === true,
         sourceSide: Math.max(
@@ -152,69 +166,130 @@ export function AlbumMedia({
     };
   }, [active, item, client, signal, onSize]);
 
-  useEffect(() => {
-    setShown(false);
-    setSettled(false);
-    if (!high || (!entered && !high.cached)) return;
-    let frame, next, timer;
-    frame = requestAnimationFrame(() => {
-      next = requestAnimationFrame(() => {
-        setShown(true);
-        // Animated images retain their base until the actual transition ends.
-        if (high.cached || matchMedia(mediaQueries.reducedMotion).matches)
-          timer = setTimeout(() => setSettled(true), 0);
-      });
-    });
-    return () => {
-      cancelAnimationFrame(frame);
-      cancelAnimationFrame(next);
-      clearTimeout(timer);
-    };
-  }, [high, entered]);
+  useLayoutEffect(() => () => high?.node.remove(), [high]);
 
-  // Keep native video controls out of the gallery's drag and wheel handlers.
-  const nativeControl = (event) => {
-    // A swipe across the picture still pages on touch devices. Reserve the
-    // bottom native-controls strip for scrubbing, volume and play/pause.
-    if (
-      event.type === "touchstart" &&
-      event.touches.length === 1 &&
-      event.touches[0].clientY <
-        event.currentTarget.getBoundingClientRect().bottom - 64
-    )
+  useLayoutEffect(() => {
+    if (!high) return;
+    const { node } = high;
+    node.className = `album-image-high${high.cached ? " is-cached" : ""}${settled ? " is-sharp" : ""}`;
+    node.alt = active && settled && !original?.url ? item.name : "";
+    node.draggable = false;
+    // Fade the decoded image in beside the original thumbnail, under one crop
+    // and transform, then move that same image into the viewer.
+    moveAlbumImage(node, thumbnailLayer || previewSlot.current);
+  }, [high, thumbnailLayer, settled, active, original?.url, item.name]);
+
+  useLayoutEffect(() => {
+    if (!open || !high) return;
+    if ((high.cached && !lifted) || reducedMotion) {
+      setSettled(true);
       return;
-    event.stopPropagation();
-  };
+    }
+    return afterOverlayEntry(high.node, () => setSettled(true));
+  }, [open, high, lifted, reducedMotion]);
+
+  useLayoutEffect(() => {
+    if (!open || !lifted || !high || !settled || !entered) return;
+    const media = root.current;
+    // PhotoSlider animates the transform and crop on separate elements.
+    return afterOverlayEntry(media.parentElement, () => {
+      moveAlbumImage(high.node, previewSlot.current);
+      onThumbnailSettled();
+    });
+  }, [open, lifted, settled, entered, high, onThumbnailSettled]);
+
+  useLayoutEffect(() => {
+    if (open || !returningToTile || !high) return;
+    if (!lifted && (settled || !thumbnailImage.current?.naturalWidth)) return;
+    // Reverse an interrupted sharpening fade from the opacity already on screen.
+    const opacity = Number(getComputedStyle(high.node).opacity);
+    const fade = high.node.animate([{ opacity }, { opacity: 0 }], {
+      duration: 180,
+      easing: "ease-out",
+      fill: "both",
+    });
+    return () => fade.cancel();
+  }, [open, returningToTile, lifted, high, settled]);
+
+  useLayoutEffect(() => {
+    if (!open || !active || item.kind !== "image") return;
+    const media = root.current;
+    const slide = media.closest(".PhotoView__PhotoWrap");
+    const portal = slide?.parentElement;
+    if (!portal) return;
+    const startFromMargin = (event) => {
+      if (
+        event.touches.length === 1 &&
+        slide.contains(event.target) &&
+        !media.contains(event.target)
+      )
+        touchStart.current?.(event);
+    };
+    // Letterboxing and the opening crop can leave parts of the slide outside
+    // the image's hit area. Start the same drag before PhotoSlider sees a mask press.
+    portal.addEventListener("touchstart", startFromMargin, true);
+    return () =>
+      portal.removeEventListener("touchstart", startFromMargin, true);
+  }, [open, active, item.kind]);
+
+  const mediaWidth = indicator ? parseFloat(attrs.style.width) : 0;
+  const showIndicator =
+    indicator &&
+    (indicatorLayer ||
+      (attrs.style.opacity === 1 &&
+        (!open ||
+          attrs.style.transition ||
+          Math.abs(mediaWidth * scale - indicator.width) < 1)));
+  const movingIndicator = showIndicator && (
+    <AlbumIndicator
+      kind={indicator.kind}
+      tile={indicator.tile}
+      scale={
+        indicatorLayer
+          ? `calc(var(--album-thumbnail-width) / ${indicator.width})`
+          : mediaWidth / indicator.width
+      }
+      phase={
+        open ? (attrs.style.transition ? "opening" : "waiting") : "closing"
+      }
+    />
+  );
+
   return (
     <div
       {...attrs}
+      {...(item.kind === "video" && {
+        // Give the gallery single-finger swipes without starting a video pinch.
+        onMouseDown: undefined,
+        onTouchStart: (event) => {
+          if (event.touches.length === 1) attrs.onTouchStart?.(event);
+          else event.stopPropagation();
+        },
+        onTouchMove: (event) => {
+          if (event.touches.length > 1) event.stopPropagation();
+        },
+        onWheel: undefined,
+      })}
       ref={root}
-      className={`album-media ${attrs.className || ""}`}
+      className={`album-media${item.kind === "video" && active ? " album-media-video" : ""} ${attrs.className || ""}`}
       data-media-path={item.path}
       data-current={active ? "true" : "false"}
+      data-returning-to-tile={returningToTile ? "" : undefined}
       aria-hidden={!active}
     >
-      {low && !settled && (
+      {low && !lifted && (!settled || item.kind === "image") && (
         <img
           key="low"
-          class="album-image-low"
+          ref={thumbnailImage}
+          class={`album-image-low${settled ? " is-behind-preview" : ""}`}
           src={low}
-          alt={active ? item.name : ""}
+          alt={active && !settled ? item.name : ""}
           draggable={false}
           onError={() => setLow(null)}
         />
       )}
-      {high && (
-        <img
-          key="high"
-          class={`album-image-high${shown ? " is-sharp" : ""}${high.cached ? " is-cached" : ""}`}
-          src={high.url}
-          alt={active && settled && !original?.url ? item.name : ""}
-          draggable={false}
-          onTransitionEnd={(event) => {
-            if (event.propertyName === "opacity" && shown) setSettled(true);
-          }}
-        />
+      {item.kind === "image" && (
+        <span ref={previewSlot} class="album-image-preview" />
       )}
       {original?.url && (
         <img
@@ -229,7 +304,8 @@ export function AlbumMedia({
           {t("library.originalPreviewFailed")}
         </p>
       )}
-      {!low &&
+      {!lifted &&
+        !low &&
         !high &&
         !original?.url &&
         (item.kind === "image" || !active) && (
@@ -242,7 +318,7 @@ export function AlbumMedia({
           </div>
         )}
       {error &&
-        low &&
+        (low || lifted) &&
         !original?.url &&
         !original?.error &&
         item.kind === "image" && (
@@ -253,14 +329,16 @@ export function AlbumMedia({
       {item.kind === "video" && active && (
         <div
           class="album-video-player"
-          onMouseDown={nativeControl}
-          onTouchStart={nativeControl}
-          onWheel={nativeControl}
+          data-closing={!open && !reducedMotion ? "" : undefined}
         >
           <VideoPreview
             item={item}
             client={client}
             open={open}
+            playOnRequest
+            retainOnClose={!reducedMotion}
+            closingThumbnail={videoThumbnail}
+            onPlayer={onVideoPlayer}
             onError={setError}
             onDimensions={(width, height) => onSize(item.path, width, height)}
           />
@@ -276,6 +354,9 @@ export function AlbumMedia({
           target={root}
         />
       )}
+      {indicatorLayer && movingIndicator
+        ? createPortal(movingIndicator, indicatorLayer)
+        : movingIndicator}
     </div>
   );
 }

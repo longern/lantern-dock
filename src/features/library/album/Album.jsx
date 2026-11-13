@@ -8,14 +8,12 @@ import {
 } from "preact/hooks";
 import { Icon } from "../../../components/Icon.jsx";
 import { Thumbnail } from "../listing/Thumbnail.jsx";
+import { AlbumThumbnailImage } from "./album-thumbnail-transition.jsx";
+import { AlbumIndicator } from "./AlbumIndicator.jsx";
 import { artwork } from "../../../lib/demo.js";
 import { groupMediaByDate } from "../../../lib/album.js";
 import { useLiveMedia } from "../../../hooks/useLiveMedia.js";
 import { albumLiveItems } from "../../../lib/live.js";
-// Redrawn for LanternDock from the Apple Live Photos design reference.
-// Reference artwork © Apple Inc.
-// https://developer.apple.com/design/human-interface-guidelines/live-photos
-import livePhotoBadge from "./live-photo-badge.svg";
 
 export function Album({
   view = "date",
@@ -100,29 +98,12 @@ export function Album({
               onPreview(item, {
                 ...pagination,
                 items: orderedItems,
-                origins: new Map(
-                  orderedItems.map((entry) => [
-                    entry.path,
-                    {
-                      get current() {
-                        const button = elements.current.get(entry.path);
-                        const rect = button?.getBoundingClientRect();
-                        if (
-                          !rect ||
-                          rect.bottom <= 0 ||
-                          rect.top >= innerHeight
-                        )
-                          return null;
-                        return button?.querySelector("img") || button || null;
-                      },
-                    },
-                  ]),
-                ),
+                findTile: (path) => elements.current.get(path),
               }),
             )}
           >
             {demo && item.kind === "image" ? (
-              <img
+              <AlbumThumbnailImage
                 src={`data:image/svg+xml,${encodeURIComponent(artwork(item.name))}`}
                 alt=""
                 decoding="async"
@@ -132,21 +113,12 @@ export function Album({
                 item={item}
                 client={client}
                 side={384}
+                Image={item.kind === "image" ? AlbumThumbnailImage : "img"}
                 fallback={<Icon name={item.kind} />}
               />
             )}
-            {item.kind === "video" && (
-              <span class="album-video-indicator" aria-hidden="true">
-                <Icon name="play" />
-              </span>
-            )}
-            {item.live && (
-              <span
-                class="album-live-indicator"
-                style={{ backgroundImage: `url("${livePhotoBadge}")` }}
-                aria-hidden="true"
-              />
-            )}
+            {item.kind === "video" && <AlbumIndicator kind="video" />}
+            {item.live && <AlbumIndicator kind="live" />}
           </button>
           {selection.touch && (
             <span

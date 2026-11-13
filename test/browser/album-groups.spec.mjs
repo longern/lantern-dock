@@ -398,7 +398,7 @@ test("a video-only album opens the existing player without autoplay and restores
       autoplay: node.autoplay,
       controls: node.controls,
     })),
-  ).toEqual({ paused: true, autoplay: false, controls: true });
+  ).toEqual({ paused: true, autoplay: false, controls: false });
   await video.evaluate((node) => {
     node.muted = true;
     return node.play();

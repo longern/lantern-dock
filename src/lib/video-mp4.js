@@ -284,8 +284,11 @@ export class MP4MediaSource {
   }
   seek() {
     if (!this.info || this.disposed || this.failed) return;
-    // Native seeking inside the common A/V buffer needs no backend requests.
-    if (this.ahead() > 0.1) {
+    // A pending remove can still report the old range as buffered.
+    const removing = this.buffers.some(
+      (buffer) => buffer.source.updating && !buffer.current,
+    );
+    if (!removing && this.ahead() > 0.1) {
       this.notify();
       return;
     }
@@ -296,7 +299,13 @@ export class MP4MediaSource {
       for (const buffer of this.buffers) {
         for (const part of buffer.queue) this.queued -= part.bytes.byteLength;
         buffer.queue.length = 0;
-        if (buffer.source.updating && this.media.readyState === "open")
+        // MSE can abort media appends, but range removal must finish normally.
+        // An in-flight initialization segment is still needed after the seek.
+        if (
+          buffer.current?.sample !== undefined &&
+          buffer.source.updating &&
+          this.media.readyState === "open"
+        )
           buffer.source.abort();
       }
       this.nextSeek = this.file.seek(
@@ -547,7 +556,12 @@ export class MP4MediaSource {
       buffer.source.removeEventListener("updateend", buffer.updated);
       buffer.source.removeEventListener("error", buffer.error);
       try {
-        if (this.media.readyState === "open") buffer.source.abort();
+        if (
+          buffer.current &&
+          buffer.source.updating &&
+          this.media.readyState === "open"
+        )
+          buffer.source.abort();
       } catch {
         /* Already detached by the player. */
       }

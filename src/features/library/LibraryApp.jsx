@@ -150,19 +150,19 @@ export function LibraryApp() {
   const showSettings = () => {
     setSettings("open");
   };
-  const copyFileURLs = async (items, album, messageKey) => {
+  const fileURL = (item, album) => {
     const root = (listing.connection?.client.root || "/").replace(/\/?$/, "/");
+    return new URL(
+      filesHref(item.path.slice(root.length), {
+        directory: item.isDirectory,
+        album: album && !item.isDirectory,
+      }),
+      location.origin,
+    ).href;
+  };
+  const copyFileURLs = async (items, album, messageKey) => {
     try {
-      const links = items.map(
-        (item) =>
-          new URL(
-            filesHref(item.path.slice(root.length), {
-              directory: item.isDirectory,
-              album: album && !item.isDirectory,
-            }),
-            location.origin,
-          ).href,
-      );
+      const links = items.map((item) => fileURL(item, album));
       await navigator.clipboard.writeText(links.join("\n"));
       toast(t(messageKey, { count: items.length }));
     } catch {
@@ -312,7 +312,7 @@ export function LibraryApp() {
       <LibraryPreview
         client={library.connection?.client}
         state={previewState}
-        {...{ records, transfer, copyLink, toast, feedback }}
+        {...{ records, transfer, copyLink, fileURL, toast, feedback }}
         fileFeedback={settings ? null : feedback}
       />
       {settings && (

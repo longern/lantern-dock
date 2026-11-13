@@ -39,7 +39,7 @@ export async function decodeImage(url, signal) {
     image.src = url;
     await image.decode();
     signal.throwIfAborted();
-    return { width: image.naturalWidth, height: image.naturalHeight };
+    return { image, width: image.naturalWidth, height: image.naturalHeight };
   } finally {
     signal.removeEventListener("abort", abort);
   }

@@ -202,7 +202,6 @@ export function useLibraryPreview({
                 groupMediaByDate(source.entries, new Date()).flatMap(
                   (group) => group.items,
                 ),
-              origins: new Map(),
             },
       );
     } else setGallery(null);

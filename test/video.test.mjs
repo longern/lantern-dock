@@ -56,6 +56,93 @@ function reader(request) {
     size: Infinity,
   });
 }
+test("seeking restarts the range read while a SourceBuffer is removing old frames", () => {
+  const request = new AbortController();
+  const seeks = [];
+  const appended = [];
+  let removing = false;
+  const source = Object.assign(reader(), {
+    request,
+    info: {},
+    generation: 0,
+    queued: 12,
+    eof: true,
+    media: { readyState: "open" },
+    video: { currentTime: 90, buffered: { length: 0 } },
+    file: {
+      stop() {},
+      seek(time, keyframe) {
+        seeks.push([time, keyframe]);
+        return { offset: 8192 };
+      },
+      start() {},
+    },
+    notify() {},
+    fail(error) {
+      throw error;
+    },
+  });
+  const videoBuffer = {
+    current: null,
+    queue: [{ bytes: new Uint8Array(8) }],
+    source: {
+      get updating() {
+        return removing;
+      },
+      buffered: { length: 1, start: () => 0, end: () => 30 },
+      remove() {
+        removing = true;
+      },
+      appendBuffer(bytes) {
+        appended.push(bytes);
+      },
+      abort() {
+        throw new DOMException(
+          "Aborting async remove is disallowed",
+          "InvalidStateError",
+        );
+      },
+    },
+  };
+  const audioBuffer = {
+    current: { bytes: new Uint8Array(4), sample: 1 },
+    queue: [],
+    source: {
+      updating: true,
+      abort() {
+        this.updating = false;
+      },
+    },
+  };
+  source.buffers = [videoBuffer, audioBuffer];
+  source.pump(videoBuffer);
+  assert.equal(removing, true);
+  source.seek();
+
+  // The removal can still be pending when a rapid seek returns to this range.
+  source.video.currentTime = 10;
+  source.video.buffered = videoBuffer.source.buffered;
+  source.seek();
+  assert.equal(removing, true);
+  assert.equal(audioBuffer.source.updating, false);
+  assert.equal(request.signal.aborted, true);
+  assert.deepEqual(seeks, [
+    [90, true],
+    [10, true],
+  ]);
+  assert.equal(source.nextSeek, 8192);
+  assert.equal(source.eof, false);
+  assert.equal(source.queued, 4);
+  assert.equal(videoBuffer.queue.length, 0);
+
+  const next = { bytes: new Uint8Array(6), sample: 2 };
+  videoBuffer.queue.push(next);
+  source.pump(videoBuffer);
+  assert.equal(appended.length, 0);
+  removing = false;
+  source.pump(videoBuffer);
+  assert.deepEqual(appended, [next.bytes]);
+});
 test("MSE reads bounded byte ranges and carries forward a strong If-Range validator", async () => {
   const calls = [];
   const source = reader(async (path, signal, headers) => {

@@ -10,10 +10,12 @@ export function Dialog({
   modal = true,
   animateEntry = true,
   onClose,
+  onBeforeOpen,
   onEntered,
   onExited,
   fallbackFocus,
   returnTarget,
+  onKeyDown,
   children,
   ...props
 }) {
@@ -25,6 +27,7 @@ export function Dialog({
     open,
     animateEntry,
     onClose,
+    onBeforeOpen,
     onEntered,
     onExited,
     fallbackFocus,
@@ -41,6 +44,7 @@ export function Dialog({
           ? "animated"
           : "instant";
         returnFocus.current ||= document.activeElement;
+        callbacks.current.onBeforeOpen?.(node);
         modal ? node.showModal() : node.show();
       }
       if (callbacks.current.onEntered) {
@@ -103,6 +107,7 @@ export function Dialog({
         callbacks.current.onClose?.();
       }}
       onKeyDown={(event) => {
+        onKeyDown?.(event);
         if (
           modal &&
           event.key === "Tab" &&
@@ -117,6 +122,7 @@ export function Dialog({
             ),
           ].filter(
             (target) =>
+              target.closest("dialog") === node &&
               target.tabIndex >= 0 &&
               !target.matches(":disabled") &&
               target.getClientRects().length &&

@@ -30,6 +30,54 @@ html:has(.album-viewer[open]) {
 .album-viewer .PhotoView-Slider__Overlay {
   opacity: 1;
 }
+.album-viewer[data-opening-thumbnail] .PhotoView-Slider__Backdrop {
+  visibility: hidden;
+}
+.album-thumbnail-transition {
+  position: fixed;
+  inset: 0;
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  pointer-events: none;
+}
+.album-thumbnail-transition-picture {
+  position: absolute;
+  inset: 0 auto auto 0;
+  transform-origin: top left;
+  overflow: hidden;
+}
+.album-thumbnail-transition-mask {
+  position: absolute;
+  inset: 0;
+}
+.album-thumbnail-transition-picture > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  /* Map the full frame to the shared box despite rounded rendition sizes. */
+  object-fit: fill;
+}
+.album-thumbnail-transition-indicators {
+  position: absolute;
+  pointer-events: none;
+}
+.album-thumbnail-transition-indicators,
+.album-media > .album-indicator {
+  z-index: 2;
+}
+.album-thumbnail-transition-origin {
+  position: absolute;
+  visibility: hidden;
+  object-fit: cover;
+}
 .album-viewer[data-state="closed"] .album-viewer-controls {
   opacity: 0;
   pointer-events: none;
@@ -45,6 +93,16 @@ html:has(.album-viewer[open]) {
 }
 .album-media:active {
   cursor: grabbing;
+}
+.album-media-video {
+  overflow: visible;
+}
+/* Include the black bars in the same drag surface as the video. The gallery
+   clips this hit area at the viewport, and controls sit above it. */
+.album-media-video::before {
+  content: "";
+  position: absolute;
+  inset: -100vh -100vw;
 }
 .album-live-video {
   position: absolute;
@@ -124,31 +182,37 @@ html:has(.album-viewer[open]) {
 .album-live-progress circle:last-child {
   stroke: currentColor;
 }
-.album-viewer-actions:has([data-live-action]) {
-  gap: 0;
-  padding-inline: 8px;
-}
+.album-image-preview,
+.album-thumbnail-transition-picture > .album-image-high,
+.album-image-preview > img,
 .album-media > img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   max-width: none;
-  object-fit: cover;
   pointer-events: none;
 }
+.album-image-preview > img,
+.album-media > img {
+  object-fit: cover;
+}
 .album-image-high {
-  opacity: 0;
-  transition: opacity 180ms ease-out;
+  animation: album-original-in 180ms ease-out both;
 }
+.album-viewer:not([data-opening-thumbnail]) .album-image-high.is-cached,
 .album-image-high.is-sharp {
-  opacity: 1;
-}
-.album-image-high.is-cached {
-  transition: none;
+  animation: none;
 }
 .album-image-original {
   animation: album-original-in 180ms ease-out both;
+}
+.album-image-low.is-behind-preview {
+  opacity: 0;
+}
+.album-media[data-returning-to-tile] > .album-image-low.is-behind-preview {
+  z-index: 1;
+  animation: album-original-in 180ms ease-out 40ms both;
 }
 @keyframes album-original-in {
   from {
@@ -189,6 +253,73 @@ html:has(.album-viewer[open]) {
   max-height: none;
   object-fit: contain;
 }
+.album-video-player video[data-waiting-for-frame] {
+  opacity: 0;
+}
+.album-video-cover {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  pointer-events: none;
+}
+.album-video-cover > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.album-video-cover-sharp {
+  animation: album-original-in 180ms ease-out both;
+}
+.album-video-player .album-video-play,
+.album-video-loading {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+}
+.album-video-player .icon-button.album-video-play {
+  width: 64px;
+  height: 64px;
+  background: #0009;
+  animation: album-original-in 150ms ease-out both;
+}
+.album-video-play svg {
+  fill: currentColor;
+}
+.album-video-loading {
+  width: 28px;
+  height: 28px;
+  border: 2px solid #fff5;
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: album-video-loading 800ms linear infinite;
+  pointer-events: none;
+}
+@keyframes album-video-loading {
+  to {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+.album-video-player[data-closing] video,
+.album-video-exit-thumbnail {
+  object-fit: cover;
+}
+.album-video-exit-thumbnail {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0;
+}
+.album-indicator[data-motion="opening"] {
+  animation: album-original-in 150ms ease-in reverse both;
+}
+.album-video-player[data-closing] .album-video-exit-thumbnail,
+.album-indicator[data-motion="closing"] {
+  animation: album-original-in 180ms ease-out 40ms both;
+}
 .album-video-player .preview-placeholder {
   position: absolute;
   inset: 0;
@@ -200,6 +331,7 @@ html:has(.album-viewer[open]) {
 }
 .album-viewer-header,
 .album-viewer-actions,
+.album-video-controls,
 .album-viewer-pager,
 .album-viewer-details {
   position: absolute;
@@ -214,26 +346,32 @@ html:has(.album-viewer[open]) {
   padding: env(safe-area-inset-top) 20px 0;
   background: linear-gradient(#0009, #0000);
 }
-.album-viewer .icon-button {
+:is(.album-viewer-controls, .album-video-player) .icon-button {
   color: #fff;
   width: 48px;
   height: 48px;
   border-radius: 50%;
 }
-.album-viewer .icon-button svg {
+:is(.album-viewer-controls, .album-video-player) .icon-button svg {
   width: 24px;
   height: 24px;
 }
 @media (hover: hover) {
-  .album-viewer .icon-button:hover {
+  :is(.album-viewer-controls, .album-video-player) .icon-button:hover {
     background: #ffffff20;
   }
 }
-.album-viewer .icon-button:focus-visible {
+:is(.album-viewer-controls, .album-video-player) .icon-button:focus-visible {
   background: #ffffff3d;
 }
-.album-viewer .icon-button[aria-pressed="true"] {
+.album-viewer-controls .icon-button[aria-pressed="true"] {
   color: #f3d588;
+}
+.album-viewer-controls .album-favorite[aria-pressed="true"] {
+  color: #ff526e;
+}
+.album-favorite[aria-pressed="true"] svg {
+  fill: currentColor;
 }
 .album-viewer-header strong {
   flex: 1;
@@ -269,6 +407,83 @@ html:has(.album-viewer[open]) {
   padding: 12px 16px max(12px, env(safe-area-inset-bottom));
   background: linear-gradient(#0000, #0009);
 }
+.album-video-controls {
+  left: 50%;
+  bottom: calc(68px + max(12px, env(safe-area-inset-bottom)));
+  transform: translateX(-50%);
+  width: min(420px, calc(100% - 32px));
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 999px;
+  background: #202024de;
+  box-shadow: 0 4px 18px #0005;
+  animation: album-original-in 150ms ease-out both;
+}
+.album-video-controls .icon-button {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+}
+.album-video-controls .icon-button svg {
+  width: 20px;
+  height: 20px;
+}
+.album-video-timeline {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding-inline: 8px;
+  display: flex;
+  align-items: center;
+  touch-action: none;
+  user-select: none;
+  cursor: pointer;
+}
+.album-video-timeline[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+}
+.album-video-timeline:focus-visible {
+  border-radius: 8px;
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+.album-video-track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    #fff var(--progress),
+    #fff5 var(--progress)
+  );
+}
+.album-video-track::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: var(--progress);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: #fff;
+}
+.album-video-target {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #202024de;
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
 .album-viewer-details {
   right: 16px;
   bottom: calc(80px + env(safe-area-inset-bottom));
@@ -290,7 +505,63 @@ html:has(.album-viewer[open]) {
 .album-viewer-details .file-details > div {
   border-color: #ffffff20;
 }
+.album-viewer:has(.album-video-controls) .album-viewer-details {
+  bottom: calc(124px + max(12px, env(safe-area-inset-bottom)));
+}
+.settings-dialog.album-share-dialog {
+  padding: 0;
+  color: #252938;
+}
+.album-share-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 16px max(16px, env(safe-area-inset-bottom));
+}
+.album-share-actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.album-share-actions button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  text-align: start;
+  border-radius: var(--radius-control);
+}
+.album-share-actions button svg {
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+}
+.album-share-actions button:is(:active, [aria-expanded="true"]) {
+  background: var(--accent-soft);
+}
+@media (hover: hover) {
+  .album-share-actions button:hover {
+    background: var(--surface-subtle);
+  }
+}
+.album-share-qr {
+  display: grid;
+  justify-items: center;
+  margin-top: 12px;
+}
+.album-share-qr canvas {
+  width: min(224px, 100%);
+  height: auto;
+}
 @media (--down-md) {
+  .album-viewer-actions {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 0;
+  }
   .album-viewer-header {
     padding-left: 16px;
     padding-right: 16px;
@@ -300,12 +571,18 @@ html:has(.album-viewer[open]) {
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .album-image-high,
   .album-image-original,
+  .album-video-cover-sharp,
+  .album-video-controls,
+  .album-video-play,
+  .album-video-loading,
   .album-live-spinner {
     animation: none;
   }
   .album-live-video,
-  .album-live-status {
+  .album-live-status,
+  .album-viewer-controls {
     transition: none;
   }
   /* The library normally clears its fade class on animationend. No animation

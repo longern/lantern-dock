@@ -5,6 +5,10 @@ import { authorization } from "./transport.js";
 
 export const unsupportedVideo = t("core.error.VIDEO_UNSUPPORTED");
 export async function createVideoSource(client, item, signal, onRead) {
+  return prepareVideoSource(client, item, signal, onRead);
+}
+
+export function prepareVideoSource(client, item, signal, onRead) {
   signal?.throwIfAborted();
   const path = normalizePath(item.path);
   if (!withinRoot(path, client.root)) throw coreError("OUTSIDE_ROOT");
@@ -38,7 +42,8 @@ export async function createVideoSource(client, item, signal, onRead) {
   )
     throw coreError("VIDEO_UNSUPPORTED");
   // Load the parser only when a video needs page-local fragmentation.
-  const { MP4MediaSource } = await import("./video-mp4.js");
-  signal?.throwIfAborted();
-  return new MP4MediaSource(client, { ...item, path }, signal, onRead);
+  return import("./video-mp4.js").then(({ MP4MediaSource }) => {
+    signal?.throwIfAborted();
+    return new MP4MediaSource(client, { ...item, path }, signal, onRead);
+  });
 }

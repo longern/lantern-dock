@@ -894,17 +894,46 @@ test("album slides from IIIF images to an active MP4Box video over real WebTrans
       "album-video.mp4",
     );
     const player = page.locator("#album-viewer video");
+    const viewer = page.locator("#album-viewer");
+    await expect(viewer.locator(".album-video-cover-sharp")).toBeVisible();
+    await expect(player).not.toHaveAttribute("src", /.+/);
+    await viewer.getByRole("button", { name: "播放视频", exact: true }).click();
+    await expect(
+      viewer.getByRole("slider", { name: "播放进度" }),
+    ).toBeVisible();
     await expect(player).toBeVisible();
     await expect
       .poll(() => player.evaluate((video) => video.readyState))
       .toBeGreaterThanOrEqual(1);
     expect(await player.getAttribute("src")).toMatch(/^blob:/);
-    expect(await player.evaluate((video) => video.paused)).toBe(true);
+    expect(await player.evaluate((video) => video.controls)).toBe(false);
     await player.evaluate((video) => {
+      video.pause();
       window.albumBridgeVideo = video;
-      video.muted = true;
-      return video.play();
     });
+    await viewer.getByRole("button", { name: "视频选项", exact: true }).click();
+    await viewer
+      .getByRole("menuitemradio", { name: "1.5×", exact: true })
+      .click();
+    expect(await player.evaluate((video) => video.playbackRate)).toBe(1.5);
+    await viewer.getByRole("button", { name: "静音", exact: true }).click();
+    const timeline = viewer.getByRole("slider", { name: "播放进度" });
+    const track = await timeline.locator(".album-video-track").boundingBox();
+    await timeline.click({
+      position: {
+        x: track.x - (await timeline.boundingBox()).x + track.width * 0.75,
+        y: 20,
+      },
+    });
+    await expect
+      .poll(() => player.evaluate((video) => video.currentTime))
+      .toBeCloseTo(6, 0);
+    await timeline.focus();
+    await page.keyboard.press("Home");
+    await expect
+      .poll(() => player.evaluate((video) => video.currentTime))
+      .toBe(0);
+    await viewer.getByRole("button", { name: "播放视频", exact: true }).click();
     await expect
       .poll(() => player.evaluate((video) => video.currentTime))
       .toBeGreaterThan(0.2);

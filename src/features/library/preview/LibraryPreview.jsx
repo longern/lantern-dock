@@ -7,6 +7,7 @@ export function LibraryPreview({
   records,
   transfer,
   copyLink,
+  fileURL,
   toast,
   feedback,
   fileFeedback,
@@ -35,7 +36,8 @@ export function LibraryPreview({
       favorite={records.isFavorite(selected)}
       onFavorite={records.toggleFavorite}
       onDownload={transfer.download}
-      onCopyLink={copyLink}
+      shareURL={fileURL(selected, true)}
+      toast={toast}
       onClose={closePreview}
       onExited={finishPreview}
       returnTarget={previewReturnTarget}
