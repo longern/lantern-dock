@@ -44,7 +44,7 @@ async function install(page, options = {}) {
       json: {
         backend: {
           transport: "http",
-          endpoint: "http://127.0.0.1:8788",
+          endpoint: new URL(route.request().url()).origin,
           rootPath: "/dav/",
           auth: "none",
         },
@@ -226,10 +226,28 @@ test("the first index is polled until ready without reporting no photos", async 
   const state = await install(page, { status: "scanning" });
   await page.goto("/album/");
   const empty = albumScope(page).locator(".empty-state");
-  await expect(empty.getByText("正在查找照片", { exact: true })).toBeVisible();
-  await expect(
-    empty.getByText("找到的照片会自动显示。", { exact: true }),
-  ).toBeVisible();
+  await expect(empty).toHaveText("加载相册中");
+  await expect(empty.locator("p")).toHaveCount(0);
+  await expect
+    .poll(() =>
+      empty.evaluate((node) => {
+        const heading = node.parentElement.querySelector(".album-heading");
+        const dialog = node.closest(".album-page-dialog");
+        const header = heading || dialog.querySelector(".page-dialog-header");
+        const top = header.getBoundingClientRect().bottom;
+        const bottom = dialog?.getBoundingClientRect().bottom ?? innerHeight;
+        const spinner = node.querySelector(".page-loading-spinner");
+        const title = node.querySelector("h2");
+        return Math.abs(
+          (spinner.getBoundingClientRect().top +
+            title.getBoundingClientRect().bottom -
+            top -
+            bottom) /
+            2,
+        );
+      }),
+    )
+    .toBeLessThanOrEqual(1);
   await expect(empty.getByText("暂无照片", { exact: true })).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath("album-indexing.png") });
   state.status = "ready";
@@ -264,7 +282,7 @@ test("a background index update is silent and anchors the visible photo across r
   await items(page).last().scrollIntoViewIfNeeded();
   await expect(items(page)).toHaveCount(180);
   await items(page).nth(140).scrollIntoViewIfNeeded();
-  await expect(scope.getByText("正在查找照片", { exact: true })).toHaveCount(0);
+  await expect(scope.getByText("加载相册中", { exact: true })).toHaveCount(0);
   await expect(albumOptionsButton(scope)).not.toHaveClass(/album-refreshing/);
   const { path, top } = await scope.locator("#file-list").evaluate((list) => {
     const header = list

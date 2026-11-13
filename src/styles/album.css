@@ -2,6 +2,25 @@
   --album-padding: 28px;
   padding: 16px 0 24px;
 }
+.main-area:has(> .album-content > .album-loading),
+.album-page-dialog[open]:has(> .album-content > .album-loading),
+.content.album-content:has(> .album-loading) {
+  display: flex;
+  flex-direction: column;
+}
+.album-page-dialog[open]:has(> .album-content > .album-loading) {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.content.album-content:has(> .album-loading) {
+  flex: 1;
+  padding-block: 0;
+}
+.empty-state.album-loading {
+  flex: 1;
+  gap: 12px;
+  min-height: min-content;
+  padding-block: 24px;
+}
 .album-heading {
   padding: 12px var(--album-padding) 16px;
 }
