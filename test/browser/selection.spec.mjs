@@ -198,25 +198,26 @@ test("touch actions batch favorites and copy shareable links without opening fil
   const items = page.locator("#file-list .file-open");
   await hold(page, items.first());
   await items.nth(4).tap();
-  await actions(page)
-    .getByRole("button", { name: "收藏所选项目", exact: true })
-    .tap();
-  await expect(
-    actions(page).getByRole("button", {
-      name: "取消收藏所选项目",
-      exact: true,
-    }),
-  ).toBeVisible();
+  const favorite = actions(page).getByRole("button", {
+    name: "收藏所选项目",
+    exact: true,
+  });
+  const unfavorite = actions(page).getByRole("button", {
+    name: "取消收藏所选项目",
+    exact: true,
+  });
+  await expect(favorite.locator(".lucide-heart")).toHaveCSS("fill", "none");
+  await favorite.tap();
+  await expect(unfavorite.locator(".lucide-heart")).toHaveCSS(
+    "fill",
+    "rgb(255, 82, 110)",
+  );
   await actions(page).getByRole("button", { name: "复制所选链接" }).tap();
   expect(
     await page.evaluate(() => window.copiedSelection.at(-1).split("\n").length),
   ).toBe(2);
-  await actions(page)
-    .getByRole("button", { name: "取消收藏所选项目", exact: true })
-    .tap();
-  await expect(
-    actions(page).getByRole("button", { name: "收藏所选项目", exact: true }),
-  ).toBeVisible();
+  await unfavorite.tap();
+  await expect(favorite.locator(".lucide-heart")).toHaveCSS("fill", "none");
   await page
     .locator(".topbar")
     .getByRole("button", { name: "搜索文件", exact: true })

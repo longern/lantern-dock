@@ -422,7 +422,7 @@ export function FileBrowser({
                 library.query
                   ? "search"
                   : library.mode === "favorites"
-                    ? "star"
+                    ? "heart"
                     : recent
                       ? "clock"
                       : "folder"

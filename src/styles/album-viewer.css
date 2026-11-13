@@ -269,6 +269,12 @@ html:has(.album-viewer[open]) {
   height: 100%;
   object-fit: cover;
 }
+.album-video-cover[data-lifted] {
+  background: transparent;
+}
+.album-video-cover[data-lifted] > img:not(.album-video-cover-sharp) {
+  opacity: 0;
+}
 .album-video-cover-sharp {
   animation: album-original-in 180ms ease-out both;
 }
@@ -364,14 +370,35 @@ html:has(.album-viewer[open]) {
 :is(.album-viewer-controls, .album-video-player) .icon-button:focus-visible {
   background: #ffffff3d;
 }
-.album-viewer-controls .icon-button[aria-pressed="true"] {
+:is(.album-viewer-header, .album-viewer-actions, .album-video-controls)
+  .icon-button:active:enabled:not(:focus-visible, [data-touch-pressed]) {
+  background: #ffffff33;
+}
+:is(.album-viewer-header, .album-viewer-actions, .album-video-controls)
+  .icon-button[data-touch-pressed] {
+  background: transparent;
+}
+:is(.album-viewer-header, .album-viewer-actions, .album-video-controls)
+  .icon-button
+  svg {
+  transition: scale 120ms ease-out;
+}
+:is(.album-viewer-header, .album-viewer-actions, .album-video-controls)
+  .icon-button[data-touch-pressed]
+  svg {
+  scale: 1.06;
+  transition-duration: 70ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :is(.album-viewer-header, .album-viewer-actions, .album-video-controls)
+    .icon-button[data-touch-pressed]
+    svg {
+    scale: none;
+    opacity: 0.7;
+  }
+}
+.album-viewer-controls .album-live-toggle[aria-pressed="true"] {
   color: #f3d588;
-}
-.album-viewer-controls .album-favorite[aria-pressed="true"] {
-  color: #ff526e;
-}
-.album-favorite[aria-pressed="true"] svg {
-  fill: currentColor;
 }
 .album-viewer-header strong {
   flex: 1;
@@ -508,9 +535,11 @@ html:has(.album-viewer[open]) {
 .album-viewer:has(.album-video-controls) .album-viewer-details {
   bottom: calc(124px + max(12px, env(safe-area-inset-bottom)));
 }
+.album-viewer > .settings-dialog {
+  color: #252938;
+}
 .settings-dialog.album-share-dialog {
   padding: 0;
-  color: #252938;
 }
 .album-share-body {
   overflow-y: auto;

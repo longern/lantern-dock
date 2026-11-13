@@ -39,7 +39,6 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
-  Star,
   TriangleAlert,
   Upload,
   UserRound,
@@ -63,7 +62,6 @@ const icons = {
   ellipsis: Ellipsis,
   folder: Folder,
   clock: Clock,
-  star: Star,
   heart: Heart,
   cloud: CloudDownload,
   settings: Settings,
@@ -115,9 +113,13 @@ const icons = {
 };
 
 export function Icon({ name, ...props }) {
-  if (name === "star-filled")
+  if (name === "heart-filled")
     return (
-      <Star aria-hidden="true" style={{ fill: "currentColor" }} {...props} />
+      <Heart
+        aria-hidden="true"
+        style={{ color: "#ff526e", fill: "currentColor" }}
+        {...props}
+      />
     );
 
   if (name === "portal")

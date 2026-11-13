@@ -154,6 +154,25 @@ test("right-click menu has compact rows, animated entry/exit, keyboard navigatio
     (await page.evaluate(() => window.copiedLinks.at(-1))).split("\n"),
   ).toHaveLength(2);
   await expect(menu(page)).toHaveCount(0);
+  await items.first().click({ button: "right" });
+  const favorite = menu(page).getByRole("menuitem", {
+    name: "收藏",
+    exact: true,
+  });
+  await expect(favorite.locator(".lucide-heart")).toHaveCSS("fill", "none");
+  await favorite.click();
+  await expect(menu(page)).toHaveCount(0);
+  await items.first().click({ button: "right" });
+  const unfavorite = menu(page).getByRole("menuitem", {
+    name: "取消收藏",
+    exact: true,
+  });
+  await expect(unfavorite.locator(".lucide-heart")).toHaveCSS(
+    "fill",
+    "rgb(255, 82, 110)",
+  );
+  await unfavorite.click();
+  await expect(menu(page)).toHaveCount(0);
   await page.keyboard.press("Escape");
   await items.first().click({ button: "right" });
   await expect(

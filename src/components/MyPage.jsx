@@ -106,7 +106,7 @@ export function MyPage({ active = true, onFavorites, onSettings }) {
           aria-haspopup="dialog"
         >
           <span class="my-list-icon">
-            <Icon name="star" />
+            <Icon name="heart" />
           </span>
           <span>{t("library.myFavorites")}</span>
           <Icon name="chevron-right" />

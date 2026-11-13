@@ -193,6 +193,8 @@ async function install(page, options = {}) {
               ],
         },
       });
+    if (videoImage && url.includes("/640,360/") && state.videoCoverResponse)
+      return state.videoCoverResponse(route);
     if (url.includes("/1600,1067/")) {
       state.high.push(url);
       if (state.highResponse) return state.highResponse(route, high);
@@ -613,6 +615,84 @@ test("album videos show a cover and request video bytes only after pressing play
   await expect(page.locator(".album-preview").last()).toBeFocused();
 });
 
+test("a video cover opens from its decoded grid thumbnail while the sharp poster loads", async ({
+  page,
+}) => {
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+    gates.add(resolve);
+  });
+  const state = await install(page, {
+    thumbnailHeaders: { "Cache-Control": "no-store" },
+    videoCoverResponse: async (route) => {
+      await gate;
+      await route.fulfill({ contentType: "image/jpeg", body: thumbnail });
+    },
+  });
+  const tile = page.locator('.album-preview[data-path="/dav/clip.mp4"]');
+  await tile.scrollIntoViewIfNeeded();
+  const start = await tile.boundingBox();
+  await tile.locator("img").evaluate((node) => {
+    window.videoGridThumbnail = node;
+    window.videoEntryFrames = [];
+    const sample = () => {
+      if (window.videoEntryFrames.length >= 30) return;
+      if (document.querySelector("#album-viewer[open]")) {
+        const picture = node.closest(".album-thumbnail-transition-picture");
+        const bounds = node.getBoundingClientRect();
+        const [vertical, horizontal = vertical] = picture
+          ? getComputedStyle(picture)
+              .clipPath.slice(6, -1)
+              .split(" ")
+              .map(parseFloat)
+          : [0];
+        const scale = bounds.width / node.naturalWidth;
+        window.videoEntryFrames.push({
+          lifted: !!picture,
+          x: bounds.x + horizontal * scale,
+          width: bounds.width - 2 * horizontal * scale,
+        });
+      }
+      requestAnimationFrame(sample);
+    };
+    sample();
+  });
+  try {
+    await openItem(tile);
+    const lifted = page.locator(".album-thumbnail-transition-picture > img");
+    await expect(lifted).toBeVisible();
+    expect(
+      await lifted.evaluate((node) => node === window.videoGridThumbnail),
+    ).toBe(true);
+    await page.waitForFunction(() => window.videoEntryFrames.length >= 30);
+    const frames = await page.evaluate(() => window.videoEntryFrames);
+    expect(frames.every(({ lifted }) => lifted)).toBe(true);
+    expect(frames[0].x).toBeCloseTo(start.x, 0);
+    expect(frames[0].width).toBeCloseTo(start.width, 0);
+    expect(
+      frames.some(
+        ({ width }) =>
+          width > start.width + 5 && width < frames.at(-1).width - 5,
+      ),
+    ).toBe(true);
+    release();
+    await expect(current(page).locator(".album-video-cover-sharp")).toHaveCSS(
+      "opacity",
+      "1",
+    );
+    await expect(page.locator(".album-thumbnail-transition")).toHaveCount(0);
+    expect(
+      await tile
+        .locator("img")
+        .evaluate((node) => node === window.videoGridThumbnail),
+    ).toBe(true);
+    expect(state.originals).toEqual([]);
+  } finally {
+    release();
+  }
+});
+
 for (const scenario of ["video", "live", "live with a pending preview"]) {
   test(`the ${scenario} tile indicator follows the cover and fades during zoom`, async ({
     page,
@@ -915,6 +995,100 @@ test("album video controls seek on release, set playback speed, and stay above t
   expect(await page.evaluate(() => window.playbackControlEntries)).toBe(1);
 });
 
+test("album toolbar feedback follows the input and reduced-motion preference", async ({
+  page,
+  browserName,
+}) => {
+  await install(page);
+  await openItem(page.locator(".album-preview").first());
+  const favorite = viewer(page).locator(".album-favorite");
+  const icon = favorite.locator("svg");
+  const bounds = await favorite.boundingBox();
+  const x = bounds.x + bounds.width / 2;
+  const y = bounds.y + bounds.height / 2;
+  const touch = await page.evaluate(
+    () => matchMedia("(hover: none) and (pointer: coarse)").matches,
+  );
+  if (!touch) {
+    await favorite.hover();
+    await expect(favorite).toHaveCSS(
+      "background-color",
+      "rgba(255, 255, 255, 0.125)",
+    );
+    await page.mouse.down();
+    await expect(favorite).toHaveCSS(
+      "background-color",
+      "rgba(255, 255, 255, 0.2)",
+    );
+    await expect(icon).toHaveCSS("scale", "none");
+    await page.mouse.up();
+    await page.mouse.move(0, 0);
+    await page.keyboard.press("Tab");
+    await favorite.focus();
+    await expect(favorite).toHaveCSS(
+      "background-color",
+      "rgba(255, 255, 255, 0.24)",
+    );
+    return;
+  }
+
+  const cdp =
+    browserName === "chromium"
+      ? await page.context().newCDPSession(page)
+      : null;
+  const press = async () => {
+    if (cdp)
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchStart",
+        touchPoints: [{ x, y }],
+      });
+    else
+      await favorite.dispatchEvent("pointerdown", {
+        pointerType: "touch",
+        pointerId: 1,
+        isPrimary: true,
+      });
+  };
+  const release = () =>
+    cdp
+      ? cdp.send("Input.dispatchTouchEvent", {
+          type: "touchEnd",
+          touchPoints: [],
+        })
+      : favorite.dispatchEvent("pointerup", { pointerId: 1 });
+  try {
+    await press();
+    await expect(favorite).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    await expect(icon).toHaveCSS("transition-duration", "0.07s");
+    await expect(icon).toHaveCSS("scale", "1.06");
+    expect(await favorite.boundingBox()).toEqual(bounds);
+    await release();
+    await expect(icon).toHaveCSS("transition-duration", "0.12s");
+    await expect(icon).toHaveCSS("scale", "none");
+    if (!cdp) await favorite.tap();
+    await expect(favorite).toHaveAttribute("aria-pressed", "true");
+    await expect(icon).toHaveCSS("fill", "rgb(255, 82, 110)");
+    if (cdp) {
+      await press();
+      await expect(icon).toHaveCSS("scale", "1.06");
+      await cdp.send("Input.dispatchTouchEvent", {
+        type: "touchCancel",
+        touchPoints: [],
+      });
+      await expect(icon).toHaveCSS("scale", "none");
+      await expect(favorite).toHaveAttribute("aria-pressed", "true");
+    }
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await press();
+    await expect(icon).toHaveCSS("scale", "none");
+    await expect(icon).toHaveCSS("opacity", "0.7");
+    await release();
+    await expect(icon).toHaveCSS("opacity", "1");
+  } finally {
+    await cdp?.detach();
+  }
+});
+
 test("album sharing offers the supported actions in order and copies the album link and image", async ({
   page,
 }) => {
@@ -1111,6 +1285,50 @@ test("focus stays modal, details dismiss independently, Back closes and cached i
   await expect
     .poll(() => page.evaluate(() => window.albumOwnedURLs.size))
     .toBe(baseline);
+});
+
+test("album details reuse the file drawer on compact screens", async ({
+  page,
+}) => {
+  await install(page);
+  await openItem(page.locator(".album-preview").first());
+  const trigger = button(page, "文件详情");
+  const details = page.locator("#album-viewer-details");
+  await trigger.click();
+  await expect(details).toContainText("2400 × 1600");
+  if (!isCompact(page)) {
+    await expect(details).toHaveClass("album-viewer-details");
+    return;
+  }
+  await expect(details).toHaveClass(/file-info-drawer/);
+  await expect(details).toHaveAccessibleName("文件详情");
+  await expect(details.locator(".file-info-header")).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator("#album-viewer-name")).toHaveText("first.png");
+  await page.keyboard.press("Escape");
+  await expect(details).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+
+  await trigger.click();
+  const handle = details.locator(".sheet-handle");
+  await handle.evaluate(async (node) => {
+    await Promise.allSettled(
+      node
+        .closest("dialog")
+        .getAnimations()
+        .map(({ finished }) => finished),
+    );
+  });
+  const box = await handle.boundingBox();
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y + 80, { steps: 5 });
+  await page.mouse.up();
+  await expect(details).toHaveCount(0);
+  await expect(viewer(page)).toBeVisible();
+  await expect(trigger).toBeFocused();
 });
 
 test("closing before a delayed image completes animates the original thumbnail back into its tile", async ({
@@ -1670,6 +1888,7 @@ test("video swipes follow the finger and can be reversed before dismissal", asyn
         direction < 0 ? current(page).locator(".album-video-cover") : player;
       if (direction > 0) await button(page, "播放视频").click();
       else await expect(player).not.toHaveAttribute("src", /.+/);
+      await expect(page.locator(".album-thumbnail-transition")).toHaveCount(0);
       await expect
         .poll(async () => (await surface.boundingBox())?.width)
         .toBeCloseTo(width, 0);

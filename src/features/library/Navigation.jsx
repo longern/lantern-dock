@@ -11,7 +11,7 @@ import { Brand } from "../../components/Brand.jsx";
 const modes = [
   ["home", "home", "library.home"],
   ["all", "folder", "library.files"],
-  ["favorites", "star", "library.favorites"],
+  ["favorites", "heart", "library.favorites"],
 ];
 const kinds = [
   ["image", "library.images"],

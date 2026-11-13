@@ -48,6 +48,7 @@ export function AlbumMedia({
   const [low, setLow] = useState(thumbnail || null);
   const [high, setHigh] = useState(null);
   const [settled, setSettled] = useState(false);
+  const [videoCoverReady, setVideoCoverReady] = useState(false);
   const [error, setError] = useState("");
   const [upgrading, setUpgrading] = useState(false);
   const [originalResult, setOriginalResult] = useState(null);
@@ -189,14 +190,24 @@ export function AlbumMedia({
   }, [open, high, lifted, reducedMotion]);
 
   useLayoutEffect(() => {
-    if (!open || !lifted || !high || !settled || !entered) return;
+    const ready = item.kind === "video" ? videoCoverReady : high && settled;
+    if (!open || !lifted || !ready || !entered) return;
     const media = root.current;
     // PhotoSlider animates the transform and crop on separate elements.
     return afterOverlayEntry(media.parentElement, () => {
-      moveAlbumImage(high.node, previewSlot.current);
+      if (high) moveAlbumImage(high.node, previewSlot.current);
       onThumbnailSettled();
     });
-  }, [open, lifted, settled, entered, high, onThumbnailSettled]);
+  }, [
+    open,
+    lifted,
+    settled,
+    entered,
+    high,
+    item.kind,
+    videoCoverReady,
+    onThumbnailSettled,
+  ]);
 
   useLayoutEffect(() => {
     if (open || !returningToTile || !high) return;
@@ -338,6 +349,7 @@ export function AlbumMedia({
             playOnRequest
             retainOnClose={!reducedMotion}
             closingThumbnail={videoThumbnail}
+            onCoverReady={lifted ? setVideoCoverReady : undefined}
             onPlayer={onVideoPlayer}
             onError={setError}
             onDimensions={(width, height) => onSize(item.path, width, height)}

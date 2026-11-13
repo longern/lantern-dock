@@ -2,16 +2,15 @@ import { t } from "../../../../shared/i18n.js";
 import { useEffect, useId, useLayoutEffect, useState } from "preact/hooks";
 import { Icon } from "../../../components/Icon.jsx";
 import { limitedBytes } from "../../../lib/dav.js";
-import { bytes, date } from "../../../lib/format.js";
 import {
   useBreakpointDown,
   useCompactLayout,
 } from "../../../hooks/useMediaQuery.js";
 import { Dialog } from "../../../components/Dialog.jsx";
+import { FileInfoDrawer } from "./FileInfoDrawer.jsx";
 import { PreviewImage } from "./PreviewImage.jsx";
+import { PreviewMetadata } from "./PreviewMetadata.jsx";
 import { VideoPreview } from "./VideoPreview.jsx";
-import { PageHeader } from "../../../components/PageHeader.jsx";
-import { SheetHandle } from "../../../components/SheetHandle.jsx";
 import { dialogHeadingFocus } from "../../../lib/overlay-focus.js";
 
 export function FilePreview({
@@ -151,7 +150,7 @@ export function FilePreview({
           aria-pressed={favorite}
           onClick={() => onFavorite(item)}
         >
-          <Icon name={favorite ? "star-filled" : "star"} />
+          <Icon name={favorite ? "heart-filled" : "heart"} />
           <span>
             {t(favorite ? "library.removeFavorites" : "library.addFavorites")}
           </span>
@@ -164,6 +163,7 @@ export function FilePreview({
           <button
             class="preview-action"
             aria-label={t("library.mediaDetails")}
+            aria-haspopup="dialog"
             aria-expanded={details}
             aria-controls={detailsId}
             onClick={() => setDetails((value) => !value)}
@@ -174,63 +174,16 @@ export function FilePreview({
         )}
       </footer>
       {compact && drawerMounted && (
-        <Dialog
+        <FileInfoDrawer
           id={detailsId}
-          class="settings-dialog file-info-drawer"
           open={details && open}
           onClose={() => setDetails(false)}
           onExited={() => setDrawerMounted(false)}
-          aria-labelledby={`${detailsId}-title`}
-          fallbackFocus=".preview-action[aria-controls]"
         >
-          <SheetHandle onDismiss={() => setDetails(false)} />
-          <PageHeader
-            className="file-info-header"
-            title={t("library.mediaDetails")}
-            titleId={`${detailsId}-title`}
-            titleTag="h2"
-            actions={
-              <button
-                class="icon-button edge-end"
-                aria-label={t("library.closeDetails")}
-                onClick={() => setDetails(false)}
-              >
-                <Icon name="x" />
-              </button>
-            }
-            {...dialogHeadingFocus}
-          />
-          <div class="file-info-body">
-            <PreviewMetadata item={item} dimensions={dimensions} />
-          </div>
-        </Dialog>
+          <PreviewMetadata item={item} dimensions={dimensions} />
+        </FileInfoDrawer>
       )}
       {feedback}
     </Dialog>
-  );
-}
-
-function PreviewMetadata({ item, dimensions }) {
-  return (
-    <dl class="file-details">
-      <div>
-        <dt>{t("library.type")}</dt>
-        <dd>{item.mime || item.name.split(".").pop().toUpperCase()}</dd>
-      </div>
-      <div>
-        <dt>{t("library.size")}</dt>
-        <dd>{bytes(item.size)}</dd>
-      </div>
-      {dimensions && (
-        <div>
-          <dt>{t("library.dimensions")}</dt>
-          <dd>{dimensions}</dd>
-        </div>
-      )}
-      <div>
-        <dt>{t("library.modifiedAt")}</dt>
-        <dd>{date(item.modified, true)}</dd>
-      </div>
-    </dl>
   );
 }

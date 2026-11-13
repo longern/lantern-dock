@@ -9,13 +9,14 @@ import {
 import { PhotoSlider } from "react-photo-view";
 import "react-photo-view/dist/react-photo-view.css";
 import { t } from "../../../../shared/i18n.js";
-import { bytes, date } from "../../../lib/format.js";
 import {
   useCompactLayout,
   useReducedMotion,
 } from "../../../hooks/useMediaQuery.js";
 import { AlbumMedia } from "./AlbumMedia.jsx";
 import { AlbumShareDialog } from "./AlbumShareDialog.jsx";
+import { FileInfoDrawer } from "../preview/FileInfoDrawer.jsx";
+import { PreviewMetadata } from "../preview/PreviewMetadata.jsx";
 import {
   liftAlbumThumbnail,
   positionAlbumOrigin,
@@ -32,6 +33,8 @@ import { Icon } from "../../../components/Icon.jsx";
 import { Menu } from "../../../components/Menu.jsx";
 import { useLiveMedia } from "../../../hooks/useLiveMedia.js";
 import { dialogHeadingFocus } from "../../../lib/overlay-focus.js";
+
+const detailsId = "album-viewer-details";
 
 function fitAlbumMedia(width, height, viewportWidth, viewportHeight) {
   const ratio = width > 0 && height > 0 ? width / height : 1;
@@ -57,7 +60,7 @@ export function AlbumViewer({
 }) {
   const [container, setContainer] = useState(null);
   const [entered, setEntered] = useState(false);
-  const [details, setDetails] = useState(false);
+  const [details, setDetails] = useState(null);
   const [sharing, setSharing] = useState(null);
   const [livePlaying, setLivePlaying] = useState(false);
   const [videoPlayer, setVideoPlayer] = useState(null);
@@ -81,7 +84,7 @@ export function AlbumViewer({
     setOpeningThumbnail(null);
   }, []);
   const prepareThumbnail = () => {
-    if (reducedMotion || item.kind !== "image") return;
+    if (reducedMotion) return;
     const tile = gallery.findTile?.(item.path);
     const origin = visibleAlbumOrigin(tile);
     const image = origin?.tagName === "IMG" ? origin : null;
@@ -180,7 +183,8 @@ export function AlbumViewer({
             : snapshots.get(entry.path)?.thumbnail;
         const lifted =
           openingThumbnail?.path === entry.path ? openingThumbnail : null;
-        const size = lifted || sizes.get(entry.path) || {};
+        const size =
+          (entry.kind === "image" && lifted) || sizes.get(entry.path) || {};
         const fitted = fitAlbumMedia(
           size.width,
           size.height,
@@ -276,7 +280,7 @@ export function AlbumViewer({
   const select = (next) => {
     if (!open || next === index || next < 0 || next >= gallery.items.length)
       return;
-    setDetails(false);
+    setDetails(null);
     callbacks.current.onSelect(gallery.items[next]);
   };
   const keyboard = (event) => {
@@ -285,7 +289,7 @@ export function AlbumViewer({
     if (event.key === "Escape" && !event.defaultPrevented) {
       event.preventDefault();
       event.stopPropagation();
-      if (details) setDetails(false);
+      if (details === "panel") setDetails(null);
       else close();
     } else if (event.target.closest("video, input, textarea, select")) {
       if (event.key.startsWith("Arrow")) event.stopPropagation();
@@ -306,6 +310,9 @@ export function AlbumViewer({
       );
     }
   };
+  const size = sizes.get(item.path);
+  const dimensions = size?.width > 0 ? `${size.width} × ${size.height}` : "";
+  const showDetails = details === (compact ? "drawer" : "panel");
   return (
     <Dialog
       id="album-viewer"
@@ -362,9 +369,12 @@ export function AlbumViewer({
                 onDownload={onDownload}
                 onShare={() => setSharing("open")}
                 sharing={sharing === "open"}
-                details={details}
-                onDetails={() => setDetails((value) => !value)}
-                size={sizes.get(item.path)}
+                detailsDrawer={compact}
+                details={showDetails}
+                onDetails={() =>
+                  setDetails(compact ? "drawer" : showDetails ? null : "panel")
+                }
+                dimensions={dimensions}
                 live={live.get(item.path) || item.live}
                 livePlaying={livePlaying}
                 onLive={() => setLivePlaying((value) => !value)}
@@ -373,6 +383,16 @@ export function AlbumViewer({
             );
           }}
         />
+      )}
+      {(details === "drawer" || details === "closing") && (
+        <FileInfoDrawer
+          id={detailsId}
+          open={open && compact && details === "drawer"}
+          onClose={() => setDetails("closing")}
+          onExited={() => setDetails(null)}
+        >
+          <PreviewMetadata item={item} dimensions={dimensions} />
+        </FileInfoDrawer>
       )}
       {sharing && (
         <AlbumShareDialog
@@ -401,23 +421,47 @@ function AlbumControls({
   onDownload,
   onShare,
   sharing,
+  detailsDrawer,
   details,
   onDetails,
-  size,
+  dimensions,
   live,
   livePlaying,
   onLive,
   videoPlayer,
 }) {
   const root = useRef(null);
+  const touchPress = useRef(null);
   const isVideo = item.kind === "video";
   const video = useAlbumVideo(videoPlayer);
+  const endTouchPress = (event) => {
+    const press = touchPress.current;
+    if (press?.id !== event.pointerId) return;
+    press.button.removeAttribute("data-touch-pressed");
+    touchPress.current = null;
+  };
   useLayoutEffect(() => {
     // Native Dialog owns modal semantics, focus containment and background inertness.
     root.current.closest(".PhotoView-Portal")?.removeAttribute("role");
   }, []);
   return (
-    <div ref={root} class="album-viewer-controls" inert={!params.visible}>
+    <div
+      ref={root}
+      class="album-viewer-controls"
+      inert={!params.visible}
+      onPointerDownCapture={(event) => {
+        // Touch :active can be delayed, and a tablet can also have a mouse.
+        if (event.pointerType !== "touch" || !event.isPrimary) return;
+        const button = event.target.closest(".icon-button:enabled");
+        if (!button || !event.currentTarget.contains(button)) return;
+        touchPress.current?.button.removeAttribute("data-touch-pressed");
+        touchPress.current = { id: event.pointerId, button };
+        button.setAttribute("data-touch-pressed", "");
+      }}
+      onPointerUpCapture={endTouchPress}
+      onPointerCancelCapture={endTouchPress}
+      onLostPointerCapture={endTouchPress}
+    >
       <header class="album-viewer-header">
         <button
           class="icon-button edge-start"
@@ -490,7 +534,7 @@ function AlbumControls({
         </button>
         {live && (
           <button
-            class="icon-button"
+            class="icon-button album-live-toggle"
             aria-label={t(
               livePlaying ? "library.stopLivePhoto" : "library.playLivePhoto",
             )}
@@ -508,7 +552,7 @@ function AlbumControls({
           aria-pressed={favorite}
           onClick={() => onFavorite(item)}
         >
-          <Icon name="heart" />
+          <Icon name={favorite ? "heart-filled" : "heart"} />
         </button>
         {item.kind === "image" && showZoomControls && (
           <>
@@ -540,41 +584,21 @@ function AlbumControls({
         <button
           class="icon-button"
           aria-label={t("library.mediaDetails")}
+          aria-haspopup={detailsDrawer ? "dialog" : undefined}
           aria-expanded={details}
-          aria-controls="album-viewer-details"
+          aria-controls={detailsId}
           onClick={onDetails}
         >
           <Icon name="info" />
         </button>
       </footer>
-      {details && (
+      {details && !detailsDrawer && (
         <section
-          id="album-viewer-details"
+          id={detailsId}
           class="album-viewer-details"
           aria-label={t("library.mediaDetails")}
         >
-          <dl class="file-details">
-            <div>
-              <dt>{t("library.type")}</dt>
-              <dd>{item.mime || item.name.split(".").pop().toUpperCase()}</dd>
-            </div>
-            <div>
-              <dt>{t("library.size")}</dt>
-              <dd>{bytes(item.size)}</dd>
-            </div>
-            {size?.width > 0 && (
-              <div>
-                <dt>{t("library.dimensions")}</dt>
-                <dd>
-                  {size.width} × {size.height}
-                </dd>
-              </div>
-            )}
-            <div>
-              <dt>{t("library.modifiedAt")}</dt>
-              <dd>{date(item.modified, true)}</dd>
-            </div>
-          </dl>
+          <PreviewMetadata item={item} dimensions={dimensions} />
         </section>
       )}
     </div>

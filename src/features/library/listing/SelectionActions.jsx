@@ -87,7 +87,7 @@ export function SelectionActions({
               selection.list.current?.focus({ preventScroll: true });
           }}
         >
-          <Icon name={favorites ? "star-filled" : "star"} />
+          <Icon name={favorites ? "heart-filled" : "heart"} />
           {floating && (
             <span>
               {t(

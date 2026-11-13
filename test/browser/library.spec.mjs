@@ -176,12 +176,12 @@ test("favorites and recent entries survive reload without storing credentials", 
     name: "收藏文件",
     exact: true,
   });
-  await expect(addFavorite.locator("svg")).toHaveCSS("fill", "none");
+  await expect(addFavorite.locator(".lucide-heart")).toHaveCSS("fill", "none");
   await addFavorite.click();
-  const filledStar = page
+  const filledHeart = page
     .getByRole("button", { name: "取消收藏文件", exact: true })
-    .locator("svg");
-  await expect(filledStar).toHaveCSS("fill", /^rgb/);
+    .locator(".lucide-heart");
+  await expect(filledHeart).toHaveCSS("fill", "rgb(255, 82, 110)");
   await page.getByRole("button", { name: "关闭预览" }).click();
   await openFavorites(page);
   await expect(page.locator(".file-item")).toHaveCount(1);

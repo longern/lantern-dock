@@ -2,6 +2,7 @@ import { t } from "../../../../shared/i18n.js";
 import { useLayoutEffect, useRef, useState } from "preact/hooks";
 import { prepareVideoSource, unsupportedVideo } from "../../../lib/video.js";
 import { decodeImage } from "../../../lib/image-preview.js";
+import { afterOverlayEntry } from "../../../lib/overlay-entry.js";
 import { Icon } from "../../../components/Icon.jsx";
 
 export function VideoPreview({
@@ -11,6 +12,7 @@ export function VideoPreview({
   playOnRequest = false,
   retainOnClose = false,
   closingThumbnail,
+  onCoverReady,
   onDimensions,
   onError,
   onPlayer,
@@ -24,9 +26,11 @@ export function VideoPreview({
   const [ready, setReady] = useState(false);
   const [poster, setPoster] = useState(null);
   const [largePoster, setLargePoster] = useState(null);
+  const [largePosterUnavailable, setLargePosterUnavailable] = useState(false);
   const [starting, setStarting] = useState(false);
   const [hasFrame, setHasFrame] = useState(false);
   const [error, setError] = useState("");
+  const sharpCover = useRef(null);
   const controlsReady = ready && !error && (!playOnRequest || hasFrame);
   useLayoutEffect(() => {
     if (!controlsReady || !onPlayer) return;
@@ -104,6 +108,7 @@ export function VideoPreview({
     let posterURL, largePosterURL;
     setPoster(null);
     setLargePoster(null);
+    setLargePosterUnavailable(false);
     const loadPoster = async () => {
       const thumbnail = playback.current.closingThumbnail;
       // The grid can revoke its Blob URL while the preview is still open.
@@ -117,19 +122,26 @@ export function VideoPreview({
         gridImage || (await client.images?.image(item, 384, signal))?.blob;
       if (!blob || signal.aborted) return;
       posterURL = URL.createObjectURL(blob);
+      if (playOnRequest) await decodeImage(posterURL, signal);
       setPoster(posterURL);
     };
     void loadPoster().catch(() => {});
     if (playOnRequest) {
       void (async () => {
         const image = await client.images?.image(item, 1600, signal);
-        if (!image || signal.aborted) return;
+        if (signal.aborted) return;
+        if (!image) {
+          setLargePosterUnavailable(true);
+          return;
+        }
         largePosterURL = URL.createObjectURL(image.blob);
         await decodeImage(largePosterURL, signal);
         setLargePoster(largePosterURL);
         if (playback.current.open && !player.current?.videoWidth)
           playback.current.onDimensions(image.width, image.height);
-      })().catch(() => {});
+      })().catch(() => {
+        if (!signal.aborted) setLargePosterUnavailable(true);
+      });
     }
     return () => {
       controller.abort();
@@ -142,6 +154,21 @@ export function VideoPreview({
   }, [open]);
   const showCover = playOnRequest && !hasFrame;
   const cover = poster || closingThumbnail;
+  useLayoutEffect(() => {
+    if (!open || !onCoverReady) return;
+    if (hasFrame || (largePosterUnavailable && poster)) {
+      onCoverReady(true);
+    } else if (largePoster && sharpCover.current) {
+      return afterOverlayEntry(sharpCover.current, () => onCoverReady(true));
+    }
+  }, [
+    open,
+    onCoverReady,
+    hasFrame,
+    largePosterUnavailable,
+    poster,
+    largePoster,
+  ]);
   const playButton = useRef(null);
   const restoreFocus = useRef(false);
   useLayoutEffect(() => {
@@ -163,10 +190,14 @@ export function VideoPreview({
   return (
     <>
       {showCover && (
-        <div class="album-video-cover">
+        <div
+          class="album-video-cover"
+          data-lifted={onCoverReady ? "" : undefined}
+        >
           {cover && <img src={cover} alt="" draggable={false} />}
           {largePoster && (
             <img
+              ref={sharpCover}
               class="album-video-cover-sharp"
               src={largePoster}
               alt=""

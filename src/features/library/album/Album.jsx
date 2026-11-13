@@ -113,7 +113,7 @@ export function Album({
                 item={item}
                 client={client}
                 side={384}
-                Image={item.kind === "image" ? AlbumThumbnailImage : "img"}
+                Image={AlbumThumbnailImage}
                 fallback={<Icon name={item.kind} />}
               />
             )}

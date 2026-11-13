@@ -185,9 +185,6 @@
   background: var(--accent-soft);
   color: var(--accent);
 }
-.preview-action[aria-pressed="true"] {
-  color: #a58b41;
-}
 .preview-action[aria-expanded="true"] {
   color: var(--accent);
 }
