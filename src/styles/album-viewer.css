@@ -69,20 +69,21 @@ html:has(.album-viewer[open]) {
   position: absolute;
   pointer-events: none;
 }
-.album-thumbnail-transition-indicators,
-.album-media > .album-indicator {
-  z-index: 2;
+.PhotoView-Portal > .album-thumbnail-transition-indicators {
+  z-index: 11;
 }
 .album-thumbnail-transition-origin {
   position: absolute;
   visibility: hidden;
   object-fit: cover;
 }
-.album-viewer[data-state="closed"] .album-viewer-controls {
+.album-viewer[data-state="closed"] .album-viewer-controls,
+:is(.album-viewer-controls, .album-video-play-control)[data-hidden] {
   opacity: 0;
   pointer-events: none;
 }
-.album-viewer-controls {
+.album-viewer-controls,
+.album-video-play-control {
   transition: opacity 180ms ease;
 }
 .album-media {
@@ -278,11 +279,14 @@ html:has(.album-viewer[open]) {
 .album-video-cover-sharp {
   animation: album-original-in 180ms ease-out both;
 }
-.album-video-player .album-video-play,
+.album-video-play-control,
 .album-video-loading {
   position: absolute;
   inset: 50% auto auto 50%;
   transform: translate(-50%, -50%);
+}
+.album-video-play-control {
+  z-index: 1;
 }
 .album-video-player .icon-button.album-video-play {
   width: 64px;
@@ -611,7 +615,8 @@ html:has(.album-viewer[open]) {
   }
   .album-live-video,
   .album-live-status,
-  .album-viewer-controls {
+  .album-viewer-controls,
+  .album-video-play-control {
     transition: none;
   }
   /* The library normally clears its fade class on animationend. No animation

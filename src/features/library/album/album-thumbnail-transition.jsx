@@ -39,6 +39,12 @@ export function positionAlbumOrigin(origin, rect) {
   origin.style.height = `${rect.height}px`;
 }
 
+export function createAlbumIndicatorLayer() {
+  const layer = document.createElement("div");
+  layer.className = "album-thumbnail-transition-indicators";
+  return layer;
+}
+
 export function visibleAlbumOrigin(tile) {
   const rect = tile?.getBoundingClientRect();
   if (
@@ -85,8 +91,7 @@ export function liftAlbumThumbnail(image, findViewer, onRemove) {
   const widthChange = naturalWidth * endScale - start.width;
   const heightChange = naturalHeight * endScale - start.height;
   const picture = document.createElement("div");
-  const indicatorLayer = document.createElement("div");
-  indicatorLayer.className = "album-thumbnail-transition-indicators";
+  const indicatorLayer = createAlbumIndicatorLayer();
   const position = (rect, clipX = 0, clipY = 0) => {
     const scale = Math.max(
       rect.width / naturalWidth,
@@ -97,12 +102,12 @@ export function liftAlbumThumbnail(image, findViewer, onRemove) {
     picture.style.clipPath = `inset(${y + clipY / scale}px ${x + clipX / scale}px)`;
     picture.style.transform = `translate(${rect.left - x * scale}px, ${rect.top - y * scale}px) scale(${scale})`;
     // Anchor the badge to the visible crop as it opens up around the photo.
-    const visibleWidth = rect.width - 2 * clipX;
-    indicatorLayer.style.left = `${rect.left + clipX}px`;
-    indicatorLayer.style.top = `${rect.top + clipY}px`;
-    indicatorLayer.style.width = `${visibleWidth}px`;
-    indicatorLayer.style.height = `${rect.height - 2 * clipY}px`;
-    indicatorLayer.style.setProperty("--album-thumbnail-width", visibleWidth);
+    positionAlbumOrigin(indicatorLayer, {
+      left: rect.left + clipX,
+      top: rect.top + clipY,
+      width: rect.width - 2 * clipX,
+      height: rect.height - 2 * clipY,
+    });
   };
   picture.style.width = `${naturalWidth}px`;
   picture.style.height = `${naturalHeight}px`;

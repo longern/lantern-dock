@@ -16,6 +16,7 @@ export function VideoPreview({
   onDimensions,
   onError,
   onPlayer,
+  controlsHidden,
 }) {
   const player = useRef(null);
   const start = useRef(null);
@@ -153,6 +154,7 @@ export function VideoPreview({
     if (!open) player.current?.pause();
   }, [open]);
   const showCover = playOnRequest && !hasFrame;
+  const playHidden = !open || controlsHidden;
   const cover = poster || closingThumbnail;
   useLayoutEffect(() => {
     if (!open || !onCoverReady) return;
@@ -206,20 +208,27 @@ export function VideoPreview({
           )}
         </div>
       )}
-      {open && showCover && !starting && !error && (
-        <button
-          ref={playButton}
-          type="button"
-          class="icon-button album-video-play"
-          aria-label={t("library.playVideo")}
-          onClick={(event) => {
-            restoreFocus.current =
-              event.currentTarget.matches(":focus-visible");
-            void start.current?.();
-          }}
+      {showCover && !starting && !error && (
+        <div
+          class="album-video-play-control"
+          data-hidden={playHidden ? "" : undefined}
+          inert={playHidden}
+          aria-hidden={playHidden || undefined}
         >
-          <Icon name="play" />
-        </button>
+          <button
+            ref={playButton}
+            type="button"
+            class="icon-button album-video-play"
+            aria-label={t("library.playVideo")}
+            onClick={(event) => {
+              restoreFocus.current =
+                event.currentTarget.matches(":focus-visible");
+              void start.current?.();
+            }}
+          >
+            <Icon name="play" />
+          </button>
+        </div>
       )}
       {(error || (!playOnRequest && !ready)) && (
         <div class="preview-placeholder">

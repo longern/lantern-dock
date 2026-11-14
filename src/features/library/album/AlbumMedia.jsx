@@ -1,4 +1,3 @@
-import { createPortal } from "preact/compat";
 import { useEffect, useLayoutEffect, useRef, useState } from "preact/hooks";
 import { useReducedMotion } from "../../../hooks/useMediaQuery.js";
 import { t } from "../../../../shared/i18n.js";
@@ -12,7 +11,7 @@ import { Icon } from "../../../components/Icon.jsx";
 import { afterOverlayEntry } from "../../../lib/overlay-entry.js";
 import { VideoPreview } from "../preview/VideoPreview.jsx";
 import { LivePhoto } from "../preview/LivePhoto.jsx";
-import { AlbumIndicator } from "./AlbumIndicator.jsx";
+import { MovingAlbumIndicator } from "./AlbumIndicator.jsx";
 import { moveAlbumImage } from "./album-thumbnail-transition.jsx";
 
 export function AlbumMedia({
@@ -37,6 +36,7 @@ export function AlbumMedia({
   liveRequested,
   onLiveStop,
   onVideoPlayer,
+  videoControlsHidden,
 }) {
   const root = useRef(null);
   const touchStart = useRef(null);
@@ -251,20 +251,6 @@ export function AlbumMedia({
         (!open ||
           attrs.style.transition ||
           Math.abs(mediaWidth * scale - indicator.width) < 1)));
-  const movingIndicator = showIndicator && (
-    <AlbumIndicator
-      kind={indicator.kind}
-      tile={indicator.tile}
-      scale={
-        indicatorLayer
-          ? `calc(var(--album-thumbnail-width) / ${indicator.width})`
-          : mediaWidth / indicator.width
-      }
-      phase={
-        open ? (attrs.style.transition ? "opening" : "waiting") : "closing"
-      }
-    />
-  );
 
   return (
     <div
@@ -351,6 +337,7 @@ export function AlbumMedia({
             closingThumbnail={videoThumbnail}
             onCoverReady={lifted ? setVideoCoverReady : undefined}
             onPlayer={onVideoPlayer}
+            controlsHidden={videoControlsHidden}
             onError={setError}
             onDimensions={(width, height) => onSize(item.path, width, height)}
           />
@@ -366,9 +353,17 @@ export function AlbumMedia({
           target={root}
         />
       )}
-      {indicatorLayer && movingIndicator
-        ? createPortal(movingIndicator, indicatorLayer)
-        : movingIndicator}
+      {showIndicator && (
+        <MovingAlbumIndicator
+          media={root}
+          thumbnailLayer={indicatorLayer}
+          kind={indicator.kind}
+          tile={indicator.tile}
+          phase={
+            open ? (attrs.style.transition ? "opening" : "waiting") : "closing"
+          }
+        />
+      )}
     </div>
   );
 }

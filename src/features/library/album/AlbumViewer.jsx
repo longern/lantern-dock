@@ -35,6 +35,34 @@ import { useLiveMedia } from "../../../hooks/useLiveMedia.js";
 import { dialogHeadingFocus } from "../../../lib/overlay-focus.js";
 
 const detailsId = "album-viewer-details";
+const videoTapClearance = 12;
+const videoTapSlop = 8;
+const videoControlAreas =
+  ".album-viewer-header, .album-viewer-actions, .album-video-controls, .album-viewer-pager button, .album-viewer-details, .album-video-play-control:not([inert])";
+
+function isVideoSurfaceTap(
+  { currentTarget, target, clientX, clientY },
+  hidden,
+) {
+  if (!target.closest(".album-media-video")) return false;
+  if (hidden) return true;
+  if (currentTarget.querySelector('[role="menu"][data-state="open"]'))
+    return false;
+  return ![...currentTarget.querySelectorAll(videoControlAreas)].some(
+    (area) => {
+      const { left, right, top, bottom, width, height } =
+        area.getBoundingClientRect();
+      return (
+        width &&
+        height &&
+        clientX >= left - videoTapClearance &&
+        clientX <= right + videoTapClearance &&
+        clientY >= top - videoTapClearance &&
+        clientY <= bottom + videoTapClearance
+      );
+    },
+  );
+}
 
 function fitAlbumMedia(width, height, viewportWidth, viewportHeight) {
   const ratio = width > 0 && height > 0 ? width / height : 1;
@@ -64,6 +92,8 @@ export function AlbumViewer({
   const [sharing, setSharing] = useState(null);
   const [livePlaying, setLivePlaying] = useState(false);
   const [videoPlayer, setVideoPlayer] = useState(null);
+  const [videoControlsHidden, setVideoControlsHidden] = useState(false);
+  const videoPress = useRef(null);
   const [initialPath] = useState(item.path);
   const live = useLiveMedia(client, gallery.items);
   const stopLive = useCallback(() => setLivePlaying(false), []);
@@ -128,6 +158,10 @@ export function AlbumViewer({
   const exitTile = useRef(null);
   const index = gallery.items.findIndex((entry) => entry.path === item.path);
   useLayoutEffect(() => setLivePlaying(false), [index, open]);
+  useLayoutEffect(() => {
+    setVideoControlsHidden(false);
+    videoPress.current = null;
+  }, [item.path, open]);
   const close = useCallback(() => {
     if (closing.current) return;
     closing.current = true;
@@ -252,6 +286,7 @@ export function AlbumViewer({
               liveRequested={index === position && livePlaying}
               onLiveStop={stopLive}
               onVideoPlayer={setVideoPlayer}
+              videoControlsHidden={videoControlsHidden}
             />
           ),
         };
@@ -274,6 +309,7 @@ export function AlbumViewer({
       live,
       livePlaying,
       stopLive,
+      videoControlsHidden,
     ],
   );
 
@@ -291,6 +327,20 @@ export function AlbumViewer({
       event.stopPropagation();
       if (details === "panel") setDetails(null);
       else close();
+    } else if (
+      event.key === "Tab" &&
+      videoControlsHidden &&
+      !event.defaultPrevented
+    ) {
+      event.preventDefault();
+      const dialog = event.currentTarget;
+      const target = event.shiftKey
+        ? ".album-viewer-actions button:last-child"
+        : ".album-viewer-header button";
+      setVideoControlsHidden(false);
+      requestAnimationFrame(() =>
+        dialog.querySelector(target)?.focus({ preventScroll: true }),
+      );
     } else if (event.target.closest("video, input, textarea, select")) {
       if (event.key.startsWith("Arrow")) event.stopPropagation();
     } else if (event.target.closest('[role="slider"]')) {
@@ -309,6 +359,50 @@ export function AlbumViewer({
         ),
       );
     }
+  };
+  const startVideoPress = (event) => {
+    videoPress.current = null;
+    if (
+      !open ||
+      item.kind !== "video" ||
+      !event.isPrimary ||
+      event.button !== 0 ||
+      !isVideoSurfaceTap(event, videoControlsHidden)
+    )
+      return;
+    videoPress.current = { x: event.clientX, y: event.clientY };
+  };
+  const movedVideoPress = (event) => {
+    const press = videoPress.current;
+    if (
+      press &&
+      Math.hypot(event.clientX - press.x, event.clientY - press.y) >=
+        videoTapSlop
+    )
+      videoPress.current = null;
+  };
+  const toggleVideoControls = (event) => {
+    movedVideoPress(event);
+    const press = videoPress.current;
+    videoPress.current = null;
+    if (
+      !press ||
+      !event.detail ||
+      !isVideoSurfaceTap(event, videoControlsHidden)
+    )
+      return;
+    const { currentTarget } = event;
+    if (
+      !videoControlsHidden &&
+      currentTarget.contains(document.activeElement) &&
+      document.activeElement.closest(
+        ".album-viewer-controls, .album-video-play-control",
+      )
+    )
+      currentTarget
+        .querySelector("#album-viewer-title")
+        .focus({ preventScroll: true });
+    setVideoControlsHidden(!videoControlsHidden);
   };
   const size = sizes.get(item.path);
   const dimensions = size?.width > 0 ? `${size.width} × ${size.height}` : "";
@@ -332,6 +426,10 @@ export function AlbumViewer({
       returnTarget={returnTarget}
       fallbackFocus=".main-area #file-list"
       onKeyDownCapture={keyboard}
+      onPointerDownCapture={startVideoPress}
+      onPointerMoveCapture={movedVideoPress}
+      onPointerCancelCapture={() => (videoPress.current = null)}
+      onClickCapture={toggleVideoControls}
     >
       <h2
         id="album-viewer-title"
@@ -379,6 +477,7 @@ export function AlbumViewer({
                 livePlaying={livePlaying}
                 onLive={() => setLivePlaying((value) => !value)}
                 videoPlayer={item.kind === "video" ? videoPlayer : null}
+                hidden={item.kind === "video" && videoControlsHidden}
               />
             );
           }}
@@ -429,6 +528,7 @@ function AlbumControls({
   livePlaying,
   onLive,
   videoPlayer,
+  hidden,
 }) {
   const root = useRef(null);
   const touchPress = useRef(null);
@@ -448,7 +548,8 @@ function AlbumControls({
     <div
       ref={root}
       class="album-viewer-controls"
-      inert={!params.visible}
+      data-hidden={hidden ? "" : undefined}
+      inert={!params.visible || hidden}
       onPointerDownCapture={(event) => {
         // Touch :active can be delayed, and a tablet can also have a mouse.
         if (event.pointerType !== "touch" || !event.isPrimary) return;

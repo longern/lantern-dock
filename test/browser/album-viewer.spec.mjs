@@ -693,12 +693,21 @@ test("a video cover opens from its decoded grid thumbnail while the sharp poster
   }
 });
 
-for (const scenario of ["video", "live", "live with a pending preview"]) {
+for (const scenario of [
+  "video",
+  "video without a thumbnail overlay",
+  "live",
+  "live with a pending preview",
+]) {
   test(`the ${scenario} tile indicator follows the cover and fades during zoom`, async ({
     page,
   }) => {
-    const isLive = scenario !== "video";
+    const isLive = scenario.startsWith("live");
     const pending = scenario === "live with a pending preview";
+    if (scenario === "video without a thumbnail overlay")
+      await page.addInitScript(() => {
+        HTMLElement.prototype.showPopover = undefined;
+      });
     let release;
     const gate = new Promise((resolve) => {
       release = resolve;
@@ -728,21 +737,24 @@ for (const scenario of ["video", "live", "live with a pending preview"]) {
     await tile.scrollIntoViewIfNeeded();
     await tile.evaluate((node, isLive) => {
       window.indicatorFrames = { opening: [], closing: [] };
+      window.coverPlayExit = [];
       const sample = () => {
+        const coverPlay = document.querySelector(
+          '.album-viewer[data-state="closed"] .album-video-play-control',
+        );
+        if (coverPlay)
+          window.coverPlayExit.push(
+            Number(getComputedStyle(coverPlay).opacity),
+          );
         const moving = document.querySelector(".album-indicator[data-motion]");
         if (moving) {
-          const media = moving.parentElement.getBoundingClientRect();
           const badge = moving.getBoundingClientRect();
           const style = getComputedStyle(moving);
-          // Check the inset in layout pixels so compositor sampling cannot
-          // compare a badge and its container at different animation times.
-          const inset = (6 * parseFloat(style.width)) / 22;
           window.indicatorFrames[moving.dataset.motion]?.push({
-            mediaWidth: media.width,
             opacity: Number(style.opacity),
             offset: Math.max(
-              Math.abs(parseFloat(isLive ? style.left : style.right) - inset),
-              Math.abs(parseFloat(isLive ? style.top : style.bottom) - inset),
+              Math.abs(parseFloat(isLive ? style.left : style.right) - 6),
+              Math.abs(parseFloat(isLive ? style.top : style.bottom) - 6),
             ),
             gridHidden:
               !node.isConnected ||
@@ -790,17 +802,40 @@ for (const scenario of ["video", "live", "live with a pending preview"]) {
         phase,
       ).toEqual([]);
       expect(
-        samples.some(
-          ({ mediaWidth, badge }) =>
-            Math.abs(mediaWidth - samples[0].mediaWidth) > 20 &&
-            Math.abs(badge.width - samples[0].badge.width) > 3,
+        samples.every(
+          ({ badge }) =>
+            Math.abs(badge.width - target.width) < 1 &&
+            Math.abs(badge.height - target.height) < 1,
         ),
+        phase,
+      ).toBe(true);
+      expect(
+        samples.some(
+          ({ badge, opacity }) =>
+            opacity > 0 &&
+            Math.hypot(badge.x - target.x, badge.y - target.y) > 3,
+        ),
+        phase,
       ).toBe(true);
     }
     const last = frames.closing.at(-1);
+    const previous = frames.closing.at(-2);
     expect(last.opacity).toBeCloseTo(1, 1);
-    for (const property of ["x", "y", "width"])
-      expect(Math.abs(last.badge[property] - target[property])).toBeLessThan(2);
+    // The viewer can unmount before the sampler sees the exact final frame.
+    for (const property of ["x", "y"]) {
+      const step = Math.abs(last.badge[property] - previous.badge[property]);
+      expect(
+        Math.abs(last.badge[property] - target[property]),
+        property,
+      ).toBeLessThan(2 + step);
+    }
+    if (!isLive) {
+      const exitOpacity = await page.evaluate(() => window.coverPlayExit);
+      expect(exitOpacity.some((opacity) => opacity > 0 && opacity < 1)).toBe(
+        true,
+      );
+      expect(exitOpacity.at(-1)).toBe(0);
+    }
   });
 }
 
@@ -881,6 +916,71 @@ test("closing an album video crops the paused frame and fades into its grid thum
     await page.evaluate(() => window.closingVideo.hasAttribute("src")),
   ).toBe(false);
   await expect(tile).toBeFocused();
+});
+
+test("tapping the video surface toggles controls on the cover, during playback, and when paused", async ({
+  page,
+}) => {
+  await install(page);
+  await openItem(page.locator('.album-preview[data-path="/dav/clip.mp4"]'));
+  await expect(page.locator(".album-thumbnail-transition")).toHaveCount(0);
+  const controls = viewer(page).locator(".album-viewer-controls");
+  const playControl = viewer(page).locator(".album-video-play-control");
+  const player = viewer(page).locator("video");
+  const { width, height } = page.viewportSize();
+  const touch = await page.evaluate(() => navigator.maxTouchPoints > 0);
+  const tap = (x, y) =>
+    touch ? page.touchscreen.tap(x, y) : page.mouse.click(x, y);
+  const tapSurface = () => tap(width / 2 - 75, height / 2);
+  const expectControls = async (hidden) => {
+    await expect(controls).toHaveJSProperty("inert", hidden);
+    await expect(controls).toHaveCSS("opacity", hidden ? "0" : "1");
+  };
+
+  const header = await controls.locator(".album-viewer-header").boundingBox();
+  await tap(width / 2, header.y + header.height + 6);
+  // Chromium may snap a touch near the play button to the button itself.
+  if (!touch) {
+    const coverPlay = await playControl.boundingBox();
+    await tap(coverPlay.x - 6, height / 2);
+  }
+  await expect(controls).toHaveJSProperty("inert", false);
+  await expect(player).not.toHaveAttribute("src", /.+/);
+  await tapSurface();
+  await expectControls(true);
+  await expect(playControl).toHaveCSS("opacity", "0");
+  await expect(playControl).toHaveJSProperty("inert", true);
+  // A tap where the play button used to be only restores the controls.
+  await tap(width / 2, height / 2);
+  await expectControls(false);
+  await expect(playControl).toHaveCSS("opacity", "1");
+  await expect(player).not.toHaveAttribute("src", /.+/);
+  await button(page, "播放视频").click();
+  await expect(button(page, "暂停视频")).toBeVisible();
+
+  const playback = await controls
+    .locator(".album-video-controls")
+    .boundingBox();
+  await tap(width / 2, playback.y - 6);
+  await expect(controls).toHaveJSProperty("inert", false);
+  await tapSurface();
+  await expectControls(true);
+  expect(await player.evaluate((node) => node.paused)).toBe(false);
+  await tapSurface();
+  await expectControls(false);
+  await button(page, "暂停视频").click();
+  await tapSurface();
+  await expectControls(true);
+  expect(await player.evaluate((node) => node.paused)).toBe(true);
+  await tapSurface();
+  await expectControls(false);
+  await expect(button(page, "播放视频")).toBeVisible();
+
+  await tapSurface();
+  await expectControls(true);
+  await page.keyboard.press("Tab");
+  await expectControls(false);
+  await expect(button(page, "关闭预览")).toBeFocused();
 });
 
 test("album video controls seek on release, set playback speed, and stay above the toolbar while playing", async ({
@@ -1944,6 +2044,10 @@ test("video swipes follow the finger and can be reversed before dismissal", asyn
         .toBeLessThan(2);
       await expect.poll(opacity).toBe(1);
       await expect(viewer(page)).toBeVisible();
+      await expect(viewer(page).locator(".album-viewer-controls")).toHaveCSS(
+        "opacity",
+        "1",
+      );
       if (direction > 0)
         expect(await player.evaluate((node) => node.paused)).toBe(false);
 
