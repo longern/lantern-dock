@@ -211,7 +211,6 @@
 .page-header.file-info-header {
   --page-header-safe-top: 0px;
   --page-header-background: var(--surface);
-  border-bottom: 0;
 }
 .file-info-body {
   min-height: 0;
@@ -221,6 +220,51 @@
 }
 .file-info-body .file-details {
   margin: 0;
+}
+.settings-dialog.file-share-dialog {
+  padding: 0;
+}
+.file-share-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 16px max(16px, env(safe-area-inset-bottom));
+}
+.file-share-actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.file-share-actions button {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 12px;
+  text-align: start;
+  border-radius: var(--radius-control);
+}
+.file-share-actions button svg {
+  width: 20px;
+  height: 20px;
+  color: var(--muted);
+}
+.file-share-actions button:is(:active, [aria-expanded="true"]) {
+  background: var(--accent-soft);
+}
+@media (hover: hover) {
+  .file-share-actions button:hover {
+    background: var(--surface-subtle);
+  }
+}
+.file-share-qr {
+  display: grid;
+  justify-items: center;
+  margin-top: 12px;
+}
+.file-share-qr canvas {
+  width: min(224px, 100%);
+  height: auto;
 }
 @keyframes file-info-in {
   from {

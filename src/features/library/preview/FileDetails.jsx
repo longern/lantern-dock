@@ -1,6 +1,6 @@
 import { useEffect, useId, useState } from "preact/hooks";
 import { t } from "../../../../shared/i18n.js";
-import { checkResponse } from "../../../lib/dav.js";
+import { checkFileResponse } from "../../../lib/dav.js";
 import { bytes, date } from "../../../lib/format.js";
 import { Dialog } from "../../../components/Dialog.jsx";
 import { dialogHeadingFocus } from "../../../lib/overlay-focus.js";
@@ -35,12 +35,7 @@ export function FileDetails({
           {},
           "HEAD",
         );
-        if ([404, 410].includes(response.status)) {
-          await response.body?.cancel();
-          if (!controller.signal.aborted) setStatus({ missing: true });
-          return;
-        }
-        checkResponse(response);
+        checkFileResponse(response);
         await response.body?.cancel();
         if (controller.signal.aborted) return;
         const size = response.headers.get("Content-Length");
@@ -108,11 +103,6 @@ export function FileDetails({
       {status.loading && (
         <p class="dialog-intro" role="status">
           {t("library.checkingFile")}
-        </p>
-      )}
-      {status.missing && (
-        <p class="dialog-intro" role="status">
-          {t("library.fileNotFound")}
         </p>
       )}
       {status.error && (

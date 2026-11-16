@@ -340,9 +340,13 @@ test("mobile Home search fades in fullscreen and opens files from live results",
   await page.getByRole("button", { name: "关闭预览" }).click();
   await expect(result).toBeFocused();
   await expect(search).toHaveValue("项目笔记");
+  await search.focus();
   await page.clock.install();
   await page.clock.pauseAt(new Date(Date.now() + 1000));
   await page.keyboard.press("Escape");
+  await expect(search).not.toBeFocused();
+  await search.evaluate((node) => node.focus());
+  await expect(search).not.toBeFocused();
   expect(
     await dialog.evaluate(
       (node) => getComputedStyle(node, "::before").animationName,
@@ -355,6 +359,7 @@ test("mobile Home search fades in fullscreen and opens files from live results",
   await page.clock.runFor(250);
   await expect(dialog).toHaveCount(0);
   await expect(trigger).toBeFocused();
+  await expect(trigger).toHaveCSS("box-shadow", "none");
   await expect(page).toHaveURL("/");
 
   await page.clock.resume();
@@ -362,7 +367,10 @@ test("mobile Home search fades in fullscreen and opens files from live results",
   await openHomeSearch(page);
   await expect(search).toHaveValue("");
   await expect(field).toHaveCSS("animation-name", "none");
-  await closeHomeSearch(page);
+  await dialog.getByRole("button", { name: "关闭搜索" }).tap();
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toHaveCSS("box-shadow", "none");
   // A fresh homepage searches the directory until there are recent visits.
   await page.evaluate(() =>
     localStorage.removeItem("lantern-dock:demo::/:recent"),

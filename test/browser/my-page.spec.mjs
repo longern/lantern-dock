@@ -374,13 +374,23 @@ for (const language of ["zh-CN", "en"]) {
       );
       await enterMyPage(page, language);
       const trigger = page.locator("#my-settings");
-      for (const dismiss of ["button", "escape", "backdrop"]) {
+      for (const dismiss of ["button", "escape"]) {
         await trigger.click();
         const dialog = page.getByRole("dialog", {
           name: copy.connectionSettings,
           exact: true,
         });
         await expect(dialog).toBeVisible();
+        const header = dialog.locator(":scope > .page-dialog-header");
+        await expect(dialog).toHaveCSS("animation-name", "page-dialog-in");
+        const bounds = await dialog.boundingBox();
+        expect(bounds.width).toBeCloseTo(page.viewportSize().width, 0);
+        expect(bounds.height).toBeCloseTo(page.viewportSize().height, 0);
+        await expect(header).toHaveCSS("height", "60px");
+        await expect(header).toBeFocused();
+        await expect(
+          dialog.locator(".connection-fields.my-action-list"),
+        ).toBeVisible();
         await expect(
           dialog.getByLabel(copy.authentication, { exact: true }),
         ).toHaveValue("none");
@@ -394,8 +404,7 @@ for (const language of ["zh-CN", "en"]) {
           await dialog
             .getByRole("button", { name: copy.closeSettings, exact: true })
             .click();
-        else if (dismiss === "escape") await page.keyboard.press("Escape");
-        else await page.mouse.click(4, 4);
+        else await page.keyboard.press("Escape");
         await expect(dialog).toHaveCount(0);
         await expect(trigger).toBeFocused();
         await expect(page).toHaveURL(/\/me$/);

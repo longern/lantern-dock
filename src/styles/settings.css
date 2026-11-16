@@ -120,6 +120,96 @@
   cursor: pointer;
   padding: 4px 0;
 }
+.settings-page-content {
+  display: grid;
+  gap: 16px;
+  max-width: 620px;
+  margin-inline: auto;
+  padding: 20px 16px 0;
+}
+.settings-detail-list,
+.connection-fields {
+  margin: 0;
+}
+.connection-fields {
+  padding: 0;
+  list-style: none;
+}
+.settings-detail-list > div,
+.connection-page .connection-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding-inline: 16px;
+}
+.settings-detail-list > div {
+  padding-block: 12px;
+  overflow-wrap: anywhere;
+}
+.settings-detail-list dd {
+  margin: 0;
+  text-align: end;
+  color: var(--muted);
+}
+.connection-summary > div + div,
+.connection-page .connection-field + .connection-field,
+.connection-clear {
+  border-top: 1px solid var(--line);
+}
+.connection-page .form-label {
+  margin: 0;
+  color: inherit;
+  font-size: inherit;
+  overflow-wrap: anywhere;
+}
+.connection-field :is(input, select) {
+  min-width: 0;
+}
+.connection-page .connection-field :is(input, select) {
+  width: 100%;
+  min-height: 44px;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-md);
+  text-align: end;
+}
+.connection-page .connection-field input {
+  padding-inline: 12px;
+  background: var(--surface-subtle);
+}
+.connection-page .connection-field :focus-visible {
+  outline-offset: -2px;
+}
+.connection-page .field-note {
+  margin: 8px 16px 0;
+}
+.connection-utilities .my-list-button {
+  min-height: 56px;
+  padding: 8px 16px;
+  font-weight: 400;
+}
+.connection-page-help summary {
+  cursor: pointer;
+  list-style: none;
+}
+.connection-page-help summary::-webkit-details-marker {
+  display: none;
+}
+.connection-page-help[open] summary > svg {
+  transform: rotate(180deg);
+}
+.connection-page-help .field-note {
+  margin: 0;
+  padding: 0 16px 12px;
+}
+.connection-clear {
+  color: #a83636;
+}
 
 @media (--down-md) {
   .dialog-actions .primary-button {
@@ -132,5 +222,16 @@
   .settings-dialog input,
   .settings-dialog select {
     font-size: var(--text-md);
+  }
+}
+
+@media (--down-sm) {
+  .connection-page .connection-field:has(select) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding-top: 12px;
+  }
+  .connection-page .connection-field select {
+    text-align: start;
   }
 }

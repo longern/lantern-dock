@@ -1,4 +1,4 @@
-import { coreError } from "./errors.js";
+import { coreError, isMissingFileStatus } from "./errors.js";
 import { limitedBytes } from "./content.js";
 export { limitedBytes } from "./content.js";
 import { MemoryCache, cachePolicy } from "./cache.js";
@@ -152,6 +152,13 @@ export function checkResponse(response) {
     throw coreError("BACKEND_RESPONSE_ERROR", { status: response.status });
   return response;
 }
+export function checkFileResponse(response) {
+  if (isMissingFileStatus(response.status)) {
+    void response.body?.cancel().catch(() => {});
+    throw coreError("FILE_NOT_FOUND");
+  }
+  return checkResponse(response);
+}
 export class DAVClient {
   constructor(transport, config) {
     this.transport = transport;
@@ -230,7 +237,7 @@ export class DAVClient {
       method,
       ...(method === "HEAD" ? { cache: "no-store" } : {}),
     });
-    if (!signal?.aborted && [404, 410].includes(response.status)) {
+    if (!signal?.aborted && isMissingFileStatus(response.status)) {
       this.directories.delete(
         path.slice(0, path.replace(/\/$/, "").lastIndexOf("/") + 1),
       );
@@ -239,7 +246,7 @@ export class DAVClient {
     return response;
   }
   async get(path, signal) {
-    return checkResponse(await this.read(path, signal));
+    return checkFileResponse(await this.read(path, signal));
   }
   readOriginal(item, signal) {
     // Ordinary HTTPS already has the browser's native HTTP cache.

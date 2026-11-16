@@ -237,7 +237,7 @@ async function install(page, options = {}) {
     });
   });
   await page.goto(state.files ? "/files/" : "/");
-  if (state.files) return state;
+  if (state.files || state.home) return state;
   await page
     .getByRole("navigation", { name: "文件分类", exact: true })
     .getByRole("button", { name: "相册", exact: true })
@@ -259,6 +259,87 @@ async function install(page, options = {}) {
     )
     .toBe(true);
   return state;
+}
+
+for (const status of [200, 403, 404, 410]) {
+  test(`a missing image rendition checks the source before pruning recent files (${status})`, async ({
+    page,
+  }) => {
+    const key = "lantern-dock:http:http://127.0.0.1:8788:/dav/:recent";
+    await page.addInitScript(
+      ({ key, items }) => {
+        if (localStorage.getItem(key)) return;
+        localStorage.setItem(
+          key,
+          JSON.stringify(
+            items.map((item, index) => ({
+              ...item,
+              path: `/dav/${item.name}`,
+              kind: "image",
+              isDirectory: false,
+              size: 1000,
+              visitedAt: items.length - index,
+            })),
+          ),
+        );
+      },
+      { key, items: [items[0], items[2]] },
+    );
+    const methods = [];
+    await install(page, {
+      home: true,
+      highResponse: (route) => route.fulfill({ status: 404 }),
+      originalResponse: (route) => {
+        const method = route.request().method();
+        methods.push(method);
+        return route.fulfill({
+          status,
+          contentType: "image/jpeg",
+          body: method === "HEAD" ? "" : thumbnail,
+        });
+      },
+    });
+    const file = page.getByRole("button", {
+      name: "预览 first.png",
+      exact: true,
+    });
+    await expect(page.getByRole("heading", { name: "最近文件" })).toBeVisible();
+    await openItem(file);
+    const missing = [404, 410].includes(status);
+    if (status === 200) {
+      await expect(
+        page.locator("#preview-dialog .preview-image-sharp"),
+      ).toHaveJSProperty("naturalWidth", 384);
+      expect(methods).toEqual(["HEAD", "GET"]);
+    } else {
+      await expect(page.locator(".toast")).toContainText(
+        missing ? "该文件已不存在或不可访问。" : /拒绝|权限/,
+      );
+      if (missing)
+        await expect(
+          page.locator("#preview-dialog .preview-content").getByRole("status"),
+        ).toHaveText("该文件已不存在或不可访问。");
+      expect(methods).toEqual(["HEAD"]);
+    }
+    const recentNames = () =>
+      page.evaluate(
+        (key) => JSON.parse(localStorage.getItem(key)).map((item) => item.name),
+        key,
+      );
+    expect(await recentNames()).toEqual(
+      missing ? ["last.png"] : ["first.png", "last.png"],
+    );
+    await page.goBack();
+    await expect(file).toHaveCount(missing ? 0 : 1);
+    await expect(
+      page.getByRole("button", { name: "预览 last.png", exact: true }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(file).toHaveCount(missing ? 0 : 1);
+    expect(await recentNames()).toEqual(
+      missing ? ["last.png"] : ["first.png", "last.png"],
+    );
+  });
 }
 
 test("file preview keeps the displayed thumbnail while a larger image loads", async ({
@@ -1258,7 +1339,7 @@ test("album sharing offers the supported actions in order and copies the album l
   await expect(favorite).toHaveAttribute("aria-pressed", "true");
   await expect(favorite.locator("svg")).toHaveCSS("fill", "rgb(255, 82, 110)");
   await trigger.click();
-  await expect(share.locator(".album-share-actions button")).toHaveText([
+  await expect(share.locator(".file-share-actions button")).toHaveText([
     "分享",
     "复制链接",
     "复制图片",

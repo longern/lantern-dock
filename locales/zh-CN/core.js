@@ -45,6 +45,7 @@ export default {
     "后端拒绝访问。请检查文件权限和网关路径白名单。",
   "error.BACKEND_RESPONSE_ERROR":
     "后端返回 {{status}}，请检查服务地址和访问权限。",
+  "error.FILE_NOT_FOUND": "该文件已不存在或不可访问。",
   "error.PREVIEW_READ_ONLY": "文件预览仅支持读取",
   "error.INVALID_LIBRARY_NAME": "资源名称不能包含换行或控制字符。",
   "error.TRANSPORT_REQUIRED": "请选择连接方式。",
@@ -76,7 +77,6 @@ export default {
   configurationUnavailable: "服务配置暂不可用",
   downloadInProgress: "请先等待当前下载结束，或取消后重试。",
   downloadCancelled: "已取消下载",
-  imageRemoved: "文件已移除，请刷新目录。",
   imagePreviewFailed: "无法加载图片预览，请稍后重试。",
   defaultLibraryName: "我的文件",
   downloadComplete: "下载完成：{{name}}",

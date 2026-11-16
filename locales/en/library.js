@@ -53,6 +53,8 @@ export default {
   webDavHelp:
     "Your WebDAV service must allow CORS requests from this site, including PROPFIND, Depth, and Authorization.",
   rootPath: "Root directory {{path}}",
+  rootDirectory: "Root directory",
+  serverAddress: "Server address",
   authentication: "Authentication",
   noAuthentication: "No authentication",
   basicAuthentication: "Username and password (Basic)",
@@ -89,6 +91,7 @@ export default {
   fileList: "File list",
   noMatchingFiles: "No matching files",
   noFavorites: "No favorites yet",
+  viewFileList: "View file list",
   noRecentFiles: "No recent files",
   noFiles: "No files yet",
   tryKeywords: "Try different keywords.",
@@ -222,7 +225,6 @@ export default {
   shareQRFailed: "Could not generate the QR code.",
   linkCopied: "Link copied",
   copyLinkFailed: "Could not copy the link.",
-  fileNotFound: "This file is no longer available.",
   pageNotFound: "Page not found",
   backToFolder: "Back to folder",
 };

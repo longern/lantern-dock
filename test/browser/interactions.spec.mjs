@@ -39,7 +39,10 @@ test("mobile primary navigation uses Home, Files and My without a drawer", async
 test("dialog backdrop, Escape and close control share an exit and restore focus", async ({
   page,
 }) => {
-  for (const dismiss of ["backdrop", "escape", "button"]) {
+  const mobile = isCompact(page);
+  for (const dismiss of mobile
+    ? ["escape", "button"]
+    : ["backdrop", "escape", "button"]) {
     const trigger = await openConnectionSettings(page);
     const dialog = page.getByRole("dialog", { name: "连接设置", exact: true });
     await expect(dialog).toBeVisible();

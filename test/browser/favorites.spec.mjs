@@ -119,6 +119,35 @@ test("desktop favorites keep the existing subpage heading styles", async ({
   );
 });
 
+test("empty favorites open the Files page from the primary action", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await openFavorites(page);
+  const mobile = isCompact(page);
+  const favorites = mobile
+    ? favoritesDialog(page)
+    : page.locator(".favorites-page");
+  await expect(
+    favorites.getByRole("heading", { name: "暂无收藏" }),
+  ).toBeVisible();
+  const browse = favorites.getByRole("button", {
+    name: "查看文件列表",
+    exact: true,
+  });
+  await expect(browse).toHaveClass(/\bprimary-button\b/);
+  await browse.click();
+  await expect(page).toHaveURL(/\/files\/$/);
+  await expect(favorites).toHaveCount(0);
+  await expect(page.locator("#file-list .file-item")).toHaveCount(12);
+  if (mobile) {
+    await expect(
+      mainNavigation(page).getByRole("button", { name: "文件", exact: true }),
+    ).toBeFocused();
+    await expect(page.locator("body")).not.toHaveCSS("overflow", "hidden");
+  }
+});
+
 test("mobile favorites use a native modal with repeated dismissals and focus restoration", async ({
   page,
 }) => {

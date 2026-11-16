@@ -2,6 +2,7 @@ import { t } from "../../shared/i18n.js";
 import { MemoryCache, cachePolicy } from "./cache.js";
 import { limitedBytes } from "./content.js";
 import { backendPaths } from "../../shared/backend-paths.js";
+import { coreError, isMissingFileStatus } from "./errors.js";
 import {
   originalImageAccept,
   originalImageLimit,
@@ -12,9 +13,7 @@ import {
 const freshness = 15000;
 export class ImageServiceError extends Error {
   constructor(status) {
-    super(
-      status === 404 ? t("core.imageRemoved") : t("core.imagePreviewFailed"),
-    );
+    super(t("core.imagePreviewFailed"));
     this.status = status;
   }
 }
@@ -265,6 +264,8 @@ export class ImageClient {
       memory.delete(key);
       await response.body?.cancel();
       await storage?.delete(path, version, accept);
+      if (original && isMissingFileStatus(response.status))
+        throw coreError("FILE_NOT_FOUND");
       throw new ImageServiceError(response.status);
     }
     const type = response.headers.get("Content-Type") || "";

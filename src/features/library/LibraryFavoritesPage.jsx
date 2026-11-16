@@ -8,6 +8,7 @@ function Favorites({ mobile, open, onClose, onExited, actions, children }) {
   if (mobile)
     return (
       <PageDialog
+        divider
         id="favorites-dialog"
         className="favorites-dialog"
         headerClassName="favorites-heading"

@@ -17,6 +17,7 @@ function AdminLoadError() {
   return (
     <main class="route-status-page">
       <PageHeader
+        divider
         title={t("admin.title")}
         back={
           <a

@@ -9,6 +9,7 @@
     sans-serif;
   color: #252938;
   background: #fff;
+  -webkit-tap-highlight-color: transparent;
   font-synthesis: none;
   font-size: 100%;
   /* rem follows the browser's root size (normally 16px). */
@@ -92,10 +93,9 @@ textarea {
   font: inherit;
 }
 button,
-a,
-input,
-select {
-  -webkit-tap-highlight-color: transparent;
+summary {
+  -webkit-user-select: none;
+  user-select: none;
 }
 button {
   cursor: pointer;

@@ -230,14 +230,22 @@ test("settings and preview dialogs have no outer borders while controls and divi
   await openConnectionSettings(page);
   const settings = page.getByRole("dialog", { name: "连接设置", exact: true });
   await expectBorderless(settings);
-  await expect(settings.locator(".dialog-actions")).toHaveCSS(
-    "border-top-width",
-    "1px",
-  );
-  await expect(settings.locator("select").first()).toHaveCSS(
-    "border-top-width",
-    "1px",
-  );
+  if (isCompact(page)) {
+    await settings.locator("select").selectOption("basic");
+    await expect(settings.locator(".connection-field").nth(1)).toHaveCSS(
+      "border-top-width",
+      "1px",
+    );
+  } else {
+    await expect(settings.locator(".dialog-actions")).toHaveCSS(
+      "border-top-width",
+      "1px",
+    );
+    await expect(settings.locator("select")).toHaveCSS(
+      "border-top-width",
+      "1px",
+    );
+  }
   await page.keyboard.press("Escape");
   await expect(settings).toHaveCount(0);
   await mainNavigation(page).getByRole("button", { name: /^文件/ }).click();

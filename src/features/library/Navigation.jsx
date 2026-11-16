@@ -138,6 +138,7 @@ export function Topbar({
   actions,
   transferAction,
   intakeAction,
+  divider = false,
   hideRefresh = false,
 }) {
   const mobile = useCompactLayout();
@@ -222,6 +223,7 @@ export function Topbar({
     >
       <header
         class={`topbar${actions || transferAction ? " has-actions" : ""}`}
+        data-divider={divider && !mobile ? "" : undefined}
       >
         {mobileFiles ? (
           <span class="mobile-brand mobile-page-title">
@@ -286,7 +288,10 @@ export function Topbar({
         </div>
       </header>
       {mobile && (
-        <div class={home ? "mobile-home-search" : "mobile-file-tools"}>
+        <div
+          class={home ? "mobile-home-search" : "mobile-file-tools"}
+          data-divider={divider ? "" : undefined}
+        >
           {home ? (
             <HomeSearch
               initialQuery={library.query}

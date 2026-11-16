@@ -101,7 +101,7 @@ export function HomeSearch({ initialQuery, renderResults }) {
           open={open}
           onClose={close}
           onExited={() => setPhase(null)}
-          fallbackFocus={`#${triggerId}`}
+          returnTarget={() => trigger.current}
           onKeyDown={(event) => {
             if (event.target.closest("dialog") !== event.currentTarget) return;
             if (event.key === "Escape" && !event.defaultPrevented) {
@@ -125,12 +125,12 @@ export function HomeSearch({ initialQuery, renderResults }) {
             >
               <Icon name="chevron-left" />
             </button>
-            <div ref={fieldSlot} class="home-search-field">
+            <div ref={fieldSlot} class="home-search-field" inert={!open}>
               <SearchField
                 input={input}
                 value={query}
                 onChange={setQuery}
-                autofocus
+                autofocus={open}
                 autoComplete="off"
                 enterKeyHint="search"
               />

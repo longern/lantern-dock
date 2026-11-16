@@ -189,6 +189,7 @@ export function TransferCenter({ transfer, mobile, open, onOpen, onClose }) {
     <>
       {mobile ? (
         <PageDialog
+          divider
           id="transfer-dialog"
           className="transfer-dialog"
           title={t("library.transfers")}

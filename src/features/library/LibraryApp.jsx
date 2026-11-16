@@ -163,17 +163,15 @@ export function LibraryApp() {
       location.origin,
     ).href;
   };
-  const copyFileURLs = async (items, album, messageKey) => {
+  const copyFileURLs = async (items, album) => {
     try {
       const links = items.map((item) => fileURL(item, album));
       await navigator.clipboard.writeText(links.join("\n"));
-      toast(t(messageKey, { count: items.length }));
+      toast(t("library.linksCopied", { count: items.length }));
     } catch {
       toast(t("library.copyLinkFailed"), true);
     }
   };
-  const copyLink = (item) =>
-    copyFileURLs([item], !!gallery, "library.linkCopied");
   const library = {
     ...listing,
     downloadMany: transfer.downloadMany,
@@ -182,7 +180,6 @@ export function LibraryApp() {
       copyFileURLs(
         items,
         ["album", "image"].includes(listing.kind) || albumPresent,
-        "library.linksCopied",
       ),
   };
   const listProps = {
@@ -315,7 +312,7 @@ export function LibraryApp() {
       <LibraryPreview
         client={library.connection?.client}
         state={previewState}
-        {...{ records, transfer, copyLink, fileURL, toast, feedback }}
+        {...{ records, transfer, fileURL, toast, feedback }}
         fileFeedback={settings ? null : feedback}
       />
       {settings && (

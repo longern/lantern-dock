@@ -14,7 +14,7 @@ import {
   useReducedMotion,
 } from "../../../hooks/useMediaQuery.js";
 import { AlbumMedia } from "./AlbumMedia.jsx";
-import { AlbumShareDialog } from "./AlbumShareDialog.jsx";
+import { useFileShare } from "../preview/FileShareDialog.jsx";
 import { FileInfoDrawer } from "../preview/FileInfoDrawer.jsx";
 import { PreviewMetadata } from "../preview/PreviewMetadata.jsx";
 import {
@@ -89,7 +89,6 @@ export function AlbumViewer({
   const [container, setContainer] = useState(null);
   const [entered, setEntered] = useState(false);
   const [details, setDetails] = useState(null);
-  const [sharing, setSharing] = useState(null);
   const [livePlaying, setLivePlaying] = useState(false);
   const [videoPlayer, setVideoPlayer] = useState(null);
   const [videoControlsHidden, setVideoControlsHidden] = useState(false);
@@ -103,6 +102,14 @@ export function AlbumViewer({
   });
   const reducedMotion = useReducedMotion();
   const compact = useCompactLayout();
+  const share = useFileShare({
+    item,
+    client,
+    url: shareURL,
+    compact,
+    open,
+    toast,
+  });
   const [lifetime] = useState(() => new AbortController());
   const [openingThumbnail, setOpeningThumbnail] = useState(null);
   const containerRef = useRef(null);
@@ -465,8 +472,7 @@ export function AlbumViewer({
                 favorite={favorite}
                 onFavorite={onFavorite}
                 onDownload={onDownload}
-                onShare={() => setSharing("open")}
-                sharing={sharing === "open"}
+                shareTrigger={share.triggerProps}
                 detailsDrawer={compact}
                 details={showDetails}
                 onDetails={() =>
@@ -493,19 +499,7 @@ export function AlbumViewer({
           <PreviewMetadata item={item} dimensions={dimensions} />
         </FileInfoDrawer>
       )}
-      {sharing && (
-        <AlbumShareDialog
-          key={item.path}
-          item={item}
-          client={client}
-          url={shareURL}
-          compact={compact}
-          open={open && sharing === "open"}
-          onClose={() => setSharing("closing")}
-          onExited={() => setSharing(null)}
-          toast={toast}
-        />
-      )}
+      {share.dialog}
       {feedback}
     </Dialog>
   );
@@ -518,8 +512,7 @@ function AlbumControls({
   favorite,
   onFavorite,
   onDownload,
-  onShare,
-  sharing,
+  shareTrigger,
   detailsDrawer,
   details,
   onDetails,
@@ -622,15 +615,7 @@ function AlbumControls({
         class="album-viewer-actions"
         aria-label={t("library.fileActions")}
       >
-        <button
-          type="button"
-          class="icon-button album-share-trigger"
-          aria-label={t("library.share")}
-          aria-haspopup="dialog"
-          aria-expanded={sharing}
-          aria-controls={sharing ? "album-share-dialog" : undefined}
-          onClick={onShare}
-        >
+        <button class="icon-button" {...shareTrigger}>
           <Icon name="share" />
         </button>
         {live && (

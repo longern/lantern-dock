@@ -6,11 +6,6 @@
 .collection-page > .category-cards {
   flex-shrink: 0;
 }
-.collection-page .topbar,
-.collection-page .mobile-file-tools,
-.collection-page .mobile-home-search {
-  border-bottom: 0;
-}
 .content.collection-card {
   flex: 1;
   min-width: 0;

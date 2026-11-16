@@ -125,7 +125,31 @@ test("copied links use the portal and relative paths even with a custom DAV moun
   await expect(page.locator(".preview-content pre")).toHaveText(
     "A shared document",
   );
-  await page.getByRole("button", { name: "复制链接", exact: true }).click();
+  const preview = page.locator("#preview-dialog");
+  const trigger = preview.getByRole("button", { name: "分享", exact: true });
+  const share = page.getByRole("dialog", { name: "分享", exact: true });
+  await expect(
+    preview.getByRole("button", { name: "复制链接", exact: true }),
+  ).toHaveCount(0);
+  await trigger.click();
+  await expect(share).toBeVisible();
+  expect(
+    await share.evaluate((node) => node.classList.contains("file-info-drawer")),
+  ).toBe(isCompact(page));
+  await expect(
+    share.getByRole("button", { name: "复制图片", exact: true }),
+  ).toHaveCount(0);
+  await share.getByRole("button", { name: "二维码分享", exact: true }).click();
+  await expect(
+    share.getByRole("img", { name: "二维码分享", exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(share).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await share.getByRole("button", { name: "复制链接", exact: true }).click();
+  await expect(share).toHaveCount(0);
+  await expect(trigger).toBeFocused();
   await expect
     .poll(() => page.evaluate(() => window.copiedLinks.at(-1)))
     .toBe(`http://127.0.0.1:8788/files/${folder}/${name}`);

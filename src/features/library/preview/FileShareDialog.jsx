@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useId, useRef, useState } from "preact/hooks";
 import { t } from "../../../../shared/i18n.js";
 import { Dialog } from "../../../components/Dialog.jsx";
 import { Icon } from "../../../components/Icon.jsx";
@@ -6,9 +6,6 @@ import { PageHeader } from "../../../components/PageHeader.jsx";
 import { SheetHandle } from "../../../components/SheetHandle.jsx";
 import { decodeImage, previewImage } from "../../../lib/image-preview.js";
 import { dialogHeadingFocus } from "../../../lib/overlay-focus.js";
-
-const returnToShareButton = (scope) =>
-  scope.querySelector(".album-share-trigger");
 
 async function clipboardImage(client, item, signal) {
   const { blob } = await previewImage(client, item, signal);
@@ -32,7 +29,41 @@ async function clipboardImage(client, item, signal) {
   }
 }
 
-export function AlbumShareDialog({
+export function useFileShare({ item, client, url, compact, open, toast }) {
+  const [phase, setPhase] = useState(null);
+  const trigger = useRef(null);
+  const dialogId = useId();
+  const sharing = open && phase === "open";
+  return {
+    triggerProps: {
+      ref: trigger,
+      type: "button",
+      "aria-label": t("library.share"),
+      "aria-haspopup": "dialog",
+      "aria-expanded": sharing,
+      "aria-controls": sharing ? dialogId : undefined,
+      onClick: () => setPhase("open"),
+    },
+    dialog: phase && (
+      <FileShareDialog
+        key={item.path}
+        id={dialogId}
+        item={item}
+        client={client}
+        url={url}
+        compact={compact}
+        open={sharing}
+        onClose={() => setPhase("closing")}
+        onExited={() => setPhase(null)}
+        returnTarget={() => trigger.current}
+        toast={toast}
+      />
+    ),
+  };
+}
+
+function FileShareDialog({
+  id,
   item,
   client,
   url,
@@ -40,6 +71,7 @@ export function AlbumShareDialog({
   open,
   onClose,
   onExited,
+  returnTarget,
   toast,
 }) {
   const [controller] = useState(() => new AbortController());
@@ -117,13 +149,13 @@ export function AlbumShareDialog({
 
   return (
     <Dialog
-      id="album-share-dialog"
-      class={`settings-dialog album-share-dialog${compact ? " file-info-drawer" : ""}`}
+      id={id}
+      class={`settings-dialog file-share-dialog${compact ? " file-info-drawer" : ""}`}
       open={open}
       inert={!open}
-      aria-labelledby="album-share-title"
+      aria-labelledby={`${id}-title`}
       onKeyDown={(event) => event.stopPropagation()}
-      returnTarget={returnToShareButton}
+      returnTarget={returnTarget}
       onClose={onClose}
       onExited={onExited}
     >
@@ -131,7 +163,7 @@ export function AlbumShareDialog({
       <PageHeader
         className="file-info-header"
         title={t("library.share")}
-        titleId="album-share-title"
+        titleId={`${id}-title`}
         titleTag="h2"
         actions={
           <button
@@ -145,8 +177,8 @@ export function AlbumShareDialog({
         }
         {...dialogHeadingFocus}
       />
-      <div class="album-share-body" aria-busy={busy}>
-        <ul class="album-share-actions">
+      <div class="file-share-body" aria-busy={busy}>
+        <ul class="file-share-actions">
           {canShare && (
             <li>
               <button
@@ -204,7 +236,7 @@ export function AlbumShareDialog({
               type="button"
               disabled={busy}
               aria-expanded={showQR}
-              aria-controls="album-share-qr"
+              aria-controls={showQR ? `${id}-qr` : undefined}
               onClick={() => {
                 if (!showQR) setQRStatus("loading");
                 setShowQR(!showQR);
@@ -216,7 +248,7 @@ export function AlbumShareDialog({
           </li>
         </ul>
         {showQR && (
-          <div class="album-share-qr" id="album-share-qr">
+          <div class="file-share-qr" id={`${id}-qr`}>
             <canvas
               ref={canvas}
               hidden={qrStatus !== "ready"}

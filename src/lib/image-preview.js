@@ -1,13 +1,30 @@
 import { t } from "../../shared/i18n.js";
-import { limitedBytes } from "./dav.js";
+import { checkFileResponse, limitedBytes } from "./dav.js";
+import { isMissingFileStatus } from "./errors.js";
 import { originalImageLimit } from "./image-cache.js";
+import { ImageServiceError } from "./images.js";
 export const canViewOriginal = (item) =>
   item.kind === "image" && !(item.size > originalImageLimit);
 
 // Previews render locally owned blobs and keep NAS credentials in the client.
 export async function previewImage(client, item, signal) {
-  const image = await client.images?.image(item, 1600, signal);
-  return image || originalImage(client, item, signal);
+  try {
+    const image = await client.images?.image(item, 1600, signal);
+    if (image) return image;
+  } catch (error) {
+    if (
+      !(error instanceof ImageServiceError) ||
+      !isMissingFileStatus(error.status)
+    )
+      throw error;
+    // The preview route can be missing even when the original exists. Verify
+    // the source through DAV so confirmed misses also clear the recent entry.
+    const source = await client.read(item.path, signal, {}, "HEAD");
+    signal?.throwIfAborted();
+    checkFileResponse(source);
+    await source.body?.cancel();
+  }
+  return originalImage(client, item, signal);
 }
 
 export async function originalImage(client, item, signal) {

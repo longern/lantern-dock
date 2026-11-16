@@ -2,7 +2,7 @@ import { t } from "../../shared/i18n.js";
 import { coreError } from "./errors.js";
 import { createFile } from "mp4box";
 import { limitedBytes } from "./content.js";
-import { checkResponse } from "./dav.js";
+import { checkFileResponse } from "./dav.js";
 import {
   canStoreVideoRange,
   isFreshVideoRange,
@@ -410,7 +410,7 @@ export class MP4MediaSource {
     const time = Date.now();
     if (!response.ok) {
       if (cached) await cache.delete(this.item.path, version, range);
-      checkResponse(response);
+      checkFileResponse(response);
     }
     const bounds = videoRange(response.headers);
     if (response.status !== 206 || !bounds || bounds.start !== offset) {

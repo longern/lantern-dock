@@ -20,7 +20,6 @@
 }
 .page-header.invite-topbar {
   --page-header-safe-top: 0px;
-  border-bottom: 0;
 }
 .invite-form,
 .invite-result {

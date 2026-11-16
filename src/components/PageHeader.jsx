@@ -5,11 +5,16 @@ export function PageHeader({
   titleTag: Title = "h1",
   back,
   actions,
+  divider = false,
   className = "",
   ...props
 }) {
   return (
-    <header class={`page-header ${className}`} {...props}>
+    <header
+      class={`page-header ${className}`}
+      data-divider={divider ? "" : undefined}
+      {...props}
+    >
       {back}
       {title != null && (
         <Title id={titleId} class="page-header-title">

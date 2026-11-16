@@ -468,6 +468,15 @@ export function FileBrowser({
               {t("library.viewAllFiles")}
             </button>
           )}
+          {library.mode === "favorites" && (
+            <button
+              type="button"
+              class="primary-button"
+              onClick={() => library.selectMode("all")}
+            >
+              {t("library.viewFileList")}
+            </button>
+          )}
           {!library.query && !usesDirectory && (
             <span class="empty-footnote">{t("library.localRecordsNote")}</span>
           )}

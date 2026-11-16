@@ -114,7 +114,6 @@
   align-items: center;
   gap: 4px;
   padding: 0 28px;
-  border-bottom: 1px solid var(--line);
 }
 .breadcrumbs {
   display: flex;
@@ -166,7 +165,7 @@
     box-shadow var(--motion-fast),
     background-color var(--motion-fast);
 }
-.search-box:focus-within {
+div.search-box:focus-within {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px #514dbb12;
   background: var(--surface);
@@ -284,7 +283,6 @@
 @media (--down-md) {
   .topbar {
     padding: 0 16px;
-    border-bottom: 0;
   }
   .topbar.has-actions .topbar-right {
     display: flex;
@@ -298,7 +296,6 @@
     align-items: center;
     height: var(--browser-tools-height);
     padding: 2px 16px;
-    border-bottom: 1px solid var(--line);
   }
   .mobile-home-search {
     padding-bottom: 12px;

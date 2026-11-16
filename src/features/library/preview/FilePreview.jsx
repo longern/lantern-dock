@@ -8,6 +8,7 @@ import {
 } from "../../../hooks/useMediaQuery.js";
 import { Dialog } from "../../../components/Dialog.jsx";
 import { FileInfoDrawer } from "./FileInfoDrawer.jsx";
+import { useFileShare } from "./FileShareDialog.jsx";
 import { PreviewImage } from "./PreviewImage.jsx";
 import { PreviewMetadata } from "./PreviewMetadata.jsx";
 import { VideoPreview } from "./VideoPreview.jsx";
@@ -20,8 +21,8 @@ export function FilePreview({
   favorite,
   onFavorite,
   onDownload,
-  onCopyLink,
-  onError,
+  shareURL,
+  toast,
   onClose,
   onEntered,
   onExited,
@@ -31,6 +32,15 @@ export function FilePreview({
 }) {
   const modal = useBreakpointDown("lg");
   const compact = useCompactLayout();
+  const share = useFileShare({
+    item,
+    client,
+    url: shareURL,
+    compact,
+    open,
+    toast,
+  });
+  const onError = (text) => toast(text, true);
   const [content, setContent] = useState(null);
   const [error, setError] = useState("");
   const [dimensions, setDimensions] = useState("");
@@ -59,7 +69,11 @@ export function FilePreview({
         setContent(new TextDecoder().decode(data));
     })().catch((error) => {
       if (controller.signal.aborted) return;
-      setError(t("library.filePreviewFailed"));
+      setError(
+        error.code === "FILE_NOT_FOUND"
+          ? error.message
+          : t("library.filePreviewFailed"),
+      );
       onError(error.message);
     });
     return () => controller.abort();
@@ -134,13 +148,9 @@ export function FilePreview({
         )}
       </div>
       <footer class="preview-actions">
-        <button
-          class="preview-action"
-          aria-label={t("library.copyLink")}
-          onClick={() => onCopyLink(item)}
-        >
-          <Icon name="copy" />
-          <span>{t("library.copyLink")}</span>
+        <button class="preview-action" {...share.triggerProps}>
+          <Icon name="share" />
+          <span>{t("library.share")}</span>
         </button>
         <button
           class="preview-action"
@@ -183,6 +193,7 @@ export function FilePreview({
           <PreviewMetadata item={item} dimensions={dimensions} />
         </FileInfoDrawer>
       )}
+      {share.dialog}
       {feedback}
     </Dialog>
   );

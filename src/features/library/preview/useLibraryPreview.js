@@ -177,7 +177,7 @@ export function useLibraryPreview({
         });
       else {
         setPreviewOpen(false);
-        setRouteError(t("library.fileNotFound"));
+        setRouteError(t("core.error.FILE_NOT_FOUND"));
       }
       return;
     }

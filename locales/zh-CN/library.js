@@ -50,6 +50,8 @@ export default {
   webDavHelp:
     "WebDAV 服务需允许当前站点的 CORS 请求，以及 PROPFIND、Depth 和 Authorization。",
   rootPath: "根目录 {{path}}",
+  rootDirectory: "根目录",
+  serverAddress: "服务地址",
   authentication: "访问方式",
   noAuthentication: "无需认证",
   basicAuthentication: "用户名与密码（Basic）",
@@ -85,6 +87,7 @@ export default {
   fileList: "文件列表",
   noMatchingFiles: "没有找到匹配的文件",
   noFavorites: "暂无收藏",
+  viewFileList: "查看文件列表",
   noRecentFiles: "暂无访问记录",
   noFiles: "暂无文件",
   tryKeywords: "试试其他关键词。",
@@ -211,7 +214,6 @@ export default {
   shareQRFailed: "无法生成二维码。",
   linkCopied: "链接已复制",
   copyLinkFailed: "无法复制链接。",
-  fileNotFound: "该文件已不存在或不可访问。",
   pageNotFound: "页面不存在",
   backToFolder: "返回文件夹",
 };

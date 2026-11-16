@@ -243,6 +243,9 @@ ul.file-grid {
   font-size: var(--text-xs);
   color: var(--muted);
 }
+.empty-state .primary-button + .empty-footnote {
+  margin-top: 12px;
+}
 .file-open:focus-visible {
   outline: none;
 }

@@ -15,7 +15,7 @@ export function PreviewImage({
   const [low, setLow] = useState(null);
   const [high, setHigh] = useState(null);
   const [faded, setFaded] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState(null);
   const reportError = useRef(onError);
   reportError.current = onError;
 
@@ -40,7 +40,7 @@ export function PreviewImage({
     const { signal } = controller;
     let url;
     setHigh(null);
-    setFailed(false);
+    setFailure(null);
     setFaded(false);
     (async () => {
       const cached = client.images?.peek(item, 1600);
@@ -56,7 +56,7 @@ export function PreviewImage({
       if (url) URL.revokeObjectURL(url);
       url = undefined;
       if (signal.aborted) return;
-      setFailed(true);
+      setFailure(error);
       reportError.current(error.message || t("library.imagePreviewFailed"));
     });
     return () => {
@@ -65,13 +65,20 @@ export function PreviewImage({
     };
   }, [client, item, client.images?.revision, onDimensions]);
 
-  const image = high || low;
+  const missing = failure?.code === "FILE_NOT_FOUND";
+  const image = missing ? null : high || low;
   if (!image)
     return (
       <div class="preview-placeholder">
         <Icon name="image" />
         <p role="status">
-          {t(failed ? "library.filePreviewFailed" : "library.loadingPreview")}
+          {missing
+            ? failure.message
+            : t(
+                failure
+                  ? "library.filePreviewFailed"
+                  : "library.loadingPreview",
+              )}
         </p>
       </div>
     );

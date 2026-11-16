@@ -127,7 +127,10 @@ export function AccountPage({
     }
   };
   const content = (
-    <section class="account-content" aria-labelledby="account-title">
+    <section
+      class="settings-page-content account-content"
+      aria-labelledby="account-title"
+    >
       <div class="my-account-summary account-profile">
         <span class="my-account-symbol" aria-hidden="true">
           <Icon name="user" />
@@ -158,7 +161,7 @@ export function AccountPage({
       {session && (
         <>
           <div class="my-action-list">
-            <dl class="account-details">
+            <dl class="settings-detail-list account-details">
               <div>
                 <dt>{t("account.siteRole")}</dt>
                 <dd aria-live="polite">
@@ -177,7 +180,7 @@ export function AccountPage({
                 <span>{t("account.accountDetails")}</span>
                 <Icon name="chevron-down" />
               </summary>
-              <dl class="account-details">
+              <dl class="settings-detail-list account-details">
                 <div>
                   <dt>{t("account.identityIssuer")}</dt>
                   <dd>{session.user.issuer}</dd>

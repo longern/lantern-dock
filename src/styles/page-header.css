@@ -1,3 +1,11 @@
+:is(
+  .page-header,
+  .topbar,
+  .mobile-home-search,
+  .mobile-file-tools
+)[data-divider] {
+  border-bottom: 1px solid var(--line);
+}
 .page-header {
   display: grid;
   grid-template-columns: var(--topbar-button-size) minmax(0, 1fr) var(
@@ -10,7 +18,6 @@
   );
   padding: var(--page-header-safe-top, env(safe-area-inset-top))
     var(--page-header-padding, 16px) 0;
-  border-bottom: 1px solid var(--line);
   background: var(--page-header-background, var(--canvas));
   outline: none;
 }

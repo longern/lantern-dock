@@ -33,6 +33,7 @@ export function LibraryAlbumPage({
 
   return (
     <PageDialog
+      divider
       id="album-page-dialog"
       className="album-page-dialog"
       title={t("core.category.album")}

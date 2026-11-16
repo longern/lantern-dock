@@ -70,6 +70,7 @@ export function LibraryMain({
         <>
           <Topbar
             library={library}
+            divider={!collectionPage}
             renderSearchResults={(query, setQuery) => (
               <FileBrowser
                 library={{ ...library, query, setQuery, view: "list" }}

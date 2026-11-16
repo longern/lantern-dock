@@ -242,6 +242,9 @@ test("opening a missing source removes its recent entry", async ({ page }) => {
   const state = await fixture(page);
   state.status = 404;
   await openItem(page.locator("#file-list .file-open").first());
+  await expect(
+    page.locator("#preview-dialog .preview-content").getByRole("status"),
+  ).toHaveText("该文件已不存在或不可访问。");
   await expect
     .poll(async () => (await stored(page)).map((item) => item.path))
     .toEqual([other.path]);

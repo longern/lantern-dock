@@ -89,10 +89,16 @@ export function AlbumMedia({
       combined.throwIfAborted();
       onSize(item.path, size.width, size.height);
       setOriginalResult({ url });
-    })().catch(() => {
+    })().catch((error) => {
       if (url) URL.revokeObjectURL(url);
       url = undefined;
-      if (!combined.aborted) setOriginalResult({ error: true });
+      if (!combined.aborted)
+        setOriginalResult({
+          error:
+            error.code === "FILE_NOT_FOUND"
+              ? error.message
+              : t("library.originalPreviewFailed"),
+        });
     });
     return () => {
       controller.abort();
@@ -158,8 +164,13 @@ export function AlbumMedia({
         ),
         previewSide: Math.max(size.width, size.height),
       });
-    })().catch(() => {
-      if (!combined.aborted) setError(t("library.imagePreviewFailed"));
+    })().catch((error) => {
+      if (!combined.aborted)
+        setError(
+          error.code === "FILE_NOT_FOUND"
+            ? error.message
+            : t("library.imagePreviewFailed"),
+        );
     });
     return () => {
       controller.abort();
@@ -298,7 +309,7 @@ export function AlbumMedia({
       )}
       {original?.error && (
         <p class="album-image-error" role="status">
-          {t("library.originalPreviewFailed")}
+          {original.error}
         </p>
       )}
       {!lifted &&

@@ -48,6 +48,7 @@ export function AdminPage() {
       class={`admin-page${ready ? " admin-ready" : ""}${detail ? " admin-detail" : ""}`}
     >
       <PageHeader
+        divider
         className="admin-header"
         title={ready ? t(heading) : null}
         back={

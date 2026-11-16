@@ -64,6 +64,7 @@ export default {
     "The backend denied access. Check file permissions and the gateway path allowlist.",
   "error.BACKEND_RESPONSE_ERROR":
     "The backend returned {{status}}. Check its address and access permissions.",
+  "error.FILE_NOT_FOUND": "This file is no longer available.",
   "error.PREVIEW_READ_ONLY": "File previews support read requests only.",
   "error.INVALID_LIBRARY_NAME":
     "The library name cannot contain line breaks or control characters.",
@@ -100,7 +101,6 @@ export default {
   downloadInProgress:
     "Wait for the current download to finish, or cancel it and try again.",
   downloadCancelled: "Download cancelled",
-  imageRemoved: "The file has been removed. Refresh the directory.",
   imagePreviewFailed: "Unable to load the image preview. Try again later.",
   defaultLibraryName: "My files",
   downloadComplete: "Download complete: {{name}}",
