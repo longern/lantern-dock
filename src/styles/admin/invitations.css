@@ -1,0 +1,95 @@
+.admin-link-list,
+.admin-inbox-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-link-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+.admin-link-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px;
+}
+.admin-link-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+.admin-link-title h3 {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  margin: 0;
+}
+.admin-badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+  border-radius: 6px;
+  background: var(--surface-subtle);
+}
+.admin-badge[data-status="active"] {
+  background: #eef6f0;
+  color: #3b7350;
+}
+.admin-badge[data-status="full"] {
+  background: #fbf3e8;
+  color: #8b672b;
+}
+.admin-link-details {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0 14px;
+  font-size: var(--text-xs);
+}
+.admin-link-details > div {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: baseline;
+}
+.admin-link-details dt {
+  color: var(--muted);
+}
+.admin-link-details dd {
+  margin: 0;
+  text-align: right;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.admin-usage {
+  height: 4px;
+  overflow: hidden;
+  background: var(--accent-soft);
+  border-radius: 4px;
+}
+.admin-usage span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.admin-link-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+.admin-link-actions .text-button {
+  min-height: 44px;
+  padding: 8px;
+}
+.admin-danger {
+  color: #9a3f3f;
+}

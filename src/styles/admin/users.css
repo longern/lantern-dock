@@ -1,0 +1,124 @@
+.admin-users-split.has-member {
+  display: grid;
+  grid-template-columns: minmax(230px, 0.8fr) minmax(290px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.admin-user-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--surface-subtle);
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+.admin-user-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 0;
+  border: 0;
+  background: transparent;
+}
+.admin-user-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.admin-user-list li + li {
+  border-top: 1px solid var(--line);
+}
+.admin-user-list button {
+  width: 100%;
+}
+.admin-user-list button[aria-current="page"] {
+  background: var(--accent-soft);
+}
+.admin-member-avatar {
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  height: 44px;
+  border-radius: 50%;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-size: var(--text-md);
+}
+.admin-member-label,
+.admin-member-profile strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.admin-member-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 20px;
+  font-size: var(--text-lg);
+}
+.admin-permission-fields {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.admin-permission-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  min-height: 56px;
+  border-top: 1px solid var(--line);
+}
+.admin-permission-row > span:last-child {
+  color: var(--muted);
+}
+.admin-permission-row input[type="number"] {
+  width: 86px;
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 8px;
+  text-align: end;
+  background: var(--surface);
+}
+.admin-switch {
+  appearance: none;
+  width: 48px;
+  height: 28px;
+  border-radius: 16px;
+  margin: 0;
+  background: #9b9eae;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.admin-switch::before {
+  content: "";
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: white;
+  margin: 3px;
+  transition: transform var(--motion-fast);
+}
+.admin-switch:checked {
+  background: var(--accent);
+}
+.admin-switch:checked::before {
+  transform: translateX(20px);
+}
+.admin-save-permission {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: end;
+  gap: 12px;
+}
+.admin-save-permission p,
+.admin-member-locked {
+  color: var(--muted);
+}

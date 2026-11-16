@@ -1,0 +1,60 @@
+.admin-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.admin-filter .text-button {
+  min-height: 36px;
+  flex-shrink: 0;
+}
+.admin-inbox-file {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+.admin-inbox-file:last-child {
+  border: 0;
+}
+.admin-file-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 48px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.admin-file-copy {
+  flex: 1;
+  min-width: 0;
+}
+.admin-file-copy h3 {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  margin: 0 0 5px;
+  overflow-wrap: anywhere;
+}
+.admin-file-copy p {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+}
+.admin-file-meta {
+  display: flex;
+  gap: 5px 16px;
+  flex-wrap: wrap;
+}

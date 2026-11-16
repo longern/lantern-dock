@@ -1,0 +1,43 @@
+.admin-empty {
+  text-align: center;
+  padding: 50px 20px;
+  color: var(--muted);
+}
+.admin-empty h3 {
+  font-size: var(--text-md);
+  margin: 0 0 10px;
+  color: #424655;
+}
+.admin-empty p {
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  margin: 0 0 16px;
+}
+.admin-empty .secondary-button {
+  margin: auto;
+}
+.admin-footnote {
+  display: flex;
+  gap: 8px;
+  margin: 24px 0 0;
+  font-size: var(--text-xs);
+  line-height: 1.8;
+  color: var(--muted);
+}
+.admin-footnote svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+}
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+}
+.admin-pagination > span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
